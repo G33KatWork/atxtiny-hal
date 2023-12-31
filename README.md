@@ -119,38 +119,41 @@ I built this by myself for private projects by looking at similar HAL crates for
 
 2. Install the rest of the AVR toolchain from your distro like binutils
 
-3. Prepare all the rust crates and build everything
+3. Prepare all the rust crates and build everything:
+```
+git clone https://github.com/Rahix/atdf2svd.git
+cd atdf2svd
+cargo install --path .
+cd ..
 
-    git clone https://github.com/Rahix/atdf2svd.git
-    cd atdf2svd
-    cargo install --path .
-    cd ..
+git clone -b avr_ccp https://github.com/G33KatWork/svd2rust.git
+cd svd2rust
+cargo install --path .
+cd ..
 
-    git clone -b avr_ccp https://github.com/G33KatWork/svd2rust.git
-    cd svd2rust
-    cargo install --path .
-    cd ..
+git clone -b attiny817 https://github.com/G33KatWork/avr-device.git
+cd avr-device
+make -j16
+cd ..
 
-    git clone -b attiny817 https://github.com/G33KatWork/avr-device.git
-    cd avr-device
-    make -j16
-    cd ..
-
-    git clone https://github.com/G33KatWork/atxtiny-hal.git
-    cd atxtiny-hal
-    cargo build --release --examples
+git clone https://github.com/G33KatWork/atxtiny-hal.git
+cd atxtiny-hal
+cargo build --release --examples
+```
 
 Right now all of this is a bit cumbersome to use. Should become easier once patches we depend on are merged upstream into `svd2rust` and `avr-device`.
 
 ## Programming things using pymcuprog
 
-    # Installing pymcuprog
-    python -m venv env
-    source env/bin/activate
-    pip install pymcuprog
+```
+# Installing pymcuprog
+python -m venv env
+source env/bin/activate
+pip install pymcuprog
 
-    # Building and flashing stuff
-    cargo build --release --examples && avr-objcopy -O ihex target/avr-attiny817/release/examples/serial.elf /tmp/avr.hex && pymcuprog -d attiny817 -t uart -u /dev/ttyUSB0 erase && pymcuprog -d attiny817 -t uart -u /dev/ttyUSB0 write -f /tmp/avr.hex
+# Building and flashing stuff
+cargo build --release --examples && avr-objcopy -O ihex target/avr-attiny817/release/examples/serial.elf /tmp/avr.hex && pymcuprog -d attiny817 -t uart -u /dev/ttyUSB0 erase && pymcuprog -d attiny817 -t uart -u /dev/ttyUSB0 write -f /tmp/avr.hex
+```
 
 ## Other possible programmers
 
