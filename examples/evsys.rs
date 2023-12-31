@@ -21,9 +21,7 @@ fn main() -> ! {
     // Configure our clocks
     let _clocks = clkctrl.freeze();
 
-    // Grab the p
-
-    // Split the PORTA/B peripheral into their pins
+    // Split the PORTA/B/C peripheral into their pins
     let (a, b, c) = (dp.PORTA.split(), dp.PORTB.split(), dp.PORTC.split());
 
     // Grab AINN0 & AINP0
