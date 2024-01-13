@@ -1,4 +1,4 @@
-//! System configuration
+//! # System configuration
 
 use crate::pac::SYSCFG;
 

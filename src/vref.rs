@@ -1,4 +1,4 @@
-//! Voltage reference
+//! # Voltage reference
 
 // TODO: macros for different CPUs which have different peripherals
 // FIXME: move this into the DAC and ADC modules? DAC and AC share the channel though

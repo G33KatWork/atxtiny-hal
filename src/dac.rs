@@ -1,4 +1,4 @@
-//! Digital to Analog Converter
+//! # Digital to Analog Converter
 
 // TODO: macros for different CPUs which have different peripherals
 // FIXME: RUNSTDBY

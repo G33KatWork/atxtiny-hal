@@ -1,4 +1,4 @@
-//! Reset Controller
+//! # Reset Controller
 
 use enumset::{EnumSet, EnumSetType};
 use crate::pac::RSTCTRL;

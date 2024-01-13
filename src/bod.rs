@@ -1,4 +1,4 @@
-//! Brownout Detector
+//! # Brownout Detector
 
 use crate::{
     Toggle,

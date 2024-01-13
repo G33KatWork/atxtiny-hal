@@ -1,4 +1,4 @@
-//! Analog comparator
+//! # Analog comparator
 
 use crate::{pac::AC0, gpio::{Analog, Output, Stateless}, dac::DACOutputToAC};
 use core::marker::PhantomData;

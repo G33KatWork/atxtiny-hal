@@ -1,4 +1,4 @@
-//! CPU Interrupt Controller
+//! # CPU Interrupt Controller
 
 use enumset::{EnumSet, EnumSetType};
 

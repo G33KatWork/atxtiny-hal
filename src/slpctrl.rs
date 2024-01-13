@@ -1,4 +1,4 @@
-//! Sleep Controller
+//! # Sleep Controller
 
 use core::arch::asm;
 
