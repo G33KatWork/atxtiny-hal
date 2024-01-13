@@ -106,3 +106,7 @@ required-features = ["device-selected"]
 [[example]]
 name = "evsys"
 required-features = ["device-selected"]
+
+[[example]]
+name = "rtc_delay"
+required-features = ["device-selected"]

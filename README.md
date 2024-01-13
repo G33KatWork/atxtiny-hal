@@ -34,14 +34,13 @@ I built this by myself for private projects by looking at similar HAL crates for
 * TCA
 * TCB
 * CPUINT
+* RTC
 
 ## Missing peripheral support:
 
 * TCD
     * including event generators
 * ADC
-    * including event generators
-* RTC
     * including event generators
 * PIT
     * including event generators
@@ -59,6 +58,7 @@ I built this by myself for private projects by looking at similar HAL crates for
 
 * CLKCTRL
     * allow to configure 32khz clock either from internal source, external crystal or external clock
+    * pass this clock to RTC to make sure if external 32KHz clock is used that it is actually configured and works
 
 * EVSYS
     * More event generators and users for a few peripherals
@@ -66,6 +66,11 @@ I built this by myself for private projects by looking at similar HAL crates for
     * Use the type-system the declare generator and user constants somehow
     * Allow multiple users per channel - see FIXME in example when assigning users
     * It's really only applicable to the 1-series AVRs, 2-series is very different
+
+* RTC
+    * Event system
+    * External 32KHz clock support
+    * Compare channel support (see general timer TODO)
 
 * Generally introduce a lot of macros to instantiate peripherals in different configs for different controllers
     * Right now we only support the Attiny817
@@ -85,6 +90,7 @@ I built this by myself for private projects by looking at similar HAL crates for
 * General
     * RUNSTDBY support?
     * Allow for dummy pins to be able to use compare channels with EVSYS later
+    * split PWM trait in PWM and compare channel traits as we have timers that have compare channels, but not assigned PWM outputs like the RTC
 
 * TCA
     * Split mode

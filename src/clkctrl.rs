@@ -175,7 +175,6 @@ impl ClkCtrl {
         let divider = self.main_osc / desired_per_clk;
 
         if divider > 1 {
-            //let pdiv = into_pdiv(divider).expect("Impossible clock divider");
             let pdiv = into_pdiv(divider).expect("Impossible clock divider");
             clkctrl.mclkctrlb().write_protected(|w| { w
                 .pdiv().variant(pdiv)
@@ -187,7 +186,7 @@ impl ClkCtrl {
             });
         }
 
-        // Wait for the clock change to switch
+        // Wait for the clock change to the new source
         while clkctrl.mclkstatus().read().sosc().bit_is_set() {}
 
         Clocks {

@@ -12,6 +12,7 @@ pub use pwm::*;
 
 pub mod tca;
 pub mod tcb;
+pub mod rtc;
 
 use crate::time::*;
 
@@ -95,6 +96,8 @@ mod sealed {
         fn get_overflow(&self) -> bool;
     }
 
+    // FIXME: maybe split the pwm trait and a compare match trait and implement
+    //        both for PWM-capable timers? RTC only has compare match but no PWM
     pub trait WithPwm: General + PeriodicMode {
         const CH_NUMBER: u8;
         type GenerationMode;
