@@ -277,6 +277,21 @@ where
     pub fn get_max_duty(&self) -> u32 {
         TIM::read_period().into() + 1
     }
+
+    #[inline]
+    pub fn disable_counter(&mut self) {
+        self.tim.disable_counter();
+    }
+
+    #[inline]
+    pub fn enable_counter(&mut self) {
+        self.tim.enable_counter();
+    }
+
+    #[inline]
+    pub fn reset_count(&mut self) {
+        self.tim.reset_count();
+    }
 }
 
 
@@ -376,6 +391,21 @@ where
 
     pub fn get_max_duty(&self) -> u32 {
         TIM::read_period().into() + 1
+    }
+
+    #[inline]
+    pub fn disable_counter(&mut self) {
+        self.tim.disable_counter();
+    }
+
+    #[inline]
+    pub fn enable_counter(&mut self) {
+        self.tim.enable_counter();
+    }
+
+    #[inline]
+    pub fn reset_count(&mut self) {
+        self.tim.reset_count();
     }
 }
 
