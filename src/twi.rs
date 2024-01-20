@@ -480,9 +480,7 @@ where
                         // Not the last byte we expect? ACK it, otherwise NACK it
                         // The following read from MDATA triggers the RECVTRANS action automatically
                         if it.peek().is_some() {
-                            // Send ACK and command the HW-state machine that we received a transmission
                             self.twi.mctrlb().modify(|_, w| w.ackact().clear_bit());
-                        // If not, we NACK it
                         } else {
                             self.twi.mctrlb().modify(|_, w| w.ackact().set_bit());
                         }
@@ -504,6 +502,8 @@ where
                     busy_wait!(self.twi, NackSource::Address);
 
                     // Send bytes in the buffer
+                    // Should the sent byte be NACKed, the busy_wait! macro will
+                    // return and issue a STOP condition on the bus
                     for b in buffer.iter() {
                         self.twi.mdata().write(|w| w.bits(*b));
                         busy_wait!(self.twi, NackSource::Data);
