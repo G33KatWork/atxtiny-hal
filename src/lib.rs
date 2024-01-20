@@ -18,6 +18,8 @@ pub mod time;
 pub mod prelude;
 pub mod panic_serial;
 
+pub use avr_device;
+
 #[cfg(feature = "attiny817")]
 pub use avr_device::attiny817 as pac;
 
