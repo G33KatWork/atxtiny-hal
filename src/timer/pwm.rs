@@ -419,14 +419,45 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
     where
         PINS: Pins<TIM, P>,
     {
-        let clk = self.clk;
         self.tim.disable_counter();
         self.tim.reset_count();
         self.tim.set_pwm_mode(mode);
         self.tim.clear_overflow();
 
-        let (period, prescaler) = self.tim.calculate_period_and_prescaler::<TIM>(clk, freq)?;
+        let (period, prescaler) = self.tim.calculate_period_and_prescaler::<TIM>(self.clk, freq)?;
         self.tim.set_prescaler(prescaler);
+        self.tim.set_period(period)?;
+        self.tim.trigger_update();
+
+        self.tim.enable_counter();
+
+        Ok(PwmHz {
+            timer: self,
+            _pins: PhantomData,
+        })
+    }
+}
+
+impl<TIM: Instance + WithPwm> Timer<TIM> {
+    pub fn pwm_custom<P, PINS>(
+        mut self,
+        _pins: PINS,
+        prescaler: u16,
+        period: TIM::CounterValue,
+        mode: TIM::GenerationMode,
+    ) -> Result<PwmHz<TIM, P, PINS>, Error>
+    where
+        PINS: Pins<TIM, P>,
+    {
+        self.tim.disable_counter();
+        self.tim.reset_count();
+        self.tim.set_pwm_mode(mode);
+        self.tim.clear_overflow();
+
+        let prescaler = TIM::get_valid_prescalers(self.clk).iter()
+                            .find(|e| **e == prescaler)
+                            .ok_or(Error::ImpossiblePrescaler)?;
+        self.tim.set_prescaler(*prescaler);
         self.tim.set_period(period)?;
         self.tim.trigger_update();
 
