@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::time::*;
-use crate::hal::spi::{self, Mode};
+use crate::embedded_hal::spi::{self, Mode};
 use crate::pac::spi0::ctrla::DORD_A;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

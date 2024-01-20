@@ -14,7 +14,7 @@ fn main() -> ! {
     let _clocks = clkctrl.freeze();
 
     let b = dp.PORTB.split();
-    let btn = b.pb7.into_pull_up_input();
+    let mut btn = b.pb7.into_pull_up_input();
     let mut led = b.pb6.into_push_pull_output();
     let mut led2 = b.pb5.into_push_pull_output();
 

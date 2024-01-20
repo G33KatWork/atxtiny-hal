@@ -4,7 +4,7 @@
 //        pointer to the PORTMUX in every `mux` implementation and work with that.
 //        This also alleviates the need to pass a reference to it around.
 
-use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::OutputPin;
 
 use crate::pac::PORTMUX;
 

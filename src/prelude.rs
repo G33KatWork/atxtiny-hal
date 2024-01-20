@@ -8,8 +8,6 @@
 //! use atxtiny_hal::prelude::*;
 //! ```
 
-pub use crate::hal::prelude::*;
-
 pub use fugit::ExtU32 as _fugit_DurationExtU32;
 pub use fugit::RateExtU32 as _fugit_RateExtU32;
 
@@ -22,8 +20,7 @@ pub use crate::watchdog::{WdtExt as _atxtiny_hal_watchdog_WdtExt, WatchdogTimeou
 
 pub use crate::{
     time::*,
-    hal::digital::v2::InputPin as _embedded_hal_digital_InputPin,
-    hal::digital::v2::OutputPin as _embedded_hal_digital_OutputPin,
-    hal::digital::v2::StatefulOutputPin as _embedded_hal_digital_StatefulOutputPin,
-    hal::digital::v2::ToggleableOutputPin as _embedded_hal_digital_ToggleableOutputPin,
+    embedded_hal::digital::InputPin as _embedded_hal_digital_InputPin,
+    embedded_hal::digital::OutputPin as _embedded_hal_digital_OutputPin,
+    embedded_hal::digital::StatefulOutputPin as _embedded_hal_digital_StatefulOutputPin,
 };

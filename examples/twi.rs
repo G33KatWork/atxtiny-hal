@@ -5,7 +5,9 @@ use panic_halt as _;
 
 use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
-use atxtiny_hal::twi::Twi;
+use atxtiny_hal::twi::{Twi, Error, NackSource};
+
+use atxtiny_hal::embedded_hal::i2c::I2c;
 
 #[avr_device::entry]
 fn main() -> ! {
@@ -18,7 +20,7 @@ fn main() -> ! {
     // Configure our clocks
     let clocks = clkctrl.freeze();
 
-    // Split the PORTB peripheral into its pins
+    // Split the PORTA/B peripheral into its pins
     let b = dp.PORTB.split();
 
     // Grab the TWI pins
@@ -39,11 +41,19 @@ fn main() -> ! {
     // Write 1 byte 0x55 to EEPROM offset 0x0000
     twi.write(0x50, &[0, 0, 0x55]).unwrap();
 
+    // Wait for the EEPROM to finish the write
+    // While the EEPROM writes, it won't ACK any addressing attempts
+    while twi.read(0x50, &mut []) == Result::Err(Error::Nack(NackSource::Address)) {}
+
     // Read 1 byte from EEPROM offset 0x0000
     let mut buf = [0u8];
     twi.write_read(0x50, &[0x00, 0x00], &mut buf).unwrap();
 
-    assert!(buf[0] == 0x55);
+    if buf[0] == 0x55 {
+        twi.write(0x03, "EEPROM read success".as_bytes()).unwrap();
+    } else {
+        twi.write(0x03, "EEPROM read failure".as_bytes()).unwrap();
+    }
 
     loop { }
 }

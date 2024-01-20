@@ -6,6 +6,10 @@ use panic_halt as _;
 use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
 use atxtiny_hal::spi::Spi;
+use atxtiny_hal::serial::Serial;
+
+use atxtiny_hal::embedded_hal::spi::SpiDevice;
+use atxtiny_hal::embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
 
 #[avr_device::entry]
 fn main() -> ! {
@@ -18,8 +22,12 @@ fn main() -> ! {
     // Configure our clocks
     let clocks = clkctrl.freeze();
 
-    // Split the PORTC peripheral into its pins
-    let c = dp.PORTC.split();
+    // Split the POARTA and PORTC peripheral into its pins
+    let (a, c) = (dp.PORTA.split(), dp.PORTC.split());
+
+    // Serial port setup
+    let usart_pair = (a.pa2.into_peripheral::<pac::USART0>(), a.pa1.into_peripheral::<pac::USART0>()).mux(&portmux);
+    let mut s = Serial::new(dp.USART0, usart_pair, 115200u32.bps(), clocks);
 
     // Grab the SPI pins
     let sckpin = c.pc0.into_peripheral();
@@ -28,32 +36,40 @@ fn main() -> ! {
     let mut cs_ms = c.pc3.into_stateless_push_pull_output();
     let mut cs_mpu = c.pc4.into_stateless_push_pull_output();
 
-    // Invert and set the chip select pins
-    cs_ms.invert_polarity(Toggle::On);
-    cs_ms.set_low().unwrap();
-    cs_mpu.invert_polarity(Toggle::On);
-    cs_mpu.set_low().unwrap();
+    // Deselect any chip-selects
+    cs_ms.set_high().unwrap();
+    cs_mpu.set_high().unwrap();
 
     // Multiplex the SPI pins
     let spi_pair = (sckpin, misopin, mosipin);
     let spi_pair = spi_pair.mux(&portmux);
 
     // Create an SPI abstraction
-    let mut spi = Spi::new_unbuffered(dp.SPI0, spi_pair, 625_000.Hz(), clocks);
+    let spi = Spi::new_unbuffered(dp.SPI0, spi_pair, 625_000.Hz(), clocks);
 
-    // // Read MS5611 PROM
+    // Create an SpiDevice for the MS5611
+    let mut ms5611 = ExclusiveDevice::new(spi, cs_ms, NoDelay);
+
+    // Read MS5611 PROM
     let mut prom = [0u16; 8];
     for i in 0..8 {
         let mut buf = [0xA0 + i*2, 0xFF, 0xFF];
-        cs_ms.set_high().unwrap();
-        spi.transfer(&mut buf).unwrap();
-        cs_ms.set_low().unwrap();
+        ms5611.transfer_in_place(&mut buf).unwrap();
 
         prom[i as usize] = ((buf[1] as u16) << 8) | (buf[2] as u16);
     }
 
     let c = Coefficients { data: prom };
-    assert!(c.check_crc());
+
+    if c.check_crc() {
+        ufmt::uwriteln!(s, "CRC of MS5611 PROM correct!").unwrap();
+    }
+
+    ufmt::uwrite!(s, "Calibration coefficients: ").unwrap();
+    for b in prom {
+        ufmt::uwrite!(s, "{:04x} ", b).unwrap();
+    }
+    ufmt::uwriteln!(s, "").unwrap();
 
     loop { }
 }

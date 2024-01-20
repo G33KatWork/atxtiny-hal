@@ -9,7 +9,6 @@ use atxtiny_hal::pac;
 
 use atxtiny_hal::timer::{FTimer, Counter, tca::Interrupt, tca::Event};
 use atxtiny_hal::gpio::{Pin, Gpiox, Ux, Output, Stateful};
-use atxtiny_hal::hal::digital::v2::ToggleableOutputPin;
 
 use core::mem::MaybeUninit;
 

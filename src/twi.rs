@@ -7,7 +7,7 @@ use core::{
     marker::PhantomData,
 };
 
-use embedded_hal::blocking::i2c::{Read, Write, WriteRead};
+use embedded_hal::i2c::{I2c, ErrorType, Operation};
 
 use crate::{
     pac::twi0::RegisterBlock,
@@ -58,7 +58,31 @@ pub enum Error {
     /// Bus busy
     Busy,
     /// Not Acknowledge received
-    Nack,
+    Nack(NackSource),
+}
+
+/// TWI NACK error source
+#[derive(ufmt::derive::uDebug, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NackSource {
+    /// NACK received during Address phase
+    Address,
+
+    /// NACK received while sending or receiving data
+    Data,
+}
+
+impl embedded_hal::i2c::Error for Error {
+    fn kind(&self) -> embedded_hal::i2c::ErrorKind {
+        use embedded_hal::i2c::{ErrorKind, NoAcknowledgeSource};
+
+        match *self {
+            Error::Arbitration => ErrorKind::ArbitrationLoss,
+            Error::Bus => ErrorKind::Bus,
+            Error::Nack(NackSource::Address) => ErrorKind::NoAcknowledge(NoAcknowledgeSource::Address),
+            Error::Nack(NackSource::Data) => ErrorKind::NoAcknowledge(NoAcknowledgeSource::Data),
+            _ => ErrorKind::Other,
+        }
+    }
 }
 
 /// Status events.
@@ -364,153 +388,131 @@ where
 }
 
 macro_rules! busy_wait {
-    ($i2c:expr, $flag:ident, $variant:ident) => {
+    ($i2c:expr, $nacksource:expr) => {
         loop {
             let mstatus = $i2c.mstatus().read();
 
             if mstatus.arblost().bit_is_set() {
-                $i2c.mstatus().modify(|_, w| w.arblost().set_bit());
+                // ARBLOST gets cleared on the next MADDR write
                 return Err(Error::Arbitration);
             } else if mstatus.buserr().bit_is_set() {
-                $i2c.mstatus().modify(|_, w| w.buserr().set_bit());
+                // BUSERR gets cleared on the next MADDR write
                 return Err(Error::Bus);
-            } else if mstatus.wif().bit_is_set() && mstatus.rxack().bit_is_set() {
-                $i2c.mstatus().modify(|_, w| w.wif().clear_bit());
-                $i2c.mctrlb().modify(|_, w| w.mcmd().stop()); // Send STOP to free the bus
-                return Err(Error::Nack);
-            } else if mstatus.$flag().$variant() {
-                break;
+            } else if (mstatus.wif().bit_is_set() || mstatus.rif().bit_is_set()) {
+                // Received NACK
+                if mstatus.rxack().bit_is_set() {
+                    $i2c.mctrlb().modify(|_, w| w.mcmd().stop());
+                    return Err(Error::Nack($nacksource));
+                } else {
+                    break;
+                }
             }
         }
     };
 }
 
-impl<TWI, SCL, SDA> Read for Twi<TWI, TwiPinset<TWI, SCL, SDA>>
+macro_rules! wait_ownership {
+    ($i2c:expr) => {
+        loop {
+            let mstatus = $i2c.mstatus().read();
+
+            if mstatus.arblost().bit_is_set() {
+                return Err(Error::Arbitration);
+            }
+
+            if mstatus.busstate().is_owner() {
+                break;
+            } 
+        }
+    };
+}
+
+impl<TWI, SCL, SDA> ErrorType for Twi<TWI, TwiPinset<TWI, SCL, SDA>>
 where
     TWI: Instance,
     SCL: SclPin<TWI>,
     SDA: SdaPin<TWI>,
 {
     type Error = Error;
+}
 
-    fn read(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Self::Error> {
-        assert!(!buffer.is_empty());
-
+impl<TWI, SCL, SDA> I2c for Twi<TWI, TwiPinset<TWI, SCL, SDA>>
+where
+    TWI: Instance,
+    SCL: SclPin<TWI>,
+    SDA: SdaPin<TWI>,
+{
+    fn transaction(&mut self, address: u8, operations: &mut [Operation<'_>]) -> Result<(), Error> {
         // Detect Bus busy
         if self.twi.mstatus().read().busstate().is_busy() {
             return Err(Error::Busy);
         }
 
-        // Send address and read bit - this causes a START condition
-        self.twi.maddr().write(|w| { w.bits(address << 1 | 1) });
+        if operations.is_empty() {
+            return Ok(());
+        }
 
-        let mut it = buffer.iter_mut().peekable();
-        while let Some(b) = it.next() {
-            // Wait for data
-            busy_wait!(self.twi, rif, bit_is_set);
+        for operation in operations {
+            match operation {
+                Operation::Read(buffer) => {
+                    // Write the address and read-bit
+                    // This kicks off a START or repeated START condition on the bus
+                    self.twi.maddr().write(|w| { w.bits(address << 1 | 1) });
 
-            // Read
-            *b = self.twi.mdata().read().bits();
+                    // Wait for the bus state to transition into OWNED
+                    wait_ownership!(self.twi);
 
-            // Not the last byte we expect?
-            if it.peek().is_some() {
-                // Send ACK
-                self.twi.mctrlb().modify(|_, w| w.ackact().clear_bit());
-                self.twi.mctrlb().modify(|_, w| w.mcmd().recvtrans());
-            } else {
-                // Send NACK + STOP
-                self.twi.mctrlb().modify(|_, w| w.ackact().set_bit());
-                self.twi.mctrlb().modify(|_, w| w.mcmd().stop());
+                    // Wait for the address to be ACKed or NACKed
+                    busy_wait!(self.twi, NackSource::Address);
+
+                    // Special case for zero-length receive buffers
+                    // Just set the ACK action to NACK. The next write to MADDR or
+                    // the STOP action that is executed at the end of this function
+                    // then performs the NACK and the appropriate action like a STOP or
+                    // repeated START
+                    self.twi.mctrlb().modify(|_, w| w.ackact().set_bit());
+
+                    let mut it = buffer.iter_mut().peekable();
+                    while let Some(b) = it.next() {
+                        // Wait for data
+                        busy_wait!(self.twi, NackSource::Data);
+
+                        // Not the last byte we expect? ACK it, otherwise NACK it
+                        // The following read from MDATA triggers the RECVTRANS action automatically
+                        if it.peek().is_some() {
+                            // Send ACK and command the HW-state machine that we received a transmission
+                            self.twi.mctrlb().modify(|_, w| w.ackact().clear_bit());
+                        // If not, we NACK it
+                        } else {
+                            self.twi.mctrlb().modify(|_, w| w.ackact().set_bit());
+                        }
+
+                        // Read data and trigger ACK/NACK
+                        *b = self.twi.mdata().read().bits();
+                    }
+                },
+
+                Operation::Write(buffer) => {
+                    // Write the address and ~read-bit
+                    // This kicks off a START or repeated START condition on the bus
+                    self.twi.maddr().write(|w| { w.bits(address << 1 | 0) });
+
+                    // Wait for the bus state to transition into OWNED
+                    wait_ownership!(self.twi);
+
+                    // Wait for the address to be ACKed or NACKed
+                    busy_wait!(self.twi, NackSource::Address);
+
+                    // Send bytes in the buffer
+                    for b in buffer.iter() {
+                        self.twi.mdata().write(|w| w.bits(*b));
+                        busy_wait!(self.twi, NackSource::Data);
+                    }
+                }
             }
         }
 
-        Ok(())
-    }
-}
-
-impl<TWI, SCL, SDA> Write for Twi<TWI, TwiPinset<TWI, SCL, SDA>>
-where
-    TWI: Instance,
-    SCL: SclPin<TWI>,
-    SDA: SdaPin<TWI>,
-{
-    type Error = Error;
-
-    fn write(&mut self, address: u8, bytes: &[u8]) -> Result<(), Self::Error> {
-        // Detect Bus busy
-        if self.twi.mstatus().read().busstate().is_busy() {
-            return Err(Error::Busy);
-        }
-
-        // Send address and write bit - this causes a START condition
-        self.twi.maddr().write(|w| { w.bits(address << 1) });
-        busy_wait!(self.twi, wif, bit_is_set);
-
-        // Send bytes in the buffer
-        for b in bytes {
-            self.twi.mdata().write(|w| w.bits(*b));
-            busy_wait!(self.twi, wif, bit_is_set);
-        }
-
-        // Issue a STOP bus condition
-        self.twi.mctrlb().modify(|_, w| w.mcmd().stop());
-
-        Ok(())
-    }
-}
-
-impl<TWI, SCL, SDA> WriteRead for Twi<TWI, TwiPinset<TWI, SCL, SDA>>
-where
-    TWI: Instance,
-    SCL: SclPin<TWI>,
-    SDA: SdaPin<TWI>,
-{
-    type Error = Error;
-
-    fn write_read(&mut self, address: u8, bytes: &[u8], buffer: &mut [u8]) -> Result<(), Self::Error> {
-        assert!(!bytes.is_empty() && !buffer.is_empty());
-
-        // Detect Bus busy
-        if self.twi.mstatus().read().busstate().is_busy() {
-            return Err(Error::Busy);
-        }
-
-        // Send address and write bit - this causes a START condition
-        self.twi.maddr().write(|w| { w.bits(address << 1) });
-        busy_wait!(self.twi, wif, bit_is_set);
-
-        // Send bytes in the buffer
-        for b in bytes {
-            self.twi.mdata().write(|w| w.bits(*b));
-            busy_wait!(self.twi, wif, bit_is_set);
-        }
-
-        // Send Repeated start
-        self.twi.maddr().write(|w| { w.bits(address << 1 | 1) });
-        self.twi.mctrlb().modify(|_, w| w.mcmd().repstart());
-
-        // Read data
-        let mut it = buffer.iter_mut().peekable();
-        while let Some(b) = it.next() {
-            // Wait for data
-            busy_wait!(self.twi, rif, bit_is_set);
-
-            // Read
-            *b = self.twi.mdata().read().bits();
-
-            // Not the last byte we expect?
-            if it.peek().is_some() {
-                // Send ACK
-                self.twi.mctrlb().modify(|_, w| w.ackact().clear_bit());
-                self.twi.mctrlb().modify(|_, w| w.mcmd().recvtrans());
-            } else {
-                // Send NACK + STOP
-                self.twi.mctrlb().modify(|_, w| w.ackact().set_bit());
-                self.twi.mctrlb().modify(|_, w| w.mcmd().stop());
-            }
-        }
-
-        // Issue a STOP bus condition
+        // Send the final STOP
         self.twi.mctrlb().modify(|_, w| w.mcmd().stop());
 
         Ok(())

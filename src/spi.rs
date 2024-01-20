@@ -5,6 +5,7 @@
 // TODO: support dual role mode and switching between master and slave mode using the ~SS pin
 // TODO: interrupts
 
+use core::cmp::max;
 use core::{
     ops::Deref,
     marker::PhantomData,
@@ -12,8 +13,7 @@ use core::{
 
 use enumset::{EnumSet, EnumSetType};
 
-use crate::hal::blocking::spi;
-use crate::hal::spi::{FullDuplex, MODE_0, MODE_1, MODE_2, MODE_3};
+use crate::embedded_hal::spi::{SpiBus, ErrorType, MODE_0, MODE_1, MODE_2, MODE_3};
 
 use crate::{
     pac::spi0::{RegisterBlock, ctrla::PRESC_A, ctrlb::MODE_A},
@@ -33,6 +33,15 @@ pub enum Error {
 
     /// Write collision occurred
     WriteCollision,
+}
+
+impl crate::embedded_hal::spi::Error for Error {
+    fn kind(&self) -> crate::embedded_hal::spi::ErrorKind {
+        use crate::embedded_hal::spi::ErrorKind;
+        match *self {
+            Error::WriteCollision => ErrorKind::Other
+        }
+    }
 }
 
 /// SCK pin
@@ -261,9 +270,15 @@ where
     pub fn free(self) -> (SPI, SpiPinset<SPI, SCK, MISO, MOSI>) {
         (self.spi, self.pinset)
     }
+
+    fn transfer_byte(&mut self, tx: u8) -> Result<u8, Error> {
+        self.spi.data().write(|w| w.bits(tx));
+        while self.spi.intflags().read().if_().bit_is_clear() {}
+        Ok(self.spi.data().read().bits())
+    }
 }
 
-impl<SPI, MODE, SCK, MISO, MOSI> FullDuplex<u8> for Spi<SPI, MODE, SpiPinset<SPI, SCK, MISO, MOSI>>
+impl<SPI, MODE, SCK, MISO, MOSI> ErrorType for Spi<SPI, MODE, SpiPinset<SPI, SCK, MISO, MOSI>>
 where
     SPI: Instance,
     SCK: SckPin<SPI>,
@@ -272,35 +287,10 @@ where
     MODE: ED,
 {
     type Error = Error;
-
-    fn read(&mut self) -> nb::Result<u8, Self::Error> {
-        let intflags = self.spi.intflags().read();
-
-        if intflags.if_().bit_is_clear() {
-            return Err(nb::Error::WouldBlock)
-        }
-
-        Ok(self.spi.data().read().bits())
-    }
-
-    fn send(&mut self, word: u8) -> nb::Result<(), Self::Error> {
-        let intflags = self.spi.intflags().read();
-
-        if intflags.if_().bit_is_clear() {
-            self.spi.data().write(|w| w.bits(word));
-
-            if self.spi.intflags().read().wrcol().bit_is_set() {
-                return Err(nb::Error::Other(Error::WriteCollision));
-            }
-
-            return Ok(());
-        }
-
-        Err(nb::Error::WouldBlock)
-    }
 }
 
-impl<SPI, MODE, SCK, MISO, MOSI> spi::transfer::Default<u8> for Spi<SPI, MODE, SpiPinset<SPI, SCK, MISO, MOSI>>
+
+impl<SPI, MODE, SCK, MISO, MOSI> SpiBus for Spi<SPI, MODE, SpiPinset<SPI, SCK, MISO, MOSI>>
 where
     SPI: Instance,
     SCK: SckPin<SPI>,
@@ -308,16 +298,46 @@ where
     MOSI: MosiPin<SPI>,
     MODE: ED,
 {
-}
+    fn read(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
+        for w in words.iter_mut() {
+            *w = self.transfer_byte(0xff)?;
+        }
 
-impl<SPI, MODE, SCK, MISO, MOSI> spi::write::Default<u8> for Spi<SPI, MODE, SpiPinset<SPI, SCK, MISO, MOSI>>
-where
-    SPI: Instance,
-    SCK: SckPin<SPI>,
-    MISO: MisoPin<SPI>,
-    MOSI: MosiPin<SPI>,
-    MODE: ED,
-{
+        Ok(())
+    }
+
+    fn write(&mut self, words: &[u8]) -> Result<(), Self::Error> {
+        for w in words.iter() {
+            self.transfer_byte(*w)?;
+        }
+
+        Ok(())
+    }
+
+    fn transfer(&mut self, read: &mut [u8], write: &[u8]) -> Result<(), Self::Error> {
+        for i in 0..max(read.len(), write.len()) {
+            let tx_byte = if i < write.len() { write[i] } else { 0xff };
+            let rx_byte = self.transfer_byte(tx_byte)?;
+            if i < read.len() { read[i] = rx_byte };
+        }
+
+        Ok(())
+    }
+
+    fn transfer_in_place(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
+        for w in words.iter_mut() {
+            let d = self.transfer_byte(*w)?;
+            *w = d;
+        }
+
+        Ok(())
+    }
+
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        //while self.spi.intflags().read().if_().bit_is_clear() {}
+        //let _ = self.spi.data().read().bits();
+        Ok(())
+    }
 }
 
 /// SPI instance

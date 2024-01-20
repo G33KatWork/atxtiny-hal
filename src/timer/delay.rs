@@ -5,7 +5,7 @@ use core::ops::{Deref, DerefMut};
 use fugit::TimerDurationU32;
 
 use crate::time::*;
-use crate::hal::blocking::delay::{DelayMs, DelayUs};
+use crate::embedded_hal::delay::DelayNs;
 
 /// Periodic non-blocking timer that imlements [embedded_hal::blocking::delay] traits
 ///
@@ -96,38 +96,8 @@ impl<TIM: Instance + PeriodicMode, const FREQ: u32> fugit_timer::Delay<FREQ> for
     }
 }
 
-impl<TIM: Instance + PeriodicMode, const FREQ: u32> DelayMs<u32> for Delay<TIM, FREQ> {
-    fn delay_ms(&mut self, ms: u32) {
-        self.delay(ms.millis());
-    }
-}
-
-impl<TIM: Instance + PeriodicMode, const FREQ: u32> DelayUs<u32> for Delay<TIM, FREQ> {
-    fn delay_us(&mut self, us: u32) {
-        self.delay(us.micros());
-    }
-}
-
-impl<TIM: Instance + PeriodicMode, const FREQ: u32> DelayMs<u16> for Delay<TIM, FREQ> {
-    fn delay_ms(&mut self, ms: u16) {
-        self.delay((ms as u32).millis());
-    }
-}
-
-impl<TIM: Instance + PeriodicMode, const FREQ: u32> DelayUs<u16> for Delay<TIM, FREQ> {
-    fn delay_us(&mut self, us: u16) {
-        self.delay((us as u32).micros());
-    }
-}
-
-impl<TIM: Instance + PeriodicMode, const FREQ: u32> DelayMs<u8> for Delay<TIM, FREQ> {
-    fn delay_ms(&mut self, ms: u8) {
-        self.delay((ms as u32).millis());
-    }
-}
-
-impl<TIM: Instance + PeriodicMode, const FREQ: u32> DelayUs<u8> for Delay<TIM, FREQ> {
-    fn delay_us(&mut self, us: u8) {
-        self.delay((us as u32).micros());
+impl<TIM: Instance + PeriodicMode, const FREQ: u32> DelayNs for Delay<TIM, FREQ> {
+    fn delay_ns(&mut self, ns: u32) {
+        self.delay(ns.nanos());
     }
 }

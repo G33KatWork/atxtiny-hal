@@ -6,7 +6,9 @@
 
 #![deny(rustdoc::broken_intra_doc_links)]
 
-pub use embedded_hal as hal;
+pub use embedded_hal;
+pub use embedded_io;
+pub use embedded_hal_bus;
 
 mod private {
     /// Private sealed trait to seal all GPIO implementations

@@ -10,12 +10,11 @@
 use core::{
     fmt,
     ops::Deref,
-    convert::Infallible,
     marker::PhantomData,
 };
 
 use crate::pac::usart0::{RegisterBlock, ctrlb::RXMODE_A};
-use embedded_hal::{blocking, serial, serial::Write};
+use crate::embedded_io::{ErrorType as IoErrorType, Read as IoRead, Write as IoWrite};
 
 use crate::{
     clkctrl::Clocks,
@@ -179,6 +178,17 @@ pub enum Error {
     ///
     /// This error is thrown by hardware when a parity error occurs in receiver mode.
     Parity,
+}
+
+impl crate::embedded_io::Error for Error {
+    fn kind(&self) -> crate::embedded_io::ErrorKind {
+        use crate::embedded_io::ErrorKind;
+        match *self {
+            Error::Framing => ErrorKind::Other,
+            Error::Overrun => ErrorKind::Other,
+            Error::Parity =>  ErrorKind::Other,
+        }
+    }
 }
 
 /// An error that can be returned by the [`ufmt::uWrite`] trait
@@ -466,6 +476,20 @@ where
         Some(self.usart.rxdatal().read().bits() as u8)
     }
 
+    /// Serial read out of the read register including the 8th bit
+    ///
+    /// Functionally this is equivalent to [`Serial::read_data_register`] but
+    /// including the 8th bit from the RXDATAH register
+    #[doc(alias = "RDR")]
+    pub fn read_data_register_9bit(&self) -> Option<u16> {
+        if self.usart.rxdatah().read().rxcif().bit_is_clear() {
+            return None
+        }
+
+        let bit9 = self.usart.rxdatah().read().data8().bit() as u16;
+        Some(bit9 << 8 | (self.usart.rxdatal().read().bits() as u16))
+    }
+
     /// Enable the interrupt for the specified [`Interrupt`].
     #[inline]
     pub fn enable_interrupt(&mut self, interrupt: Interrupt) {
@@ -627,20 +651,20 @@ where
 
 /// Implementation of the [`embedded_hal::serial::Read`] trait
 /// shared between [`Rx::read()`] and [`Serial::read()`]
-fn eh_read<Usart>(usart: &mut Usart) -> nb::Result<u8, Error>
+fn eh_read<Usart>(usart: &mut Usart) -> Result<Option<u8>, Error>
 where
     Usart: Instance,
 {
     let rxdatah = usart.rxdatah().read();
 
-    Err(if rxdatah.perr().bit_is_set() {
+    if rxdatah.perr().bit_is_set() {
         // Read and remove the data that caused this error
         let _ = usart.rxdatal().read();
-        nb::Error::Other(Error::Parity)
+        Err(Error::Parity)
     } else if rxdatah.ferr().bit_is_set() {
         // Read and remove the data that caused this error
         let _ = usart.rxdatal().read();
-        nb::Error::Other(Error::Framing)
+        Err(Error::Framing)
     } else if rxdatah.bufovf().bit_is_set() {
         // Flush the receive data
         //
@@ -671,22 +695,29 @@ where
         while usart.rxdatah().read().rxcif().bit_is_set() {
             let _ = usart.rxdatal().read();
         }
-        nb::Error::Other(Error::Overrun)
+        Err(Error::Overrun)
     } else if rxdatah.rxcif().bit_is_set() {
-        return Ok(usart.rxdatal().read().bits() as u8);
+        Ok(Some(usart.rxdatal().read().bits() as u8))
     } else {
-        nb::Error::WouldBlock
-    })
+        Ok(None)
+    }
 }
 
-impl<Usart, RX, TX> serial::Read<u8> for Serial<Usart, UartPinset<Usart, RX, TX>>
+impl<Usart, RX, TX> IoErrorType for Serial<Usart, UartPinset<Usart, RX, TX>>
 where
     Usart: Instance,
     RX: RxPin<Usart>,
     TX: TxPin<Usart>,
 {
     type Error = Error;
+}
 
+impl<Usart, RX, TX> IoRead for Serial<Usart, UartPinset<Usart, RX, TX>>
+where
+    Usart: Instance,
+    RX: RxPin<Usart>,
+    TX: TxPin<Usart>,
+{
     /// Getting back an error means that the error is defined as "handled":
     ///
     /// This implementation has the side effect for error handling, that the [`Event`] flag of the returned
@@ -700,155 +731,149 @@ where
     /// up to the interrupt handler.
     ///
     /// To read out the content of the read register without internal error handling, use
-    /// [`Serial::read(&mut self)`].
+    /// [`Serial::read_data_register(&mut self)`].
     /// ...
     // -> According to this API it should be skipped.
-    fn read(&mut self) -> nb::Result<u8, Error> {
-        eh_read(&mut self.usart)
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        loop {
+            if let Some(b) = eh_read(&mut self.usart)? {
+                buf[0] = b;
+                return Ok(1);
+            }
+        }
     }
 }
 
-impl<Usart, Pin> serial::Read<u8> for Rx<Usart, Pin>
+impl<Usart, Pin> IoErrorType for Rx<Usart, Pin>
 where
     Usart: Instance,
     Pin: RxPin<Usart>,
 {
     type Error = Error;
+}
+
+impl<Usart, Pin> IoRead for Rx<Usart, Pin>
+where
+    Usart: Instance,
+    Pin: RxPin<Usart>,
+{
 
     /// This implementation shares the same effects as the [`Serial`]s [`serial::Read`] implemenation.
-    fn read(&mut self) -> nb::Result<u8, Error> {
-        eh_read(unsafe { self.usart_mut() })
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        loop {
+            if let Some(b) = eh_read(unsafe { self.usart_mut() })? {
+                buf[0] = b;
+                return Ok(1);
+            }
+        }
     }
 }
 
-impl<Usart, RX, TX> serial::Write<u8> for Serial<Usart, UartPinset<Usart, RX, TX>>
+impl<Usart, RX, TX> IoWrite for Serial<Usart, UartPinset<Usart, RX, TX>>
 where
     Usart: Instance,
     RX: RxPin<Usart>,
     TX: TxPin<Usart>,
 {
-    type Error = Infallible;
-
-    fn flush(&mut self) -> nb::Result<(), Infallible> {
-        if self.usart.status().read().txcif().bit_is_set() {
-            self.usart.status().write(|w| w.txcif().set_bit());
-            Ok(())
-        } else {
-            Err(nb::Error::WouldBlock)
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        for b in buf {
+            while self.usart.status().read().dreif().bit_is_clear() {}
+            self.usart.txdatal().write(|w| w.bits(*b));
         }
+
+        Ok(buf.len())
     }
 
-    fn write(&mut self, byte: u8) -> nb::Result<(), Infallible> {
-        if self.usart.status().read().dreif().bit_is_set() {
-            self.usart.txdatal().write(|w| w.bits(byte));
-            Ok(())
-        } else {
-            Err(nb::Error::WouldBlock)
-        }
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        while self.usart.status().read().txcif().bit_is_clear() {}
+        self.usart.status().write(|w| w.txcif().clear_bit());
+        Ok(())
     }
 }
 
 impl<Usart, RX, TX> fmt::Write for Serial<Usart, UartPinset<Usart, RX, TX>>
 where
-    Serial<Usart, UartPinset<Usart, RX, TX>>: serial::Write<u8>,
+    Serial<Usart, UartPinset<Usart, RX, TX>>: IoWrite,
     RX: RxPin<Usart>,
     TX: TxPin<Usart>,
 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        s.bytes()
-            .try_for_each(|c| nb::block!(self.write(c)))
-            .map_err(|_| fmt::Error)
+        self.write(s.as_bytes()).map(|_x| ()).map_err(|_| fmt::Error)
     }
-}
-
-impl<Usart, RX, TX> blocking::serial::write::Default<u8> for Serial<Usart, UartPinset<Usart, RX, TX>> where
-    Usart: Instance,
-    RX: RxPin<Usart>,
-    TX: TxPin<Usart>,
-{
 }
 
 impl<Usart, RX, TX> ufmt::uWrite for Serial<Usart, UartPinset<Usart, RX, TX>>
 where
-    Serial<Usart, UartPinset<Usart, RX, TX>>: serial::Write<u8>,
+    Serial<Usart, UartPinset<Usart, RX, TX>>: IoWrite,
     RX: RxPin<Usart>,
     TX: TxPin<Usart>,
 {
     type Error = uWriteError;
 
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-        s.bytes()
-            .try_for_each(|c| nb::block!(self.write(c)))
-            .map_err(|_| uWriteError)
+        self.write(s.as_bytes()).map(|_x| ()).map_err(|_| uWriteError)
     }
 
     fn write_char(&mut self, c: char) -> Result<(), Self::Error> {
-        nb::block!(self.write(c as u8)).map_err(|_| uWriteError)
+        self.write(&[c as u8]).map(|_x| ()).map_err(|_| uWriteError)
     }
 }
 
-impl<Usart, Pin> serial::Write<u8> for Tx<Usart, Pin>
+impl<Usart, Pin> IoErrorType for Tx<Usart, Pin>
 where
     Usart: Instance,
     Pin: TxPin<Usart>,
 {
-    type Error = Infallible;
+    type Error = Error;
+}
 
-    fn flush(&mut self) -> nb::Result<(), Infallible> {
-        let status = unsafe { self.usart().status().read() };
+impl<Usart, Pin> IoWrite for Tx<Usart, Pin>
+where
+    Usart: Instance,
+    Pin: TxPin<Usart>,
+{
 
-        if status.txcif().bit_is_set() {
-            unsafe { self.usart().status().write(|w| w.txcif().set_bit()) };
-            Ok(())
-        } else {
-            Err(nb::Error::WouldBlock)
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        for b in buf {
+            unsafe {
+                while self.usart().status().read().dreif().bit_is_clear() {}
+                self.usart().txdatal().write(|w| w.bits(*b));
+            }
         }
+
+        Ok(buf.len())
     }
 
-    fn write(&mut self, byte: u8) -> nb::Result<(), Infallible> {
-        let status = unsafe { self.usart().status().read() };
-
-        if status.dreif().bit_is_set() {
-            unsafe { self.usart().txdatal().write(|w| w.bits(byte)) };
-            Ok(())
-        } else {
-            Err(nb::Error::WouldBlock)
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        unsafe {
+            while self.usart().status().read().txcif().bit_is_clear() {}
+            self.usart().status().write(|w| w.txcif().clear_bit());
         }
+        Ok(())
     }
 }
 
 impl<Usart, Pin> fmt::Write for Tx<Usart, Pin>
 where
-    Tx<Usart, Pin>: serial::Write<u8>,
+    Tx<Usart, Pin>: IoWrite,
 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        s.bytes()
-            .try_for_each(|c| nb::block!(self.write(c)))
-            .map_err(|_| fmt::Error)
+        self.write(s.as_bytes()).map(|_x| ()).map_err(|_| fmt::Error)
     }
-}
-
-impl<Usart, Pin> blocking::serial::write::Default<u8> for Tx<Usart, Pin>
-where
-    Usart: Instance,
-    Pin: TxPin<Usart>,
-{
 }
 
 impl<Usart, Pin> ufmt::uWrite for Tx<Usart, Pin>
 where
-    Tx<Usart, Pin>: serial::Write<u8>,
+    Tx<Usart, Pin>: IoWrite,
 {
     type Error = uWriteError;
 
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-        s.bytes()
-            .try_for_each(|c| nb::block!(self.write(c)))
-            .map_err(|_| uWriteError)
+        self.write(s.as_bytes()).map(|_x| ()).map_err(|_| uWriteError)
     }
 
     fn write_char(&mut self, c: char) -> Result<(), Self::Error> {
-        nb::block!(self.write(c as u8)).map_err(|_| uWriteError)
+        self.write(&[c as u8]).map(|_x| ()).map_err(|_| uWriteError)
     }
 }
 

@@ -8,7 +8,7 @@ use core::{
 };
 
 use crate::{
-    hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin, ToggleableOutputPin},
+    embedded_hal::digital::{InputPin, OutputPin, StatefulOutputPin},
     Toggle
 };
 
@@ -57,6 +57,7 @@ mod private {
     }
 }
 
+use embedded_hal::digital::ErrorType;
 use private::GpioRegExt;
 
 /// Marker traits used in this module
@@ -358,13 +359,19 @@ where
     }
 }
 
-impl<Gpio, Index, Otype> OutputPin for Pin<Gpio, Index, Output<Otype>>
+impl<Gpio, Index, Mode> ErrorType for Pin<Gpio, Index, Mode>
 where
     Gpio: marker::Gpio,
     Index: marker::Index,
 {
     type Error = Infallible;
+}
 
+impl<Gpio, Index, Otype> OutputPin for Pin<Gpio, Index, Output<Otype>>
+where
+    Gpio: marker::Gpio,
+    Index: marker::Index,
+{
     fn set_high(&mut self) -> Result<(), Self::Error> {
         // NOTE(unsafe) atomic write to a stateless register
         unsafe { (*self.gpio.ptr()).set_high(self.index.index()) };
@@ -378,32 +385,17 @@ where
     }
 }
 
-impl<Gpio, Index, Otype> ToggleableOutputPin for Pin<Gpio, Index, Output<Otype>>
-where
-    Gpio: marker::Gpio,
-    Index: marker::Index,
-{
-    type Error = Infallible;
-
-    fn toggle(&mut self) -> Result<(), Self::Error> {
-        unsafe { (*self.gpio.ptr()).toggle(self.index.index()) }
-        Ok(())
-    }   
-}
-
 impl<Gpio, Index, Mode> InputPin for Pin<Gpio, Index, Mode>
 where
     Gpio: marker::Gpio,
     Index: marker::Index,
     Mode: marker::Readable,
 {
-    type Error = Infallible;
-
-    fn is_high(&self) -> Result<bool, Self::Error> {
+    fn is_high(&mut self) -> Result<bool, Self::Error> {
         Ok(!self.is_low()?)
     }
 
-    fn is_low(&self) -> Result<bool, Self::Error> {
+    fn is_low(&mut self) -> Result<bool, Self::Error> {
         // NOTE(unsafe) atomic read with no side effects
         Ok(unsafe { (*self.gpio.ptr()).is_low(self.index.index()) })
     }
@@ -414,13 +406,18 @@ where
     Gpio: marker::Gpio,
     Index: marker::Index,
 {
-    fn is_set_high(&self) -> Result<bool, Self::Error> {
+    fn is_set_high(&mut self) -> Result<bool, Self::Error> {
         Ok(!self.is_set_low()?)
     }
 
-    fn is_set_low(&self) -> Result<bool, Self::Error> {
+    fn is_set_low(&mut self) -> Result<bool, Self::Error> {
         // NOTE(unsafe) atomic read with no side effects
         Ok(unsafe { (*self.gpio.ptr()).is_set_low(self.index.index()) })
+    }
+
+    fn toggle(&mut self) -> Result<(), Self::Error> {
+        unsafe { (*self.gpio.ptr()).toggle(self.index.index()) }
+        Ok(())
     }
 }
 

@@ -3,10 +3,8 @@ use super::{Timer, FTimer, Instance, PeriodicMode, AsClockSource, Error};
 use core::ops::{Deref, DerefMut};
 
 use fugit::{TimerDurationU32, TimerInstantU32};
-use void::Void;
 
 use crate::time::*;
-use crate::hal::timer::{Cancel, Periodic, CountDown};
 
 /// A counter with dynamic precision which uses [`Hertz`] as Duration units
 pub struct CounterHz<TIM: Instance>(pub(super) Timer<TIM>);
@@ -68,34 +66,6 @@ impl<TIM: Instance + PeriodicMode> CounterHz<TIM> {
 
         self.tim.disable_counter();
         Ok(())
-    }
-}
-
-impl<TIM: Instance + PeriodicMode> Periodic for CounterHz<TIM> {}
-
-impl<TIM: Instance + PeriodicMode> CountDown for CounterHz<TIM> {
-    type Time = Hertz;
-
-    fn start<T>(&mut self, timeout: T)
-    where
-        T: Into<Hertz>,
-    {
-        self.start(timeout.into()).unwrap()
-    }
-
-    fn wait(&mut self) -> nb::Result<(), Void> {
-        match self.wait() {
-            Err(nb::Error::WouldBlock) => Err(nb::Error::WouldBlock),
-            _ => Ok(()),
-        }
-    }
-}
-
-impl<TIM: Instance + PeriodicMode> Cancel for CounterHz<TIM> {
-    type Error = Error;
-
-    fn cancel(&mut self) -> Result<(), Self::Error> {
-        self.cancel()
     }
 }
 
@@ -192,34 +162,6 @@ impl<TIM: Instance + PeriodicMode, const FREQ: u32> fugit_timer::Timer<FREQ> for
 
     fn wait(&mut self) -> nb::Result<(), Self::Error> {
         self.wait()
-    }
-}
-
-impl<TIM: Instance + PeriodicMode, const FREQ: u32> Periodic for Counter<TIM, FREQ> {}
-
-impl<TIM: Instance + PeriodicMode, const FREQ: u32> CountDown for Counter<TIM, FREQ> {
-    type Time = TimerDurationU32<FREQ>;
-
-    fn start<T>(&mut self, timeout: T)
-    where
-        T: Into<Self::Time>,
-    {
-        self.start(timeout.into()).unwrap()
-    }
-
-    fn wait(&mut self) -> nb::Result<(), Void> {
-        match self.wait() {
-            Err(nb::Error::WouldBlock) => Err(nb::Error::WouldBlock),
-            _ => Ok(()),
-        }
-    }
-}
-
-impl<TIM: Instance + PeriodicMode, const FREQ: u32> Cancel for Counter<TIM, FREQ> {
-    type Error = Error;
-
-    fn cancel(&mut self) -> Result<(), Self::Error> {
-        self.cancel()
     }
 }
 

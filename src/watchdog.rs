@@ -1,7 +1,6 @@
 //! # Watchdog
 
 use core::fmt;
-use crate::hal::watchdog::{Watchdog, WatchdogEnable};
 use crate::pac::{WDT, wdt::ctrla::{PERIOD_A, WINDOW_A}};
 
 use avr_device::ccp::ProtectedWritable;
@@ -137,19 +136,21 @@ impl WatchdogTimer {
     pub unsafe fn peripheral(&mut self) -> &mut WDT {
         &mut self.wdt
     }
-}
 
-impl WatchdogEnable for WatchdogTimer {
-    type Time = WatchdogTimeout;
-
-    fn start<T: Into<Self::Time>>(&mut self, period: T) {
-        self.setup(period.into(), None);
+    /// Start the watchdog with the supplied timeout period
+    ///
+    /// NOTE: This was an Embedded-HAL trait method once which was removed and
+    /// will be added back at a later time
+    pub fn start(&mut self, period: WatchdogTimeout) {
+        self.setup(period, None);
     }
-}
 
-impl Watchdog for WatchdogTimer {
+    /// Feed the watchdog and prevent it from expiring
+    ///
+    /// NOTE: This was an Embedded-HAL trait method once which was removed and
+    /// will be added back at a later time
     #[inline(always)]
-    fn feed(&mut self) {
+    pub fn feed(&mut self) {
         avr_device::asm::wdr()
     }
 }

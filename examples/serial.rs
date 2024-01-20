@@ -7,6 +7,7 @@ use core::fmt::Write;
 use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
 use atxtiny_hal::serial::Serial;
+use atxtiny_hal::embedded_io::Read;
 
 #[avr_device::entry]
 fn main() -> ! {
@@ -38,5 +39,9 @@ fn main() -> ! {
     // Say Hello
     s.write_str("Hello World\r\n".into()).unwrap();
 
-    loop { }
+    let buf = &mut [0u8];
+    loop {
+        s.read(&mut buf[..]).unwrap();
+        ufmt::uwriteln!(s, "Received character: 0x{:x}", buf[0]).unwrap();
+    }
 }

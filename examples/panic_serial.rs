@@ -9,6 +9,8 @@ use atxtiny_hal::pac;
 use atxtiny_hal::serial::{Serial, UartPinset};
 use atxtiny_hal::gpio::{Input, Output, Stateless};
 
+use atxtiny_hal::embedded_io::Write as ioWrite;
+
 atxtiny_hal::impl_panic_handler!(
     Serial<
         pac::USART0,
