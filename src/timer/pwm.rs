@@ -1,4 +1,4 @@
-use super::{Instance, WithPwm, Timer, FTimer, Error};
+use super::{Error, FTimer, Instance, Timer, WithPwm};
 
 use fugit::TimerDurationU32;
 
@@ -99,7 +99,6 @@ tuples! {
 
 impl<P, TIM, const C: u8> PwmPin<TIM, C> for P where P: WaveformOutputPinset<TIM, C> {}
 
-
 pub trait PwmExt<TIM: Instance + WithPwm>
 where
     Self: Sized + Instance + WithPwm,
@@ -114,7 +113,13 @@ where
     where
         PINS: Pins<Self, P>;
 
-    fn pwm_hz<P, PINS>(self, pins: PINS, freq: Hertz, mode: TIM::GenerationMode, clk: TIM::ClockSource,) -> Result<PwmHz<Self, P, PINS>, Error>
+    fn pwm_hz<P, PINS>(
+        self,
+        pins: PINS,
+        freq: Hertz,
+        mode: TIM::GenerationMode,
+        clk: TIM::ClockSource,
+    ) -> Result<PwmHz<Self, P, PINS>, Error>
     where
         PINS: Pins<Self, P>;
 }
@@ -231,33 +236,38 @@ where
     }
 }
 
-impl<TIM, P, PINS> PwmHz<TIM, P, PINS>
+impl<TIM, P, PINS> crate::traits::PwmTimer for PwmHz<TIM, P, PINS>
 where
     TIM: Instance + WithPwm,
     PINS: Pins<TIM, P>,
 {
+    type Error = Error;
+    type ChannelIndex = Channel;
+    type PeriodValue = Hertz;
+    type CompareValue = TIM::CompareValue;
+
     #[inline]
-    pub fn enable(&mut self, channel: Channel) {
+    fn enable(&mut self, channel: Channel) {
         TIM::enable_channel(PINS::check_used(channel) as u8, true)
     }
 
     #[inline]
-    pub fn disable(&mut self, channel: Channel) {
+    fn disable(&mut self, channel: Channel) {
         TIM::enable_channel(PINS::check_used(channel) as u8, false)
     }
 
     #[inline]
-    pub fn get_duty(&self, channel: Channel) -> TIM::CompareValue {
+    fn get_duty(&self, channel: Channel) -> TIM::CompareValue {
         TIM::read_compare_value(PINS::check_used(channel) as u8)
     }
 
     #[inline]
-    pub fn set_duty(&mut self, channel: Channel, duty: TIM::CompareValue) {
+    fn set_duty(&mut self, channel: Channel, duty: TIM::CompareValue) {
         // FIXME: throw error if > than current period?
         TIM::set_compare_value(PINS::check_used(channel) as u8, duty);
     }
 
-    pub fn get_period(&self) -> Hertz {
+    fn get_period(&self) -> Hertz {
         let clk = self.clk;
         let psc = self.tim.read_prescaler() as u32;
         let per = TIM::read_period().into() + 1;
@@ -265,35 +275,37 @@ where
         TIM::get_input_clock_rate(clk) / (psc * (per + 1))
     }
 
-    pub fn set_period(&mut self, period: Hertz) -> Result<(), Error> {
+    fn set_period(&mut self, period: Hertz) -> Result<(), Error> {
         let clk = self.clk;
-        let (period, prescaler) = self.tim.calculate_period_and_prescaler::<TIM>(clk, period)?;
+        let (period, prescaler) = self
+            .tim
+            .calculate_period_and_prescaler::<TIM>(clk, period)?;
         self.tim.set_prescaler(prescaler);
         self.tim.set_period(period)?;
         self.tim.trigger_update();
         Ok(())
     }
 
-    pub fn get_max_duty(&self) -> u32 {
+    #[inline]
+    fn get_max_duty(&self) -> u32 {
         TIM::read_period().into()
     }
 
     #[inline]
-    pub fn disable_counter(&mut self) {
+    fn disable_counter(&mut self) {
         self.tim.disable_counter();
     }
 
     #[inline]
-    pub fn enable_counter(&mut self) {
+    fn enable_counter(&mut self) {
         self.tim.enable_counter();
     }
 
     #[inline]
-    pub fn reset_count(&mut self) {
+    fn reset_count(&mut self) {
         self.tim.reset_count();
     }
 }
-
 
 pub struct Pwm<TIM, P, PINS, const FREQ: u32>
 where
@@ -341,71 +353,96 @@ where
     }
 }
 
+impl<TIM, P, PINS, const FREQ: u32> crate::traits::PwmTimer for Pwm<TIM, P, PINS, FREQ>
+where
+    TIM: Instance + WithPwm,
+    PINS: Pins<TIM, P>,
+{
+    type Error = Error;
+    type ChannelIndex = Channel;
+    type CompareValue = TIM::CompareValue;
+    type PeriodValue = TimerDurationU32<FREQ>;
+
+    #[inline]
+    fn enable(&mut self, channel: Channel) {
+        TIM::enable_channel(PINS::check_used(channel) as u8, true)
+    }
+
+    #[inline]
+    fn disable(&mut self, channel: Channel) {
+        TIM::enable_channel(PINS::check_used(channel) as u8, false)
+    }
+
+    #[inline]
+    fn get_duty(&self, channel: Channel) -> TIM::CompareValue {
+        TIM::read_compare_value(PINS::check_used(channel) as u8)
+    }
+
+    #[inline]
+    fn set_duty(&mut self, channel: Channel, duty: TIM::CompareValue) {
+        // FIXME: throw error if > than current period?
+        TIM::set_compare_value(PINS::check_used(channel) as u8, duty);
+    }
+
+    fn get_period(&self) -> TimerDurationU32<FREQ> {
+        TimerDurationU32::from_ticks(TIM::read_period().into() + 1)
+    }
+
+    fn set_period(&mut self, period: TimerDurationU32<FREQ>) -> Result<(), Error> {
+        let period = (period.ticks() - 1)
+            .try_into()
+            .map_err(|_| Error::ImpossiblePeriod)?;
+        self.tim.set_period(period)?;
+        self.tim.trigger_update();
+        Ok(())
+    }
+
+    #[inline]
+    fn get_max_duty(&self) -> u32 {
+        TIM::read_period().into()
+    }
+
+    #[inline]
+    fn disable_counter(&mut self) {
+        self.tim.disable_counter();
+    }
+
+    #[inline]
+    fn enable_counter(&mut self) {
+        self.tim.enable_counter();
+    }
+
+    #[inline]
+    fn reset_count(&mut self) {
+        self.tim.reset_count();
+    }
+}
+
 impl<TIM, P, PINS, const FREQ: u32> Pwm<TIM, P, PINS, FREQ>
 where
     TIM: Instance + WithPwm,
     PINS: Pins<TIM, P>,
 {
     #[inline]
-    pub fn enable(&mut self, channel: Channel) {
-        TIM::enable_channel(PINS::check_used(channel) as u8, true)
-    }
-
-    #[inline]
-    pub fn disable(&mut self, channel: Channel) {
-        TIM::enable_channel(PINS::check_used(channel) as u8, false)
-    }
-
-    #[inline]
-    pub fn get_duty(&self, channel: Channel) -> TIM::CompareValue {
-        TIM::read_compare_value(PINS::check_used(channel) as u8)
-    }
-
-    #[inline]
     pub fn get_duty_time(&self, channel: Channel) -> TimerDurationU32<FREQ> {
-        TimerDurationU32::from_ticks(TIM::read_compare_value(PINS::check_used(channel) as u8).into())
+        TimerDurationU32::from_ticks(
+            TIM::read_compare_value(PINS::check_used(channel) as u8).into(),
+        )
     }
 
     #[inline]
-    pub fn set_duty(&mut self, channel: Channel, duty: TIM::CompareValue) {
+    pub fn set_duty_time(
+        &mut self,
+        channel: Channel,
+        duty: TimerDurationU32<FREQ>,
+    ) -> Result<(), Error> {
         // FIXME: throw error if > than current period?
-        TIM::set_compare_value(PINS::check_used(channel) as u8, duty);
-    }
-
-    #[inline]
-    pub fn set_duty_time(&mut self, channel: Channel, duty: TimerDurationU32<FREQ>) -> Result<(), Error> {
-        // FIXME: throw error if > than current period?
-        Ok(TIM::set_compare_value(PINS::check_used(channel) as u8, duty.ticks().try_into().map_err(|_| Error::ImpossiblePeriod)?))
-    }
-
-    pub fn get_period(&self) -> TimerDurationU32<FREQ> {
-        TimerDurationU32::from_ticks(TIM::read_period().into() + 1)
-    }
-
-    pub fn set_period(&mut self, period: TimerDurationU32<FREQ>) -> Result<(), Error> {
-        let period = (period.ticks() - 1).try_into().map_err(|_| Error::ImpossiblePeriod)?;
-        self.tim.set_period(period)?;
-        self.tim.trigger_update();
-        Ok(())
-    }
-
-    pub fn get_max_duty(&self) -> u32 {
-        TIM::read_period().into()
-    }
-
-    #[inline]
-    pub fn disable_counter(&mut self) {
-        self.tim.disable_counter();
-    }
-
-    #[inline]
-    pub fn enable_counter(&mut self) {
-        self.tim.enable_counter();
-    }
-
-    #[inline]
-    pub fn reset_count(&mut self) {
-        self.tim.reset_count();
+        Ok(TIM::set_compare_value(
+            PINS::check_used(channel) as u8,
+            duty.ticks()
+                .try_into()
+                .map_err(|_| Error::ImpossiblePeriod)?,
+        ))
     }
 }
 
@@ -424,7 +461,9 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
         self.tim.set_pwm_mode(mode);
         self.tim.clear_overflow();
 
-        let (period, prescaler) = self.tim.calculate_period_and_prescaler::<TIM>(self.clk, freq)?;
+        let (period, prescaler) = self
+            .tim
+            .calculate_period_and_prescaler::<TIM>(self.clk, freq)?;
         self.tim.set_prescaler(prescaler);
         self.tim.set_period(period)?;
         self.tim.trigger_update();
@@ -454,9 +493,10 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
         self.tim.set_pwm_mode(mode);
         self.tim.clear_overflow();
 
-        let prescaler = TIM::get_valid_prescalers(self.clk).iter()
-                            .find(|e| **e == prescaler)
-                            .ok_or(Error::ImpossiblePrescaler)?;
+        let prescaler = TIM::get_valid_prescalers(self.clk)
+            .iter()
+            .find(|e| **e == prescaler)
+            .ok_or(Error::ImpossiblePrescaler)?;
         self.tim.set_prescaler(*prescaler);
         self.tim.set_period(period)?;
         self.tim.trigger_update();
@@ -488,7 +528,9 @@ impl<TIM: Instance + WithPwm, const FREQ: u32> FTimer<TIM, FREQ> {
         self.tim.set_pwm_mode(mode);
         self.tim.clear_overflow();
 
-        let period = (time.ticks() - 1).try_into().map_err(|_| Error::ImpossiblePeriod)?;
+        let period = (time.ticks() - 1)
+            .try_into()
+            .map_err(|_| Error::ImpossiblePeriod)?;
         self.tim.set_period(period)?;
         self.tim.trigger_update();
 

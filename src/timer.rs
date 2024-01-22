@@ -1,19 +1,19 @@
 //! # Basic timer support
 
-mod timer;
 mod counter;
 mod delay;
 mod pwm;
+mod timer;
 
-pub use timer::*;
 pub use counter::*;
 pub use delay::*;
 pub use pwm::*;
+pub use timer::*;
 
+pub mod rtc;
 pub mod tca;
 pub mod tcb;
 pub mod tcb_8bit;
-pub mod rtc;
 
 use crate::time::*;
 
@@ -28,7 +28,7 @@ mod sealed {
         const TIMER_WIDTH_BITS: u8;
         type CounterValue: Clone + Copy + Into<u32> + TryFrom<u32>;
 
-        cfg_if::cfg_if!{
+        cfg_if::cfg_if! {
             if #[cfg(feature = "enumset")] {
                 type Interrupt: EnumSetType;
                 type Event: EnumSetType;
@@ -54,7 +54,7 @@ mod sealed {
 
     pub trait AsClockSource: General {
         type OutputClock;
-    
+
         fn use_as_clock_source(&self, timer_clk: Hertz) -> Self::OutputClock;
     }
 
@@ -77,16 +77,22 @@ mod sealed {
         fn trigger_update(&mut self);
         fn max_period() -> Self::CounterValue;
 
-        fn calculate_period_and_prescaler<C: TimerClock>(&self, clk: C::ClockSource, frequency: Hertz) -> Result<(Self::CounterValue, u16), Error> {
+        fn calculate_period_and_prescaler<C: TimerClock>(
+            &self,
+            clk: C::ClockSource,
+            frequency: Hertz,
+        ) -> Result<(Self::CounterValue, u16), Error> {
             let ticks = C::get_input_clock_rate(clk).raw() / frequency.raw();
             // Round the division up to the next integer to properly determine the
             // prescaler which is an upper bound
             // let prescaler = ticks.div_ceil(1 << Self::TIMER_WIDTH_BITS);  // nightly feature
-            let prescaler = (ticks + (1 << Self::TIMER_WIDTH_BITS) - 1) / (1 << Self::TIMER_WIDTH_BITS);
-        
-            let prescaler = C::get_valid_prescalers(clk).iter()
-                                 .find(|e| **e as u32 >= prescaler)
-                                 .ok_or(Error::ImpossiblePrescaler)?;
+            let prescaler =
+                (ticks + (1 << Self::TIMER_WIDTH_BITS) - 1) / (1 << Self::TIMER_WIDTH_BITS);
+
+            let prescaler = C::get_valid_prescalers(clk)
+                .iter()
+                .find(|e| **e as u32 >= prescaler)
+                .ok_or(Error::ImpossiblePrescaler)?;
             let period = (ticks / *prescaler as u32) - 1;
 
             let period = period.try_into().map_err(|_| Error::ImpossiblePeriod)?;
@@ -122,7 +128,7 @@ mod sealed {
     //    fn set_single_shot_mode(&mut self);
     //}
 }
-pub(crate) use sealed::{General, AsClockSource, PeriodicMode, WithPwm};
+pub(crate) use sealed::{AsClockSource, General, PeriodicMode, WithPwm};
 
 /// A trait describing one or multiple clock inputs for a timer
 pub trait TimerClock {
@@ -152,7 +158,10 @@ pub trait TimerClock {
 }
 
 /// A timer instance
-pub trait Instance: TimerClock + General + crate::private::Sealed { }
+pub trait Instance: TimerClock + General + crate::private::Sealed {}
+
+/// A timer instance with mandotory PWM
+pub trait InstanceWithPwm: Instance + WithPwm {}
 
 #[derive(ufmt::derive::uDebug, Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Error {
@@ -183,7 +192,9 @@ pub trait TimerExt<TIM: Instance>: Sized {
     }
 
     /// Non-blocking [Counter] with dynamic precision which uses `Hertz` as Duration units
-    fn counter_hz(self, clk: TIM::ClockSource) -> CounterHz<Self> where Self: Instance;
+    fn counter_hz(self, clk: TIM::ClockSource) -> CounterHz<Self>
+    where
+        Self: Instance;
 
     /// Blocking [Delay] with custom fixed precision
     fn delay<const FREQ: u32>(self, clk: TIM::ClockSource) -> Result<Delay<Self, FREQ>, Error>;

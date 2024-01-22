@@ -25,6 +25,7 @@ pub use avr_device;
 #[cfg(feature = "attiny817")]
 pub use avr_device::attiny817 as pac;
 
+pub mod traits;
 pub mod clkctrl;
 pub mod gpio;
 pub mod portmux;

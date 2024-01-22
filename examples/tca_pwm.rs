@@ -6,6 +6,7 @@ use panic_halt as _;
 use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
 use atxtiny_hal::timer::{FTimer, Channel, tca::WaveformGenerationMode};
+use atxtiny_hal::traits::PwmTimer;
 
 #[avr_device::entry]
 fn main() -> ! {
