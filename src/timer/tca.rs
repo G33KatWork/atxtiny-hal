@@ -313,14 +313,14 @@ fn from_clksrc(prescaler: single_ctrla::CLKSEL_A) -> u16 {
     }
 }
 
+impl crate::private::Sealed for crate::pac::TCA0 {}
+
 use core::marker::PhantomData;
 use crate::gpio::{Output, Stateless};
 use super::pwm::{WaveformOutputPinset, C1, C2, C3};
 
 /// A pin can be marked with this when it can be used as a waveform output pin
 pub trait WaveformOutputPin<TCA, const CHAN: u8> {}
-
-impl crate::private::Sealed for crate::pac::TCA0 {}
 
 /// Pin set for the port multiplexer
 pub struct TcaPinset<TIM, WaveformOutput: WaveformOutputPin<TIM, CHAN>, const CHAN: u8> {
@@ -336,7 +336,7 @@ where
         TcaPinset { _tim: PhantomData, output }
     }
 
-    pub fn free(self) -> WaveformOutput { 
+    pub fn free(self) -> WaveformOutput {
         self.output
     }
 }

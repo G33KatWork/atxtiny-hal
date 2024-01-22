@@ -33,6 +33,8 @@ I built this by myself for private projects by looking at similar HAL crates for
 * CCL
 * TCA
 * TCB
+    * Periodic mode
+    * PWM in 8 bit mode
 * CPUINT
 * RTC
 
@@ -93,6 +95,7 @@ I built this by myself for private projects by looking at similar HAL crates for
     * RUNSTDBY support?
     * Allow for dummy pins to be able to use compare channels with EVSYS later
     * split PWM trait in PWM and compare channel traits as we have timers that have compare channels, but not assigned PWM outputs like the RTC
+    * Implement pwm_custom for an FTimer
 
 * TCA
     * Split mode
@@ -100,7 +103,6 @@ I built this by myself for private projects by looking at similar HAL crates for
 * TCB
     * oneshot mode
     * delay in oneshot mode
-    * PWM in 8 bit mode
     * input capture mode
     * timeout check mode
 

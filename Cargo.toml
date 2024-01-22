@@ -102,6 +102,10 @@ name = "tca_timer"
 required-features = ["device-selected"]
 
 [[example]]
+name = "tcb_pwm"
+required-features = ["device-selected"]
+
+[[example]]
 name = "twi"
 required-features = ["device-selected"]
 
