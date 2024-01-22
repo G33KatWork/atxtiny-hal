@@ -182,7 +182,7 @@ impl<TIM: Instance + WithPwm, const C: u8> PwmChannel<TIM, C> {
 
     #[inline]
     pub fn get_max_duty(&self) -> u32 {
-        TIM::read_period().into() + 1
+        TIM::read_period().into()
     }
 }
 
@@ -275,7 +275,7 @@ where
     }
 
     pub fn get_max_duty(&self) -> u32 {
-        TIM::read_period().into() + 1
+        TIM::read_period().into()
     }
 
     #[inline]
@@ -390,7 +390,7 @@ where
     }
 
     pub fn get_max_duty(&self) -> u32 {
-        TIM::read_period().into() + 1
+        TIM::read_period().into()
     }
 
     #[inline]
