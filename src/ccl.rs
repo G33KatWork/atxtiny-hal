@@ -1,9 +1,9 @@
 //! # Configurable Custom Logic
 
 use crate::pac::{
-    ccl::seqctrl,
     ccl::lut::{lutctrla, lutctrlb, lutctrlc},
-    CCL
+    ccl::seqctrl,
+    CCL,
 };
 use crate::Toggle;
 
@@ -25,18 +25,19 @@ pub struct CclLutOutputPinset<LUT, Out: OutputPin<LUT>> {
 
 impl<LUT, Out> CclLutOutputPinset<LUT, Out>
 where
-    Out: OutputPin<LUT>
+    Out: OutputPin<LUT>,
 {
     pub(crate) fn new(out: Out) -> Self {
-        CclLutOutputPinset { _lut: PhantomData, out }
+        CclLutOutputPinset {
+            _lut: PhantomData,
+            out,
+        }
     }
 
     pub fn free(self) -> Out {
         self.out
     }
 }
-
-
 
 /// Extension trait to configure a `CCL` peripheral and all containing LUTs
 pub trait CclExt {
@@ -47,11 +48,9 @@ pub trait CclExt {
     fn split(self) -> Self::Parts;
 }
 
-
-
 /// CCL Register interface traits private to this module
 mod private {
-    use super::{SequencerConfig, FilterSelection, ClockSource, Input0, Input1, Input2, Toggle};
+    use super::{ClockSource, FilterSelection, Input0, Input1, Input2, SequencerConfig, Toggle};
 
     pub trait CclRegExt {
         fn enable(&self);
@@ -74,8 +73,6 @@ mod private {
     }
 }
 
-
-
 /// Marker traits used in this module
 pub mod marker {
     /// Marker trait for CCLs
@@ -94,7 +91,15 @@ pub mod marker {
     }
 }
 
+/// Runtime defined LUT index (type state)
+#[derive(ufmt::derive::uDebug, Debug)]
+pub struct Ux(u8);
 
+impl marker::Index for Ux {
+    fn index(&self) -> u8 {
+        self.0
+    }
+}
 
 /// Compile time defined LUT index (type state)
 #[derive(ufmt::derive::uDebug, Debug)]
@@ -107,7 +112,6 @@ impl<const X: u8> marker::Index for U<X> {
     }
 }
 
-
 /// Active LUT (type state)
 #[derive(ufmt::derive::uDebug, Debug)]
 pub struct Active;
@@ -119,8 +123,6 @@ pub struct Inactive;
 impl marker::Enabled for Active {}
 impl marker::Disabled for Inactive {}
 
-
-
 /// Generic LUT
 #[derive(Debug)]
 pub struct Lut<Ccl, Index, State> {
@@ -131,6 +133,27 @@ pub struct Lut<Ccl, Index, State> {
 
 // Make all LUT peripheral trait extensions sealable.
 impl<Ccl, Index, State> crate::private::Sealed for Lut<Ccl, Index, State> {}
+
+/// Fully erased LUT
+///
+/// This moves the LUT type information to be known
+/// at runtime, and erases the specific compile time type of the LUT.
+/// The only compile time information of the LUT is it's Mode.
+pub type Lutx<Ccl, State> = Lut<Ccl, Ux, State>;
+
+impl<Ccl, State, const X: u8> Lut<Ccl, U<X>, State> {
+    /// Erases the pin number from the type
+    ///
+    /// This is useful when you want to collect the pins into an array where you
+    /// need all the elements to have the same type
+    pub fn downgrade(self) -> Lut<Ccl, Ux, State> {
+        Lut {
+            ccl: self.ccl,
+            index: Ux(X),
+            _state: self._state,
+        }
+    }
+}
 
 impl<Ccl, Index, State> Lut<Ccl, Index, State> {
     fn into_state<NewState>(self) -> Lut<Ccl, Index, NewState> {
@@ -148,7 +171,7 @@ where
     Index: marker::Index,
 {
     /// Enable the LUT.
-    /// 
+    ///
     /// An enabled LUT cannot be reconfigured until it's disabled again using
     /// [`Lut::disable`].
     #[inline]
@@ -165,41 +188,41 @@ where
     }
 
     /// Configure the output pin of the LUT.
-    /// 
+    ///
     /// When enabled, this overrides the pin configuration of the
     /// PORT I/O controller.
     #[inline]
     pub fn output_enable(self, enable: Toggle) -> Self {
-       unsafe { (*self.ccl.ptr()).lut_output_enable(self.index.index(), enable) };
-       self
+        unsafe { (*self.ccl.ptr()).lut_output_enable(self.index.index(), enable) };
+        self
     }
 
     /// Configure the output synchronization filter.
     #[inline]
     pub fn filter(self, filter: FilterSelection) -> Self {
-       unsafe { (*self.ccl.ptr()).lut_filter_selection(self.index.index(), filter) };
-       self
+        unsafe { (*self.ccl.ptr()).lut_filter_selection(self.index.index(), filter) };
+        self
     }
 
     /// Select the clock source for the sequencer.
     #[inline]
     pub fn clock_source(self, clock_src: ClockSource) -> Self {
-       unsafe { (*self.ccl.ptr()).lut_clock_source(self.index.index(), clock_src) };
-       self
+        unsafe { (*self.ccl.ptr()).lut_clock_source(self.index.index(), clock_src) };
+        self
     }
 
     /// Define the two inputs into the lookup table.
     #[inline]
     pub fn inputs(self, input0: Input0, input1: Input1, input2: Input2) -> Self {
-       unsafe { (*self.ccl.ptr()).lut_inputs(self.index.index(), input0, input1, input2) };
-       self
+        unsafe { (*self.ccl.ptr()).lut_inputs(self.index.index(), input0, input1, input2) };
+        self
     }
 
     /// Set the lookup table value.
     #[inline]
     pub fn table(self, lookup_table: u8) -> Self {
-       unsafe { (*self.ccl.ptr()).lut_table(self.index.index(), lookup_table) };
-       self
+        unsafe { (*self.ccl.ptr()).lut_table(self.index.index(), lookup_table) };
+        self
     }
 }
 
@@ -209,7 +232,7 @@ where
     Index: marker::Index,
 {
     /// Disable the LUT
-    /// 
+    ///
     /// A disabled LUT can be reconfigured again until it's enabled using
     /// [`Lut::enable`].
     #[inline]
@@ -218,7 +241,6 @@ where
         self.into_state()
     }
 }
-
 
 use private::CclRegExt;
 
@@ -235,38 +257,56 @@ impl CclRegExt for crate::pac::ccl::RegisterBlock {
 
     #[inline(always)]
     fn sequencer_config(&self, seq_idx: u8, config: SequencerConfig) {
-        self.seqctrl(seq_idx as usize).write(|w| w.seqsel().variant(config.into()));
+        self.seqctrl(seq_idx as usize)
+            .write(|w| w.seqsel().variant(config.into()));
     }
 
     #[inline(always)]
     fn lut_edge_detection(&self, lut_idx: u8, enable: Toggle) {
-        self.lut(lut_idx as usize).lutctrla().modify(|_, w| w.edgedet().bit(enable.into()));
+        self.lut(lut_idx as usize)
+            .lutctrla()
+            .modify(|_, w| w.edgedet().bit(enable.into()));
     }
 
     #[inline(always)]
     fn lut_output_enable(&self, lut_idx: u8, enable: Toggle) {
-        self.lut(lut_idx as usize).lutctrla().modify(|_, w| w.outen().bit(enable.into()));
+        self.lut(lut_idx as usize)
+            .lutctrla()
+            .modify(|_, w| w.outen().bit(enable.into()));
     }
 
     #[inline(always)]
     fn lut_filter_selection(&self, lut_idx: u8, filter: FilterSelection) {
-        self.lut(lut_idx as usize).lutctrla().modify(|_, w| w.filtsel().variant(filter.into()));
+        self.lut(lut_idx as usize)
+            .lutctrla()
+            .modify(|_, w| w.filtsel().variant(filter.into()));
     }
 
     #[inline(always)]
     fn lut_clock_source(&self, lut_idx: u8, filter: ClockSource) {
-        self.lut(lut_idx as usize).lutctrla().modify(|_, w| w.clksrc().variant(filter.into()));
+        self.lut(lut_idx as usize)
+            .lutctrla()
+            .modify(|_, w| w.clksrc().variant(filter.into()));
     }
 
     #[inline(always)]
     fn lut_enable(&self, lut_idx: u8, state: Toggle) {
-        self.lut(lut_idx as usize).lutctrla().modify(|_, w| w.enable().variant(state.into()));
+        self.lut(lut_idx as usize)
+            .lutctrla()
+            .modify(|_, w| w.enable().variant(state.into()));
     }
 
     #[inline(always)]
     fn lut_inputs(&self, lut_idx: u8, input0: Input0, input1: Input1, input2: Input2) {
-        self.lut(lut_idx as usize).lutctrlb().modify(|_, w| w.insel0().variant(input0.into()).insel1().variant(input1.into()));
-        self.lut(lut_idx as usize).lutctrlc().modify(|_, w| w.insel2().variant(input2.into()));
+        self.lut(lut_idx as usize).lutctrlb().modify(|_, w| {
+            w.insel0()
+                .variant(input0.into())
+                .insel1()
+                .variant(input1.into())
+        });
+        self.lut(lut_idx as usize)
+            .lutctrlc()
+            .modify(|_, w| w.insel2().variant(input2.into()));
     }
 
     #[inline(always)]
@@ -274,8 +314,6 @@ impl CclRegExt for crate::pac::ccl::RegisterBlock {
         self.lut(lut_idx as usize).truth().write(|w| w.bits(table));
     }
 }
-
-
 
 /// Generic main control block for a CCL
 #[derive(ufmt::derive::uDebug, Debug)]
@@ -291,7 +329,7 @@ where
     Ccl: marker::Ccl,
 {
     /// Enable the CCL peripheral block
-    /// 
+    ///
     /// NOTE: Due to an errata, the whole CCL blocks needs to be disabled
     /// completely to reconfigure even independent LUTs, otherwise registers
     /// in the LUT region are still going to be enable-protected. The AVR-DD
@@ -315,8 +353,6 @@ where
     }
 }
 
-
-
 /// The CCL itself (type state)
 pub struct Ccl;
 
@@ -329,8 +365,6 @@ impl private::Ccl for Ccl {
 }
 
 impl marker::Ccl for Ccl {}
-
-
 
 macro_rules! ccl {
     ({
@@ -407,7 +441,7 @@ pub enum SequencerConfig {
     DFlipFlop,
     JKFlipFlop,
     DLatch,
-    RSLatch
+    RSLatch,
 }
 
 impl From<SequencerConfig> for seqctrl::SEQSEL_A {
@@ -554,11 +588,9 @@ impl From<Input2> for lutctrlc::INSEL2_A {
     }
 }
 
-
-
 // TODO: I didn't manage yet to add pins to the LUT state so far
 // TODO: macros
-use crate::gpio::{Output, Stateless, Input};
+use crate::gpio::{Input, Output, Stateless};
 
 impl OutputPin<LUT0> for crate::gpio::porta::PA4<Output<Stateless>> {}
 impl OutputPin<LUT0> for crate::gpio::portb::PB4<Output<Stateless>> {}
@@ -574,18 +606,22 @@ impl InputPin<LUT1, 0> for crate::gpio::portc::PC3<Input> {}
 impl InputPin<LUT1, 1> for crate::gpio::portc::PC4<Input> {}
 impl InputPin<LUT1, 2> for crate::gpio::portc::PC5<Input> {}
 
-
 use crate::evsys::ChannelConfigurator;
-use crate::evsys::{EventGenerator, Channel, Unconfigured, GeneratorAssigned};
+use crate::evsys::{Channel, EventGenerator, GeneratorAssigned, Unconfigured};
 
-impl<Evsys, Index, CCL, State, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index> for Lut<CCL, U<X>, State>
+impl<Evsys, Index, CCL, State, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
+    for Lut<CCL, U<X>, State>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index,
 {
     type EventSource = ();
 
-    fn connect_event_generator(&mut self, mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>, _source: ()) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
+    fn connect_event_generator(
+        &mut self,
+        mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>,
+        _source: (),
+    ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
         channel.set_generator(0x01 + X);
         channel.into_state()
     }
