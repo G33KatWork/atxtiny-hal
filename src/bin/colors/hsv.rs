@@ -42,9 +42,9 @@ impl HSV {
     }
 
     /// Constructs a new HSV color, from 3 32-bit floats
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `h` - The hue (0..1) to use.
     /// * `s` - The saturation (0..1) to use.
     /// * `v` - The value (0..1) to use.
@@ -121,14 +121,14 @@ impl HSV {
     }
 
     /// Progress smoothly between two colors, in the HSV color space.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `color` - the target color.
     /// * `percent` - the percentage (0..1) of the starting (self) and target color to use.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use bracket_color::prelude::*;
     /// let red = RGB::named(RED);

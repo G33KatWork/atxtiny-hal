@@ -107,7 +107,7 @@ pub struct Channel<Evsys, Flavor, Index, State> {
 impl<Evsys, Flavor, Index, State> crate::private::Sealed for Channel<Evsys, Flavor, Index, State> {}
 
 impl<Evsys, Flavor, Index, State> Channel<Evsys, Flavor, Index, State> {
-    pub (crate) fn into_state<NewState>(self) -> Channel<Evsys, Flavor, Index, NewState> {
+    pub(crate) fn into_state<NewState>(self) -> Channel<Evsys, Flavor, Index, NewState> {
         Channel {
             evsys: self.evsys,
             index: self.index,
@@ -115,7 +115,6 @@ impl<Evsys, Flavor, Index, State> Channel<Evsys, Flavor, Index, State> {
         }
     }
 }
-
 
 macro_rules! evsys {
     ({
@@ -150,15 +149,15 @@ macro_rules! evsys {
                 fn set_async_generator(&self, channel_idx: u8, generator: u8) {
                     self.asyncch(channel_idx as usize).write(|f| unsafe { f.bits(generator) });
                 }
-            
+
                 fn set_sync_generator(&self, channel_idx: u8, generator: u8) {
                     self.syncch(channel_idx as usize).write(|f| unsafe { f.bits(generator) });
                 }
-            
+
                 fn set_async_user(&self, user_idx: u8, multiplexer_select: u8) {
                     self.asyncuser(multiplexer_select as usize).write(|f| unsafe { f.bits(user_idx) });
                 }
-            
+
                 fn set_sync_user(&self, user_idx: u8, multiplexer_select: u8) {
                     self.syncuser(multiplexer_select as usize).write(|f| unsafe { f.bits(user_idx) });
                 }
@@ -217,7 +216,10 @@ where
     Evsys: marker::Evsys,
     Index: marker::Index,
 {
-    pub fn connect_event_user<U: EventUser<Evsys, Async>>(mut self, _user: &U) -> Channel<Evsys, Async, Index, Configured> {
+    pub fn connect_event_user<U: EventUser<Evsys, Async>>(
+        mut self,
+        _user: &U,
+    ) -> Channel<Evsys, Async, Index, Configured> {
         self.set_multiplexer(U::MULTIPLEXER_INDEX);
         self.into_state()
     }
@@ -294,7 +296,7 @@ where
     State: marker::ChannelState,
 {
     fn set_multiplexer(&mut self, multiplexer: u8) {
-       unsafe { (*self.evsys.ptr()).set_sync_user(Index::UX, multiplexer) }
+        unsafe { (*self.evsys.ptr()).set_sync_user(Index::UX, multiplexer) }
     }
 
     fn set_generator(&mut self, generator: u8) {
@@ -310,7 +312,11 @@ where
 {
     type EventSource;
 
-    fn connect_event_generator(&mut self, channel: Channel<Evsys, Flavor, Index, Unconfigured>, source: Self::EventSource) -> Channel<Evsys, Flavor, Index, GeneratorAssigned>;
+    fn connect_event_generator(
+        &mut self,
+        channel: Channel<Evsys, Flavor, Index, Unconfigured>,
+        source: Self::EventSource,
+    ) -> Channel<Evsys, Flavor, Index, GeneratorAssigned>;
 }
 
 evsys!({

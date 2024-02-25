@@ -1,12 +1,12 @@
 //! # Brownout Detector
 
 use crate::{
+    pac::{bod, BOD},
     Toggle,
-    pac::{BOD, bod}
 };
 
 /// Sampling frequency
-/// 
+///
 /// The configured sampling frequency is loaded from fusebits on reset.
 #[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SamplingFrequency {
@@ -30,7 +30,7 @@ pub enum Mode {
     /// The brownout detector is continously enabled during Active mode and
     /// disabled in sleep modes. When a wake-up event occurs, the wake-up is
     /// halted until the the brownout detector signals that the power is good
-    EnabledAndWakeupHaltedTillBODReady
+    EnabledAndWakeupHaltedTillBODReady,
 }
 
 impl From<Mode> for bod::ctrla::ACTIVE_A {
@@ -81,7 +81,7 @@ impl From<bod::ctrla::SLEEP_A> for Mode {
 }
 
 /// The brownout detector level
-/// 
+///
 /// The configured level is loaded from fusebits on reset.
 #[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
@@ -264,7 +264,12 @@ impl BrownoutDetectorConfigurator {
     }
 
     /// Configure the voltage level monitor
-    pub fn voltage_level_monitor(mut self, level: VoltageLevelThreshold, mode: VlmConfiguration, int: bool) -> Self {
+    pub fn voltage_level_monitor(
+        mut self,
+        level: VoltageLevelThreshold,
+        mode: VlmConfiguration,
+        int: bool,
+    ) -> Self {
         self.vlm_level = level;
         self.vlm_mode = mode;
         self.vlm_int = int;
@@ -288,7 +293,7 @@ impl BrownoutDetectorConfigurator {
 
 impl BrownoutDetector {
     /// Get the configured sampling frequency for the brownout detection
-    /// 
+    ///
     /// This setting is loaded from fusebits during reset and can not be changed
     /// during runtime
     pub fn get_sampling_frequency(&self) -> SamplingFrequency {
@@ -300,7 +305,7 @@ impl BrownoutDetector {
     }
 
     /// Get the configured active brownout detection mode
-    /// 
+    ///
     /// This mode is loaded from fusebits during reset and can not be changed
     /// during runtime
     #[inline]
@@ -317,11 +322,13 @@ impl BrownoutDetector {
     /// Set the configured sleep brownout detection mode
     #[inline]
     pub fn set_sleep_mode(&mut self, mode: Mode) {
-        self.bod.ctrla().modify(|_, w| w.sleep().variant(mode.into()));
+        self.bod
+            .ctrla()
+            .modify(|_, w| w.sleep().variant(mode.into()));
     }
 
     /// Get the configured sleep brownout detection mode
-    /// 
+    ///
     /// This setting is loaded from fusebits during reset and can not be changed
     /// during runtime
     #[inline]
@@ -332,43 +339,46 @@ impl BrownoutDetector {
     /// Set the current monitor threshold for the voltage level monitor.
     #[inline]
     pub fn set_voltage_monitor_threshold(&mut self, level: VoltageLevelThreshold) {
-        self.bod.vlmctrla().modify(|_, w| w.vlmlvl().variant(level.into()));
+        self.bod
+            .vlmctrla()
+            .modify(|_, w| w.vlmlvl().variant(level.into()));
     }
 
     /// Get the current monitor threshold for the voltage level monitor.
     #[inline]
     pub fn get_voltage_monitor_threshold(&self) -> VoltageLevelThreshold {
-        self.bod.vlmctrla().read().vlmlvl().variant().unwrap().into()
+        self.bod
+            .vlmctrla()
+            .read()
+            .vlmlvl()
+            .variant()
+            .unwrap()
+            .into()
     }
 
     /// Enable or disable the voltage level monitor interrupt.
-    /// 
+    ///
     /// The passed [`VlmConfiguration`] configures when an interrupt is triggered.
     #[inline]
     pub fn configure_interrupt(&mut self, enable: impl Into<Toggle>, config: VlmConfiguration) {
         let enable: Toggle = enable.into();
         let enable: bool = enable.into();
 
-        self.bod.intctrl().modify(|_, w| w
-            .vlmcfg().variant(config.into())
-            .vlmie().bit(enable)
-        );
+        self.bod
+            .intctrl()
+            .modify(|_, w| w.vlmcfg().variant(config.into()).vlmie().bit(enable));
     }
 
     /// Enable the voltage level monitor interrupt.
     #[inline]
     pub fn enable_interrupt(&mut self) {
-        self.bod.intctrl().modify(|_, w| w
-            .vlmie().set_bit()
-        );
+        self.bod.intctrl().modify(|_, w| w.vlmie().set_bit());
     }
 
     /// Disable the voltage level monitor interrupt.
     #[inline]
     pub fn disable_interrupt(&mut self) {
-        self.bod.intctrl().modify(|_, w| w
-            .vlmie().clear_bit()
-        );
+        self.bod.intctrl().modify(|_, w| w.vlmie().clear_bit());
     }
 
     /// Check if the voltage level monitoring interrupt event happend.

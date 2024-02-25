@@ -3,8 +3,8 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
+use atxtiny_hal::prelude::*;
 use atxtiny_hal::timer::FTimer;
 
 #[avr_device::entry]
@@ -31,7 +31,7 @@ fn main() -> ! {
 
     // Use the now configured fixed frequency timer to create a counter
     let mut c = t.counter();
-    
+
     // Start the counter with a timeout of 100ms
     // If the timeout cannot be met given the fixed frequency, start() returns
     // an Error

@@ -2,7 +2,7 @@
 
 use crate::pac::{
     clkctrl::{mclkctrla, mclkctrlb},
-    CLKCTRL
+    CLKCTRL,
 };
 use crate::time::*;
 
@@ -32,7 +32,7 @@ impl CLKCTRLExt for CLKCTRL {
 }
 
 /// The possible main clock sources for the chip
-/// 
+///
 /// This clock source gets divided down by the clock controller and is passed
 /// to further blocks like memory, CPU, peripherals etc.
 #[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,7 +70,7 @@ fn into_pdiv(div: u32) -> Option<mclkctrlb::PDIV_A> {
 }
 
 /// Clock controller abstraction
-/// 
+///
 /// This is an abstraction of the CLKCTRL peripheral used to configure the
 /// system clock tree.
 pub struct ClkCtrl {
@@ -83,7 +83,7 @@ pub struct ClkCtrl {
 impl Default for ClkCtrl {
     fn default() -> Self {
         Self {
-            main_osc:  Hertz::from_raw(20_000_000).raw(),
+            main_osc: Hertz::from_raw(20_000_000).raw(),
             main_clk_src: MainClkSrc::Osc20M,
             enable_clkout: false,
             per_clk: None,
@@ -93,13 +93,13 @@ impl Default for ClkCtrl {
 
 impl ClkCtrl {
     /// Set the main oscillator frequency.
-    /// 
+    ///
     /// This is the frequency of the main oscillator which gets divided down
     /// into fractions.
-    /// 
+    ///
     /// The frequency depends on the selection of the main clock source by
     /// calling [`ClkCtrl::clk_src_main`].
-    /// 
+    ///
     /// This is usually 16 or 20MHz, depending on the `OSCCFG` fuse bit when
     /// the [`MainClkSrc::Osc20M`].
     /// For [`MainClkSrc::OscUlp32K`]/[`MainClkSrc::XOsc32K`] it's 32KHz.
@@ -114,7 +114,7 @@ impl ClkCtrl {
     ///
     /// The clock source can be the internal 16/20MHz oscillator, an external
     /// clock or internal/external 32kHz oscillators.
-    /// 
+    ///
     /// The appropriate frequency needs to be set using [`ClkCtrl::main_osc_freq`].
     pub fn clk_src_main(mut self, src: MainClkSrc) -> Self {
         self.main_clk_src = src;
@@ -128,11 +128,11 @@ impl ClkCtrl {
     }
 
     /// Set the desired `PER_CLK`` peripheral clock.
-    /// 
+    ///
     /// This clock is divided down from the main clock. The prescaler also
     /// affects the CPU clock `CPU_CLK` which is also fed from the same divided
     /// main clock.
-    /// 
+    ///
     /// NOTE: not all combinations of main clocks and CPU/peripheral clocks are
     /// possible. The prescaler must be in a list of supported prescalers which
     /// can cause unsupported combinations.
@@ -147,7 +147,7 @@ impl ClkCtrl {
 
     // FIXME: return Error for impossible dividers and clock rates?
     /// Configure the clock controller as desired.
-    /// 
+    ///
     /// The returned [`Clocks`] struct contains the resulting clock frequencies.
     pub fn freeze(self) -> Clocks {
         assert!(self.main_osc <= 20_000_000);
@@ -157,17 +157,24 @@ impl ClkCtrl {
 
         // Wait for the selected clock to stabilize
         match clksel {
-           mclkctrla::CLKSEL_A::EXTCLK => while clkctrl.mclkstatus().read().exts().bit_is_clear() {},
-           mclkctrla::CLKSEL_A::OSC20M => while clkctrl.mclkstatus().read().osc20ms().bit_is_clear() {},
-           mclkctrla::CLKSEL_A::OSCULP32K => while clkctrl.mclkstatus().read().osc32ks().bit_is_clear() {},
-           mclkctrla::CLKSEL_A::XOSC32K => while clkctrl.mclkstatus().read().xosc32ks().bit_is_clear() {},
+            mclkctrla::CLKSEL_A::EXTCLK => {
+                while clkctrl.mclkstatus().read().exts().bit_is_clear() {}
+            }
+            mclkctrla::CLKSEL_A::OSC20M => {
+                while clkctrl.mclkstatus().read().osc20ms().bit_is_clear() {}
+            }
+            mclkctrla::CLKSEL_A::OSCULP32K => {
+                while clkctrl.mclkstatus().read().osc32ks().bit_is_clear() {}
+            }
+            mclkctrla::CLKSEL_A::XOSC32K => {
+                while clkctrl.mclkstatus().read().xosc32ks().bit_is_clear() {}
+            }
         };
 
         // Set main clock source
-        clkctrl.mclkctrla().write_protected(|w| { w
-            .clksel().variant(clksel)
-            .clkout().bit(self.enable_clkout)
-        });
+        clkctrl
+            .mclkctrla()
+            .write_protected(|w| w.clksel().variant(clksel).clkout().bit(self.enable_clkout));
 
         // Set per_clk divider
         let desired_per_clk = self.per_clk.unwrap_or(self.main_osc);
@@ -176,14 +183,11 @@ impl ClkCtrl {
 
         if divider > 1 {
             let pdiv = into_pdiv(divider).expect("Impossible clock divider");
-            clkctrl.mclkctrlb().write_protected(|w| { w
-                .pdiv().variant(pdiv)
-                .pen().set_bit()
-            });
+            clkctrl
+                .mclkctrlb()
+                .write_protected(|w| w.pdiv().variant(pdiv).pen().set_bit());
         } else {
-            clkctrl.mclkctrlb().write_protected(|w| { w
-                .pen().clear_bit()
-            });
+            clkctrl.mclkctrlb().write_protected(|w| w.pen().clear_bit());
         }
 
         // Wait for the clock change to the new source
@@ -193,7 +197,7 @@ impl ClkCtrl {
             main: Hertz::from_raw(self.main_osc),
             per: Hertz::from_raw(self.main_osc / divider),
             main_prescaler: divider as u8,
-            bod_wdt: (32768u32/1024).Hz()
+            bod_wdt: (32768u32 / 1024).Hz(),
         }
     }
 }

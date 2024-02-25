@@ -5,12 +5,12 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
-use atxtiny_hal::pac;
-use atxtiny_hal::vref::{VrefExt, ReferenceVoltage};
-use atxtiny_hal::dac::DacExt;
 use atxtiny_hal::ac::{ComparatorExt, Config};
+use atxtiny_hal::dac::DacExt;
+use atxtiny_hal::pac;
+use atxtiny_hal::prelude::*;
 use atxtiny_hal::timer::FTimer;
+use atxtiny_hal::vref::{ReferenceVoltage, VrefExt};
 
 #[avr_device::entry]
 fn main() -> ! {
@@ -42,7 +42,7 @@ fn main() -> ! {
     // but we can also get output objects that can be passed into other
     // peripherals like the negative AC0 pin
     let mut dac = dac.lock_enable();
-    
+
     // Grab AINP0
     let ainp0 = a.pa7.into_analog_input();
 
@@ -54,10 +54,14 @@ fn main() -> ! {
     acout.internal_pull_up(Toggle::Off);
 
     // Create a comparator
-    let ac = dp.AC0.comparator(ainp0, ainn0, Config {
-        hysteresis: atxtiny_hal::ac::Hysteresis::_50mV,
-        ..Default::default()
-    });
+    let ac = dp.AC0.comparator(
+        ainp0,
+        ainn0,
+        Config {
+            hysteresis: atxtiny_hal::ac::Hysteresis::_50mV,
+            ..Default::default()
+        },
+    );
     ac.output_pin(acout);
     let _ac = ac.enable();
 
@@ -70,7 +74,7 @@ fn main() -> ! {
     loop {
         led.toggle().unwrap();
         dac.dac_set_value(i);
-        
+
         i = i.wrapping_add(4);
         d.delay(50.millis());
     }

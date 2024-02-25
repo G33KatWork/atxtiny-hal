@@ -1,12 +1,8 @@
 //! # Time unit utilities
 
 pub use fugit::{
-    HertzU32 as Hertz,
-    KilohertzU32 as KiloHertz,
-    MegahertzU32 as MegaHertz,
-    NanosDurationU32 as NanosDuration,
-    ExtU32 as _fugit_DurationExtU32,
-    RateExtU32 as _fugit_RateExtU32,
+    ExtU32 as _fugit_DurationExtU32, HertzU32 as Hertz, KilohertzU32 as KiloHertz,
+    MegahertzU32 as MegaHertz, NanosDurationU32 as NanosDuration, RateExtU32 as _fugit_RateExtU32,
 };
 
 /// Bits per second

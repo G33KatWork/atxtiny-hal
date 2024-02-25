@@ -3,9 +3,9 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
-use atxtiny_hal::timer::{FTimer, Timer, Channel, tca::WaveformGenerationMode};
+use atxtiny_hal::prelude::*;
+use atxtiny_hal::timer::{tca::WaveformGenerationMode, Channel, FTimer, Timer};
 use atxtiny_hal::traits::PwmTimer;
 
 #[avr_device::entry]
@@ -37,7 +37,9 @@ fn main() -> ! {
     // passed counter in conjunction with the clock supplying the timer peripheral
     // an error is returned.
     // At 20MHz CLK_PER and a prescaler of 1024, a 1kHz period boils down to a duty cycle of 19969
-    let mut pwm = t.pwm_hz(pwm_pins, 1.kHz(), WaveformGenerationMode::SingleSlope).unwrap();
+    let mut pwm = t
+        .pwm_hz(pwm_pins, 1.kHz(), WaveformGenerationMode::SingleSlope)
+        .unwrap();
     let max_duty = pwm.get_max_duty() as u16;
 
     // Enable all three channels and set a duty cycle
@@ -54,7 +56,9 @@ fn main() -> ! {
     // TCB only has prescalers of 1 and 2, so we have to make it tick at 10MHz
     // The delay() function is just going to let the timer expire multiple times
     // to achieve longer delays
-    let mut d = FTimer::<_, 10000000>::new(dp.TCB0, clocks.into()).unwrap().delay();
+    let mut d = FTimer::<_, 10000000>::new(dp.TCB0, clocks.into())
+        .unwrap()
+        .delay();
 
     let mut i = 0;
 

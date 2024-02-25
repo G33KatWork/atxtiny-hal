@@ -1,6 +1,10 @@
 //! # Analog comparator
 
-use crate::{pac::AC0, gpio::{Analog, Output, Stateless}, dac::DACOutputToAC};
+use crate::{
+    dac::DACOutputToAC,
+    gpio::{Analog, Output, Stateless},
+    pac::AC0,
+};
 use core::marker::PhantomData;
 
 /// Enabled Comparator (type state)
@@ -91,12 +95,15 @@ macro_rules! impl_comparator {
                 negative_input: N,
                 config: Config,
             ) -> Comparator<$COMP, Disabled> {
-                self.ctrla().modify(|_, w| w
-                    .hysmode().bits(config.hysteresis as u8)
-                    .lpmode().bit(config.low_power_mode)
-                );
+                self.ctrla().modify(|_, w| {
+                    w.hysmode()
+                        .bits(config.hysteresis as u8)
+                        .lpmode()
+                        .bit(config.low_power_mode)
+                });
 
-                self.muxctrla().modify(|_, w| w.invert().bit(config.inverted));
+                self.muxctrla()
+                    .modify(|_, w| w.invert().bit(config.inverted));
                 positive_input.setup(&self);
                 negative_input.setup(&self);
 
@@ -130,7 +137,9 @@ macro_rules! impl_comparator {
             /// Enables raising the comparator interrupt at the specified output signal edge
             #[inline]
             pub fn listen(&self, mode: InterruptMode) {
-                self.regs.ctrla().modify(|_, w| unsafe { w.intmode().bits(mode as u8) });
+                self.regs
+                    .ctrla()
+                    .modify(|_, w| unsafe { w.intmode().bits(mode as u8) });
                 self.regs.intctrl().write(|w| w.cmp().set_bit());
             }
         }
@@ -180,9 +189,15 @@ macro_rules! impl_comparator {
     };
 }
 
-pub trait NegativeInput<AC>: crate::private::Sealed { fn setup(&self, comp: &AC); }
-pub trait PositiveInput<AC>: crate::private::Sealed { fn setup(&self, comp: &AC); }
-pub trait ComparatorOutput<AC>: crate::private::Sealed { fn setup(&self, comp: &AC); }
+pub trait NegativeInput<AC>: crate::private::Sealed {
+    fn setup(&self, comp: &AC);
+}
+pub trait PositiveInput<AC>: crate::private::Sealed {
+    fn setup(&self, comp: &AC);
+}
+pub trait ComparatorOutput<AC>: crate::private::Sealed {
+    fn setup(&self, comp: &AC);
+}
 
 macro_rules! positive_input_pin {
     ($COMP:ident, $pin:ty, $variant:expr) => {
@@ -230,11 +245,27 @@ macro_rules! refint_input {
 
 impl_comparator!(AC0, ac0);
 
-positive_input_pin!(AC0, crate::gpio::porta::PA7<Analog>, crate::pac::ac0::muxctrla::MUXPOS_A::PIN0);
-positive_input_pin!(AC0, crate::gpio::portb::PB5<Analog>, crate::pac::ac0::muxctrla::MUXPOS_A::PIN1);
+positive_input_pin!(
+    AC0,
+    crate::gpio::porta::PA7<Analog>,
+    crate::pac::ac0::muxctrla::MUXPOS_A::PIN0
+);
+positive_input_pin!(
+    AC0,
+    crate::gpio::portb::PB5<Analog>,
+    crate::pac::ac0::muxctrla::MUXPOS_A::PIN1
+);
 
-negative_input_pin!(AC0, crate::gpio::porta::PA6<Analog>, crate::pac::ac0::muxctrla::MUXNEG_A::PIN0);
-negative_input_pin!(AC0, crate::gpio::portb::PB4<Analog>, crate::pac::ac0::muxctrla::MUXNEG_A::PIN1);
+negative_input_pin!(
+    AC0,
+    crate::gpio::porta::PA6<Analog>,
+    crate::pac::ac0::muxctrla::MUXNEG_A::PIN0
+);
+negative_input_pin!(
+    AC0,
+    crate::gpio::portb::PB4<Analog>,
+    crate::pac::ac0::muxctrla::MUXNEG_A::PIN1
+);
 
 impl NegativeInput<AC0> for DACOutputToAC<0> {
     #[inline]
@@ -246,20 +277,28 @@ impl NegativeInput<AC0> for DACOutputToAC<0> {
 output_pin!(AC0, crate::gpio::porta::PA5<Output<Stateless>>);
 
 use crate::vref::DACReferenceVoltage;
-refint_input!(AC0, DACReferenceVoltage<0>, crate::pac::ac0::muxctrla::MUXNEG_A::VREF);
-
+refint_input!(
+    AC0,
+    DACReferenceVoltage<0>,
+    crate::pac::ac0::muxctrla::MUXNEG_A::VREF
+);
 
 use crate::evsys::ChannelConfigurator;
-use crate::evsys::{EventGenerator, Channel, Unconfigured, GeneratorAssigned};
+use crate::evsys::{Channel, EventGenerator, GeneratorAssigned, Unconfigured};
 
-impl<Evsys, Index, AC> EventGenerator<Evsys, crate::evsys::Async, Index> for Comparator<AC, Disabled>
+impl<Evsys, Index, AC> EventGenerator<Evsys, crate::evsys::Async, Index>
+    for Comparator<AC, Disabled>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index,
 {
     type EventSource = ();
 
-    fn connect_event_generator(&mut self, mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>, _source: ()) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
+    fn connect_event_generator(
+        &mut self,
+        mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>,
+        _source: (),
+    ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
         channel.set_generator(0x03);
         channel.into_state()
     }

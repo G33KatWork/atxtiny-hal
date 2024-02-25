@@ -2,14 +2,11 @@
 
 // TODO: Emulate open drain outputs by toggling the direction?
 
-use core::{
-    marker::PhantomData,
-    convert::Infallible,
-};
+use core::{convert::Infallible, marker::PhantomData};
 
 use crate::{
     embedded_hal::digital::{InputPin, OutputPin, StatefulOutputPin},
-    Toggle
+    Toggle,
 };
 
 /// Extension trait to split a GPIO peripheral into independent pins and registers
@@ -151,15 +148,15 @@ pub struct Output<Statefulness>(PhantomData<Statefulness>);
 pub struct Analog;
 
 /// Peripheral mode with disabled input buffer (type state)
-/// 
+///
 /// This mode is the same as [`Analog`], but for the right
 /// sets of Pins the [`IntoMuxedPinset`] trait is implemented
 /// to switch between sets of pins that are routed to different
 /// peripherals
-/// 
+///
 /// [`IntoMuxedPinset`]: crate::portmux::IntoMuxedPinset
 pub struct Peripheral<PER> {
-    _peripheral: PhantomData<PER>
+    _peripheral: PhantomData<PER>,
 }
 
 /// Stateful output (type state)
@@ -179,7 +176,6 @@ impl marker::Pullupable for Output<Stateful> {}
 impl marker::Pullupable for Output<Stateless> {}
 impl marker::Active for Output<Stateful> {}
 impl marker::Active for Output<Stateless> {}
-
 
 /// GPIO interrupt trigger edge selection
 #[derive(ufmt::derive::uDebug, Debug, Copy, Clone, PartialEq, Eq)]
@@ -288,9 +284,9 @@ where
     }
 
     /// Configures the pin to operate as a stateless push-pull output pin
-    /// 
+    ///
     /// This is the same as a regular output, but with a disabled input buffer
-    /// which means that the current value cannot be read back. Toggling still 
+    /// which means that the current value cannot be read back. Toggling still
     /// works because the hardware itself has support for this.
     pub fn into_stateless_push_pull_output(self) -> Pin<Gpio, Index, Output<Stateless>> {
         unsafe { (*self.gpio.ptr()).disable_input_buffer(self.index.index()) }
@@ -299,7 +295,7 @@ where
     }
 
     /// Configures the pin to operate in an analog mode
-    /// 
+    ///
     /// It is not strictly necessary to configure a pin into an analog mode,
     /// but the datasheet recommends to disable the input and output driver.
     pub fn into_analog_input(self) -> Pin<Gpio, Index, Analog> {
@@ -310,17 +306,17 @@ where
     }
 
     /// Configures the pin to operate in a peripheral mode
-    /// 
+    ///
     /// It is not strictly necessary to configure a pin into an peripheral mode,
     /// because the peripheral takes over anyway. But it is just nicer for the
     /// [`IntoMuxedPinset`] trait to have a dedicated pin mode for which we can
     /// implement it.
-    /// 
+    ///
     /// Note: This mode is functionally equivalent to [`Analog`] in that it
     /// switches the pin into an input mode, disables the pull-ups and also
     /// disables the digital input buffer. However, pull-ups can be enabled
     /// afterwards in contrast to the analog mode.
-    /// 
+    ///
     /// [`IntoMuxedPinset`]: crate::portmux::IntoMuxedPinset
     pub fn into_peripheral<PER>(self) -> Pin<Gpio, Index, Peripheral<PER>> {
         unsafe { (*self.gpio.ptr()).disable_input_buffer(self.index.index()) }
@@ -338,7 +334,7 @@ where
     /// Set pin inversion for inputs or outputs
     pub fn invert_polarity(&mut self, invert: Toggle) {
         match invert {
-            Toggle::On  => unsafe { (*self.gpio.ptr()).inverted(self.index.index()) },
+            Toggle::On => unsafe { (*self.gpio.ptr()).inverted(self.index.index()) },
             Toggle::Off => unsafe { (*self.gpio.ptr()).normal(self.index.index()) },
         }
     }
@@ -353,7 +349,7 @@ where
     /// Enables / disables the internal pull up on input pins
     pub fn internal_pull_up(&mut self, on: Toggle) {
         match on {
-            Toggle::On  => unsafe { (*self.gpio.ptr()).pull_up(self.index.index()) },
+            Toggle::On => unsafe { (*self.gpio.ptr()).pull_up(self.index.index()) },
             Toggle::Off => unsafe { (*self.gpio.ptr()).floating(self.index.index()) },
         }
     }
@@ -686,32 +682,42 @@ gpio!({
     ],
 });
 
-use crate::evsys::{EventGenerator, ChannelConfigurator, Channel, Unconfigured, GeneratorAssigned};
+use crate::evsys::{Channel, ChannelConfigurator, EventGenerator, GeneratorAssigned, Unconfigured};
 
 // Generator for PortA
 // only routable to ASYNCCH0
-impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index> for Pin<Porta, U<X>, Input>
+impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
+    for Pin<Porta, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 0>,
 {
     type EventSource = ();
 
-    fn connect_event_generator(&mut self, mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>, _source: Self::EventSource) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
+    fn connect_event_generator(
+        &mut self,
+        mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>,
+        _source: Self::EventSource,
+    ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
         channel.set_generator(0x0A + X);
         channel.into_state()
     }
 }
 
 // only routable to SYNCCH0
-impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index> for Pin<Porta, U<X>, Input>
+impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index>
+    for Pin<Porta, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 0>,
 {
     type EventSource = ();
 
-    fn connect_event_generator(&mut self, mut channel: Channel<Evsys, crate::evsys::Sync, Index, Unconfigured>, _source: Self::EventSource) -> Channel<Evsys, crate::evsys::Sync, Index, GeneratorAssigned> {
+    fn connect_event_generator(
+        &mut self,
+        mut channel: Channel<Evsys, crate::evsys::Sync, Index, Unconfigured>,
+        _source: Self::EventSource,
+    ) -> Channel<Evsys, crate::evsys::Sync, Index, GeneratorAssigned> {
         channel.set_generator(0x0D + X);
         channel.into_state()
     }
@@ -719,28 +725,38 @@ where
 
 // Generator for PortB
 // only routable to ASYNCCH1
-impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index> for Pin<Portb, U<X>, Input>
+impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
+    for Pin<Portb, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 1>,
 {
     type EventSource = ();
 
-    fn connect_event_generator(&mut self, mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>, _source: Self::EventSource) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
+    fn connect_event_generator(
+        &mut self,
+        mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>,
+        _source: Self::EventSource,
+    ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
         channel.set_generator(0x0A + X);
         channel.into_state()
     }
 }
 
 // only routable to SYNCCH1
-impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index> for Pin<Portb, U<X>, Input>
+impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index>
+    for Pin<Portb, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 1>,
 {
     type EventSource = ();
 
-    fn connect_event_generator(&mut self, mut channel: Channel<Evsys, crate::evsys::Sync, Index, Unconfigured>, _source: Self::EventSource) -> Channel<Evsys, crate::evsys::Sync, Index, GeneratorAssigned> {
+    fn connect_event_generator(
+        &mut self,
+        mut channel: Channel<Evsys, crate::evsys::Sync, Index, Unconfigured>,
+        _source: Self::EventSource,
+    ) -> Channel<Evsys, crate::evsys::Sync, Index, GeneratorAssigned> {
         channel.set_generator(0x08 + X);
         channel.into_state()
     }
@@ -748,28 +764,38 @@ where
 
 // Generator for PortC
 // only routable to ASYNCCH2
-impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index> for Pin<Portc, U<X>, Input>
+impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
+    for Pin<Portc, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 2>,
 {
     type EventSource = ();
 
-    fn connect_event_generator(&mut self, mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>, _source: Self::EventSource) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
+    fn connect_event_generator(
+        &mut self,
+        mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>,
+        _source: Self::EventSource,
+    ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
         channel.set_generator(0x0A + X);
         channel.into_state()
     }
 }
 
 // only routable to SYNCCH0
-impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index> for Pin<Portc, U<X>, Input>
+impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index>
+    for Pin<Portc, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 0>,
 {
     type EventSource = ();
 
-    fn connect_event_generator(&mut self, mut channel: Channel<Evsys, crate::evsys::Sync, Index, Unconfigured>, _source: Self::EventSource) -> Channel<Evsys, crate::evsys::Sync, Index, GeneratorAssigned> {
+    fn connect_event_generator(
+        &mut self,
+        mut channel: Channel<Evsys, crate::evsys::Sync, Index, Unconfigured>,
+        _source: Self::EventSource,
+    ) -> Channel<Evsys, crate::evsys::Sync, Index, GeneratorAssigned> {
         channel.set_generator(0x07 + X);
         channel.into_state()
     }

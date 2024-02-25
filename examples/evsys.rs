@@ -3,10 +3,10 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
-use atxtiny_hal::pac;
 use atxtiny_hal::ac::{ComparatorExt, Config};
 use atxtiny_hal::evsys::EvsysExt;
+use atxtiny_hal::pac;
+use atxtiny_hal::prelude::*;
 
 use atxtiny_hal::evsys::EventGenerator;
 
@@ -41,10 +41,14 @@ fn main() -> ! {
     let evout2 = pc2.mux(&portmux);
 
     // Create a comparator
-    let mut ac = dp.AC0.comparator(ainp0, ainn0, Config {
-        hysteresis: atxtiny_hal::ac::Hysteresis::_50mV,
-        ..Default::default()
-    });
+    let mut ac = dp.AC0.comparator(
+        ainp0,
+        ainn0,
+        Config {
+            hysteresis: atxtiny_hal::ac::Hysteresis::_50mV,
+            ..Default::default()
+        },
+    );
 
     // Grab the event system channels
     let evsys = dp.EVSYS.split();
@@ -74,5 +78,5 @@ fn main() -> ! {
     let async_ch1 = b0.connect_event_generator(async_ch1, ());
     let _async_ch1 = async_ch1.connect_event_user(&evout2);
 
-    loop { }
+    loop {}
 }

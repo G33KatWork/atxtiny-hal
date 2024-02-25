@@ -3,8 +3,8 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
+use atxtiny_hal::prelude::*;
 use atxtiny_hal::timer::FTimer;
 
 #[avr_device::entry]
@@ -35,7 +35,7 @@ fn main() -> ! {
     loop {
         // Toggle the LED
         led.toggle().unwrap();
-        
+
         // Sleep
         d.delay(500.millis());
     }

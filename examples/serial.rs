@@ -1,13 +1,13 @@
 #![no_std]
 #![no_main]
 
-use panic_halt as _;
 use core::fmt::Write;
+use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
-use atxtiny_hal::pac;
-use atxtiny_hal::serial::Serial;
 use atxtiny_hal::embedded_io::Read;
+use atxtiny_hal::pac;
+use atxtiny_hal::prelude::*;
+use atxtiny_hal::serial::Serial;
 
 #[avr_device::entry]
 fn main() -> ! {

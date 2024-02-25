@@ -1,14 +1,11 @@
 use avr_device::attiny817::TCB0;
 
-use crate::{
-    Toggle,
-    time::*
-};
+use crate::{time::*, Toggle};
 
 use super::tcb::{Event, Interrupt};
 
 pub struct TCB8Bit {
-    pub (crate) tim: TCB0
+    pub(crate) tim: TCB0,
 }
 
 impl super::Instance for TCB8Bit {}
@@ -50,9 +47,7 @@ impl super::General for TCB8Bit {
     type Event = Event;
 
     #[inline(always)]
-    fn reset_counter_peripheral(&mut self) {
-        
-    }
+    fn reset_counter_peripheral(&mut self) {}
 
     #[inline(always)]
     fn enable_counter(&mut self) {

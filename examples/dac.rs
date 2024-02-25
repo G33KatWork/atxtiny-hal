@@ -3,10 +3,10 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
-use atxtiny_hal::pac;
-use atxtiny_hal::vref::{VrefExt, ReferenceVoltage};
 use atxtiny_hal::dac::DacExt;
+use atxtiny_hal::pac;
+use atxtiny_hal::prelude::*;
+use atxtiny_hal::vref::{ReferenceVoltage, VrefExt};
 
 #[avr_device::entry]
 fn main() -> ! {
@@ -36,5 +36,5 @@ fn main() -> ! {
     dac.dac_set_value(128);
     let _dac = dac.enable();
 
-    loop { }
+    loop {}
 }

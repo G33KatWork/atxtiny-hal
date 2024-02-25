@@ -2,10 +2,10 @@
 
 use cfg_if::cfg_if;
 
-use core::ptr;
 use crate::pac::NVMCTRL;
+use core::ptr;
 
-use avr_device::{ccp::ProtectedWritable, attiny817::nvmctrl::ctrla::CMD_A};
+use avr_device::{attiny817::nvmctrl::ctrla::CMD_A, ccp::ProtectedWritable};
 
 // TODO: SIGROW  = 0x1100
 //       FUSES   = 0x1280
@@ -18,7 +18,7 @@ cfg_if! {
     ))] {
         /// Start address of the flash in data space
         pub const FLASH_START:      usize = 0x8000;
-        
+
         /// End address of the flash in data space
         pub const FLASH_END:        usize = 0x8FFF;
 
@@ -42,7 +42,7 @@ cfg_if! {
     ))] {
         /// Start address of the flash in data space
         pub const FLASH_START:      usize = 0x8000;
-        
+
         /// End address of the flash in data space
         pub const FLASH_END:        usize = 0x9FFF;
 
@@ -66,7 +66,7 @@ cfg_if! {
     ))] {
         /// Start address of the flash in data space
         pub const FLASH_START:      usize = 0x8000;
-        
+
         /// End address of the flash in data space
         pub const FLASH_END:        usize = 0xBFFF;
 
@@ -89,7 +89,7 @@ cfg_if! {
     ))] {
         /// Start address of the flash in data space
         pub const FLASH_START:      usize = 0x8000;
-        
+
         /// End address of the flash in data space
         pub const FLASH_END:        usize = 0xFFFF;
 
@@ -107,7 +107,6 @@ cfg_if! {
         pub const EEPROM_PAGE_SIZE: usize = 64;
     }
 }
-
 
 impl crate::private::Sealed for NVMCTRL {}
 
@@ -139,22 +138,22 @@ pub enum Error {
 
     /// The supplied offset and length would cause an out of bounds access when
     /// reading or writing Flash or EEPROM.
-    OutOfBounds
+    OutOfBounds,
 }
 
 /// The flash access module which allows reading from and writing to flash
 pub struct FlashAccess<'a> {
-    nvmctrl: &'a NVMCTRL
+    nvmctrl: &'a NVMCTRL,
 }
 
 impl FlashAccess<'_> {
     /// Erase and write flash.
-    /// 
+    ///
     /// When calling this method, the flash is erased page-wise starting from
     /// `offset` and the data in the `bytes` slice is written to it afterwards.
-    /// 
+    ///
     /// Non-page-aligned write accesses are handled automatically.
-    /// 
+    ///
     /// Returns an [`Error::OutOfBounds`] in case data outside of the flash
     /// region defined by [`FLASH_START`] and [`FLASH_END`] is accessed.
     /// In case of a hardware write error [`Error::Write`] is returned.
@@ -163,7 +162,7 @@ impl FlashAccess<'_> {
             return Err(Error::OutOfBounds);
         }
 
-        let mut ptr = ((FLASH_START + offset) & !(FLASH_PAGE_SIZE-1)) as *mut u8;
+        let mut ptr = ((FLASH_START + offset) & !(FLASH_PAGE_SIZE - 1)) as *mut u8;
 
         // Clear the page buffer
         self.nvmctrl_cmd(CMD_A::PBC)?;
@@ -171,7 +170,7 @@ impl FlashAccess<'_> {
         // Fill the page buffer with original data that should not be overwritten
         let start_offset = offset % FLASH_PAGE_SIZE;
         for _ in 0..start_offset {
-            unsafe { 
+            unsafe {
                 ptr::write_volatile(ptr, ptr::read_volatile(ptr));
                 ptr = ptr.add(1);
             };
@@ -179,7 +178,7 @@ impl FlashAccess<'_> {
 
         // Write the new data into the page buffer
         for b in bytes.iter() {
-            unsafe { 
+            unsafe {
                 ptr::write_volatile(ptr, *b);
                 ptr = ptr.add(1);
 
@@ -205,10 +204,10 @@ impl FlashAccess<'_> {
     }
 
     /// Read from flash.
-    /// 
+    ///
     /// Returns a slice that gives raw access to the data stored in flash
     /// starting from `offset` with length `len`.
-    /// 
+    ///
     /// Returns an [`Error::OutOfBounds`] in case data outside of the flash
     /// region defined by [`FLASH_START`] and [`FLASH_END`] is accessed.
     pub fn read(&self, offset: usize, len: usize) -> Result<&[u8], Error> {
@@ -221,7 +220,9 @@ impl FlashAccess<'_> {
     }
 
     fn nvmctrl_cmd(&self, cmd: CMD_A) -> Result<(), Error> {
-        self.nvmctrl.ctrla().write_protected(|w| { w.cmd().variant(cmd) });
+        self.nvmctrl
+            .ctrla()
+            .write_protected(|w| w.cmd().variant(cmd));
 
         while self.nvmctrl.status().read().fbusy().bit_is_set() {}
 
@@ -235,15 +236,15 @@ impl FlashAccess<'_> {
 
 /// The EEPROM access module which allows reading from and writing to EEPROM
 pub struct EepromAccess<'a> {
-    nvmctrl: &'a NVMCTRL
+    nvmctrl: &'a NVMCTRL,
 }
 
 impl EepromAccess<'_> {
     /// Erase and write EEPROM.
-    /// 
+    ///
     /// When calling this method, the EEPROM is erased byte-wise starting from
     /// `offset` and the data in the `bytes` slice is written to it afterwards.
-    /// 
+    ///
     /// Returns an [`Error::OutOfBounds`] in case data outside of the flash
     /// region defined by [`FLASH_START`] and [`FLASH_END`] is accessed.
     /// In case of a hardware write error [`Error::Write`] is returned.
@@ -260,7 +261,7 @@ impl EepromAccess<'_> {
         // Write the new data into the page buffer and flush it
         // to the EEPROM when reaching a page boundary
         for b in bytes.iter() {
-            unsafe { 
+            unsafe {
                 ptr::write_volatile(ptr, *b);
                 ptr = ptr.add(1);
 
@@ -279,10 +280,10 @@ impl EepromAccess<'_> {
     }
 
     /// Read from EEPROM.
-    /// 
+    ///
     /// Returns a slice that gives raw access to the data stored in EEPROM
     /// starting from `offset` with length `len`.
-    /// 
+    ///
     /// Returns an [`Error::OutOfBounds`] in case data outside of the flash
     /// region defined by [`FLASH_START`] and [`FLASH_END`] is accessed.
     pub fn read(&self, offset: usize, len: usize) -> Result<&[u8], Error> {
@@ -295,7 +296,9 @@ impl EepromAccess<'_> {
     }
 
     fn nvmctrl_cmd(&self, cmd: CMD_A) -> Result<(), Error> {
-        self.nvmctrl.ctrla().write_protected(|w| { w.cmd().variant(cmd) });
+        self.nvmctrl
+            .ctrla()
+            .write_protected(|w| w.cmd().variant(cmd));
 
         while self.nvmctrl.status().read().eebusy().bit_is_set() {}
 

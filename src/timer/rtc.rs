@@ -4,12 +4,12 @@
 use enumset::EnumSetType;
 
 use crate::{
-    Toggle,
-    pac::{RTC, rtc::ctrla},
+    pac::{rtc::ctrla, RTC},
     time::*,
+    Toggle,
 };
 
-use super::{Instance, TimerClock, General, PeriodicMode};
+use super::{General, Instance, PeriodicMode, TimerClock};
 
 /// Interrupts for RTC
 #[derive(ufmt::derive::uDebug, Debug)]
@@ -35,7 +35,7 @@ pub enum RTCClockSource {
     OSCULP32K_32K,
     OSCULP32K_1K,
     //XOSC32K,          // FIXME: retrieve an object for this from CLKCTRL and enable it when doing so
-    TOSC1(Hertz)
+    TOSC1(Hertz),
 }
 
 impl Instance for RTC {}
@@ -65,13 +65,16 @@ impl TimerClock for RTC {
 
     #[inline(always)]
     fn get_valid_prescalers(_clk: Self::ClockSource) -> &'static [u16] {
-        &[1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
+        &[
+            1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768,
+        ]
     }
 
     #[inline(always)]
     fn set_prescaler(&mut self, psc: u16) {
         while self.status().read().ctrlabusy().bit_is_set() {}
-        self.ctrla().modify(|_, w| w.prescaler().variant(into_prescaler(psc)));
+        self.ctrla()
+            .modify(|_, w| w.prescaler().variant(into_prescaler(psc)));
     }
 
     #[inline(always)]
@@ -87,9 +90,7 @@ impl General for RTC {
     type Event = Event;
 
     #[inline(always)]
-    fn reset_counter_peripheral(&mut self) {
-        
-    }
+    fn reset_counter_peripheral(&mut self) {}
 
     #[inline(always)]
     fn enable_counter(&mut self) {
@@ -150,16 +151,15 @@ impl General for RTC {
     #[inline(always)]
     fn clear_event(&mut self, event: Self::Event) {
         match event {
-           Event::CompareMatch => self.intflags().modify(|_, w| w.cmp().set_bit()),
-           Event::Overflow => self.intflags().modify(|_, w| w.ovf().set_bit()),
+            Event::CompareMatch => self.intflags().modify(|_, w| w.cmp().set_bit()),
+            Event::Overflow => self.intflags().modify(|_, w| w.ovf().set_bit()),
         }
     }
 }
 
 impl PeriodicMode for RTC {
     #[inline(always)]
-    fn set_periodic_mode(&mut self) {
-    }
+    fn set_periodic_mode(&mut self) {}
 
     #[inline(always)]
     fn read_period() -> Self::CounterValue {

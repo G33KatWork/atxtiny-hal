@@ -2,7 +2,7 @@
 
 use core::arch::asm;
 
-use crate::pac::{SLPCTRL, slpctrl};
+use crate::pac::{slpctrl, SLPCTRL};
 
 /// Extension trait that constrains the [`SLPCTRL`] peripheral
 pub trait SlpctrlExt {

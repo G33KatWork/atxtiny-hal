@@ -3,9 +3,9 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
-use atxtiny_hal::timer::{FTimer, Channel, tca::WaveformGenerationMode};
+use atxtiny_hal::prelude::*;
+use atxtiny_hal::timer::{tca::WaveformGenerationMode, Channel, FTimer};
 use atxtiny_hal::traits::PwmTimer;
 
 #[avr_device::entry]
@@ -37,7 +37,9 @@ fn main() -> ! {
     );
 
     // Use the now configured fixed frequency timer to create a PWM abstraction
-    let mut pwm = t.pwm(pwm_pins, 10.millis(), WaveformGenerationMode::SingleSlope).unwrap();
+    let mut pwm = t
+        .pwm(pwm_pins, 10.millis(), WaveformGenerationMode::SingleSlope)
+        .unwrap();
 
     // Enable all three channels and set a duty cycle
     pwm.set_duty_time(Channel::C1, 1.millis()).unwrap();

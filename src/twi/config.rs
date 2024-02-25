@@ -31,11 +31,23 @@ impl Config {
         let frequency = frequency.into();
 
         if frequency.raw() <= 100_000 {
-            Some(Self { frequency, rise_time: 1000.nanos(), fast_mode_plus: false })
+            Some(Self {
+                frequency,
+                rise_time: 1000.nanos(),
+                fast_mode_plus: false,
+            })
         } else if frequency.raw() <= 400_000 {
-            Some(Self { frequency, rise_time: 300.nanos(), fast_mode_plus: false })
+            Some(Self {
+                frequency,
+                rise_time: 300.nanos(),
+                fast_mode_plus: false,
+            })
         } else if frequency.raw() <= 1_000_000 {
-            Some(Self { frequency, rise_time: 120.nanos(), fast_mode_plus: true })
+            Some(Self {
+                frequency,
+                rise_time: 120.nanos(),
+                fast_mode_plus: true,
+            })
         } else {
             None
         }
@@ -52,7 +64,7 @@ impl Default for Config {
 
 // NOTE: cannot implement TryFrom because of blanket implementation in core
 impl<F: Into<Hertz>> From<F> for Config {
-   fn from(f: F) -> Config {
-       Config::default_for_frequency(f).unwrap()
-   }
+    fn from(f: F) -> Config {
+        Config::default_for_frequency(f).unwrap()
+    }
 }

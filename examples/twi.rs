@@ -3,9 +3,9 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
-use atxtiny_hal::twi::{Twi, Error, NackSource};
+use atxtiny_hal::prelude::*;
+use atxtiny_hal::twi::{Error, NackSource, Twi};
 
 use atxtiny_hal::embedded_hal::i2c::I2c;
 
@@ -55,5 +55,5 @@ fn main() -> ! {
         twi.write(0x03, "EEPROM read failure".as_bytes()).unwrap();
     }
 
-    loop { }
+    loop {}
 }

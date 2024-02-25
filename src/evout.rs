@@ -2,8 +2,8 @@
 
 use core::marker::PhantomData;
 
-use crate::pac::EVSYS;
 use crate::gpio::Peripheral;
+use crate::pac::EVSYS;
 
 /// Event output channel 0 (EVOUT0)
 pub const EVOUT0: u8 = 0;
@@ -28,10 +28,13 @@ where
     EventOutput: EventOutputPin<EVSYS, EVOUT>,
 {
     pub(crate) fn new(output: EventOutput) -> Self {
-        EventOutputPinset { _evsys: PhantomData, output }
+        EventOutputPinset {
+            _evsys: PhantomData,
+            output,
+        }
     }
 
-    pub fn free(self) -> EventOutput { 
+    pub fn free(self) -> EventOutput {
         self.output
     }
 }
@@ -40,8 +43,22 @@ impl EventOutputPin<EVSYS, EVOUT0> for crate::gpio::porta::PA2<Peripheral<EVSYS>
 impl EventOutputPin<EVSYS, EVOUT1> for crate::gpio::portb::PB2<Peripheral<EVSYS>> {}
 impl EventOutputPin<EVSYS, EVOUT2> for crate::gpio::portc::PC2<Peripheral<EVSYS>> {}
 
-use crate::evsys::{Evsys, Async, EventUser};
+use crate::evsys::{Async, EventUser, Evsys};
 
-impl EventUser<Evsys, Async> for EventOutputPinset<EVSYS, crate::gpio::porta::PA2<Peripheral<EVSYS>>, EVOUT0> { const MULTIPLEXER_INDEX: u8 = 8 + EVOUT0; }
-impl EventUser<Evsys, Async> for EventOutputPinset<EVSYS, crate::gpio::portb::PB2<Peripheral<EVSYS>>, EVOUT1> { const MULTIPLEXER_INDEX: u8 = 8 + EVOUT1; }
-impl EventUser<Evsys, Async> for EventOutputPinset<EVSYS, crate::gpio::portc::PC2<Peripheral<EVSYS>>, EVOUT2> { const MULTIPLEXER_INDEX: u8 = 8 + EVOUT2; }
+impl EventUser<Evsys, Async>
+    for EventOutputPinset<EVSYS, crate::gpio::porta::PA2<Peripheral<EVSYS>>, EVOUT0>
+{
+    const MULTIPLEXER_INDEX: u8 = 8 + EVOUT0;
+}
+
+impl EventUser<Evsys, Async>
+    for EventOutputPinset<EVSYS, crate::gpio::portb::PB2<Peripheral<EVSYS>>, EVOUT1>
+{
+    const MULTIPLEXER_INDEX: u8 = 8 + EVOUT1;
+}
+
+impl EventUser<Evsys, Async>
+    for EventOutputPinset<EVSYS, crate::gpio::portc::PC2<Peripheral<EVSYS>>, EVOUT2>
+{
+    const MULTIPLEXER_INDEX: u8 = 8 + EVOUT2;
+}

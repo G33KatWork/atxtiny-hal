@@ -4,11 +4,11 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
+use atxtiny_hal::prelude::*;
 
-use atxtiny_hal::timer::{FTimer, Counter, tca::Interrupt, tca::Event};
-use atxtiny_hal::gpio::{Pin, Gpiox, Ux, Output, Stateful};
+use atxtiny_hal::gpio::{Gpiox, Output, Pin, Stateful, Ux};
+use atxtiny_hal::timer::{tca::Event, tca::Interrupt, Counter, FTimer};
 
 use core::mem::MaybeUninit;
 
@@ -58,7 +58,7 @@ fn main() -> ! {
         // after any operation that enables interrupts.
         INTERRUPT_STATE = MaybeUninit::new(InterruptState {
             counter: c,
-            led: led.downgrade().downgrade()
+            led: led.downgrade().downgrade(),
         });
 
         core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
@@ -67,7 +67,7 @@ fn main() -> ! {
     // Enable the interrupts globally
     unsafe { avr_device::interrupt::enable() };
 
-    loop { }
+    loop {}
 }
 
 #[avr_device::interrupt(attiny817)]

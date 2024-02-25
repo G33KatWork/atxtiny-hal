@@ -3,9 +3,9 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
-use atxtiny_hal::timer::{FTimer, rtc::RTCClockSource};
+use atxtiny_hal::prelude::*;
+use atxtiny_hal::timer::{rtc::RTCClockSource, FTimer};
 
 #[avr_device::entry]
 fn main() -> ! {

@@ -6,12 +6,7 @@
 #[cfg(feature = "enumset")]
 use enumset::EnumSetType;
 
-use crate::{
-    Toggle,
-    pac::tca0::*,
-    time::*,
-    clkctrl::Clocks,
-};
+use crate::{clkctrl::Clocks, pac::tca0::*, time::*, Toggle};
 
 /// Enum for waveform genreation modes
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,7 +83,8 @@ impl super::TimerClock for TCA0 {
 
     #[inline(always)]
     fn set_prescaler(&mut self, psc: u16) {
-        self.single_ctrla().modify(|_, w| w.clksel().variant(into_clksrc(psc)));
+        self.single_ctrla()
+            .modify(|_, w| w.clksel().variant(into_clksrc(psc)));
     }
 
     #[inline(always)]
@@ -187,7 +183,8 @@ impl super::General for TCA0 {
 impl super::PeriodicMode for TCA0 {
     #[inline(always)]
     fn set_periodic_mode(&mut self) {
-        self.single_ctrlb().modify(|_, w| w.wgmode().variant(single_ctrlb::WGMODE_A::NORMAL));
+        self.single_ctrlb()
+            .modify(|_, w| w.wgmode().variant(single_ctrlb::WGMODE_A::NORMAL));
     }
 
     #[inline(always)]
@@ -228,7 +225,8 @@ impl super::WithPwm for TCA0 {
     type CompareValue = u16;
 
     fn set_pwm_mode(&mut self, mode: Self::GenerationMode) {
-        self.single_ctrlb().modify(|_, w| w.wgmode().variant(mode.into()));
+        self.single_ctrlb()
+            .modify(|_, w| w.wgmode().variant(mode.into()));
     }
 
     fn enable_channel(channel: u8, b: bool) {
@@ -315,9 +313,9 @@ fn from_clksrc(prescaler: single_ctrla::CLKSEL_A) -> u16 {
 
 impl crate::private::Sealed for crate::pac::TCA0 {}
 
-use core::marker::PhantomData;
-use crate::gpio::{Output, Stateless};
 use super::pwm::{WaveformOutputPinset, C1, C2, C3};
+use crate::gpio::{Output, Stateless};
+use core::marker::PhantomData;
 
 /// A pin can be marked with this when it can be used as a waveform output pin
 pub trait WaveformOutputPin<TCA, const CHAN: u8> {}
@@ -333,7 +331,10 @@ where
     WaveformOutput: WaveformOutputPin<TIM, CHAN>,
 {
     pub(crate) fn new(output: WaveformOutput) -> Self {
-        TcaPinset { _tim: PhantomData, output }
+        TcaPinset {
+            _tim: PhantomData,
+            output,
+        }
     }
 
     pub fn free(self) -> WaveformOutput {
@@ -341,7 +342,10 @@ where
     }
 }
 
-impl<WaveformOutput: WaveformOutputPin<TCA0, CHAN>, const CHAN: u8> WaveformOutputPinset<TCA0, CHAN> for TcaPinset<TCA0, WaveformOutput, CHAN> {}
+impl<WaveformOutput: WaveformOutputPin<TCA0, CHAN>, const CHAN: u8> WaveformOutputPinset<TCA0, CHAN>
+    for TcaPinset<TCA0, WaveformOutput, CHAN>
+{
+}
 
 impl WaveformOutputPin<TCA0, C1> for crate::gpio::portb::PB0<Output<Stateless>> {}
 impl WaveformOutputPin<TCA0, C2> for crate::gpio::portb::PB1<Output<Stateless>> {}

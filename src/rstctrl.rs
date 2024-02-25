@@ -1,10 +1,10 @@
 //! # Reset Controller
 
-use enumset::{EnumSet, EnumSetType};
 use crate::pac::RSTCTRL;
+use enumset::{EnumSet, EnumSetType};
 
 /// Reset Flags.
-/// 
+///
 /// Depending on how the system was reset, one or more of these flags are set in
 /// the reset controller.
 #[derive(ufmt::derive::uDebug, Debug)]
@@ -40,7 +40,7 @@ pub enum ResetReason {
     External,
 
     /// Brownout Reset Flag
-    /// 
+    ///
     /// This flag is set when the system was reset by the Brownount detector.
     /// The brownout detector can be configured using the `[BrownoutDetector]`
     /// peripheral.
@@ -76,7 +76,7 @@ pub trait RstctrlExt {
 /// let rstctrl = dp.RSTCTRL.constrain();
 /// ```
 pub struct Rstctrl {
-    rstctrl: RSTCTRL
+    rstctrl: RSTCTRL,
 }
 
 impl RstctrlExt for RSTCTRL {

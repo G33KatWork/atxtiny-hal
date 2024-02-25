@@ -3,9 +3,9 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
-use atxtiny_hal::pac;
 use atxtiny_hal::ac::{ComparatorExt, Config};
+use atxtiny_hal::pac;
+use atxtiny_hal::prelude::*;
 
 #[avr_device::entry]
 fn main() -> ! {
@@ -29,12 +29,16 @@ fn main() -> ! {
     acout.internal_pull_up(Toggle::Off);
 
     // Create a comparator
-    let ac = dp.AC0.comparator(ainp0, ainn0, Config {
-        hysteresis: atxtiny_hal::ac::Hysteresis::_50mV,
-        ..Default::default()
-    });
+    let ac = dp.AC0.comparator(
+        ainp0,
+        ainn0,
+        Config {
+            hysteresis: atxtiny_hal::ac::Hysteresis::_50mV,
+            ..Default::default()
+        },
+    );
     ac.output_pin(acout);
     let _ac = ac.enable();
 
-    loop { }
+    loop {}
 }

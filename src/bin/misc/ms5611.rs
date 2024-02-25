@@ -80,7 +80,11 @@ where
     }
 
     /// Reads and returns Pressure and Thermometer measurement
-    pub fn get_compensated_sample(&mut self, osr: Oversampling, delay_source: &mut impl DelayMs<u8>) -> Result<Sample, E> {
+    pub fn get_compensated_sample(
+        &mut self,
+        osr: Oversampling,
+        delay_source: &mut impl DelayMs<u8>,
+    ) -> Result<Sample, E> {
         let raw_sample = self.read_raw_sample(osr, delay_source)?;
 
         // Get temperature compensation constants
@@ -100,7 +104,11 @@ where
 
     /// Reads and returns a second order compensated Pressure and Thermometer
     /// measurement as defined in datasheet.
-    pub fn get_second_order_sample(&mut self, osr: Oversampling, delay_source: &mut impl DelayMs<u8>) -> Result<Sample, E> {
+    pub fn get_second_order_sample(
+        &mut self,
+        osr: Oversampling,
+        delay_source: &mut impl DelayMs<u8>,
+    ) -> Result<Sample, E> {
         let raw_sample = self.read_raw_sample(osr, delay_source)?;
 
         // Get temperature compensation constants
@@ -171,7 +179,11 @@ where
         Ok(r)
     }
 
-    fn read_raw_sample(&mut self, osr: Oversampling, delay_source: &mut impl  DelayMs<u8>) -> Result<Sample, E> {
+    fn read_raw_sample(
+        &mut self,
+        osr: Oversampling,
+        delay_source: &mut impl DelayMs<u8>,
+    ) -> Result<Sample, E> {
         // Start convertion of D1 (pressure)
         self.send(Command::CONV_D1.address() + osr.offset())?;
         delay_source.delay_ms(osr.delay());
@@ -246,7 +258,6 @@ impl Command {
         Command::PROM_BASE.address() + offset as u8
     }
 }
-
 
 /// Oversampling rates as defined in datasheet
 /// defines for how long reading a sample will block
@@ -354,9 +365,13 @@ mod tests {
     struct Pin;
 
     impl hal::digital::v2::OutputPin for Pin {
-	type Error = u32;
-        fn set_low(&mut self) -> Result<(), Self::Error> { Ok(()) }
-        fn set_high(&mut self) -> Result<(), Self::Error> { Ok(()) }
+        type Error = u32;
+        fn set_low(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
+        fn set_high(&mut self) -> Result<(), Self::Error> {
+            Ok(())
+        }
     }
 
     #[test]

@@ -12,12 +12,12 @@ use atxtiny_hal::serial::UartPinset;
 use atxtiny_hal::timer::Channel;
 //use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
+use atxtiny_hal::prelude::*;
 
-use atxtiny_hal::serial::Serial;
-use atxtiny_hal::watchdog::{WdtExt, WatchdogTimeout};
 use atxtiny_hal::gpio::{Input, Output, Stateless};
+use atxtiny_hal::serial::Serial;
+use atxtiny_hal::watchdog::{WatchdogTimeout, WdtExt};
 
 mod misc;
 
@@ -68,9 +68,8 @@ fn main() -> ! {
     let mut wd = dp.WDT.constrain();
     wd.start(WatchdogTimeout::S8);
 
-
-    use atxtiny_hal::timer::{FTimer, Timer};
     use atxtiny_hal::timer::tca::WaveformGenerationMode;
+    use atxtiny_hal::timer::{FTimer, Timer};
     // Create a new timer with a fixed frequency using TCA0
     //let tca = FTimer::<_, 312500>::new(dp.TCA0, clocks).unwrap();
     //let tca0_clk = tca.use_as_clock_source();
@@ -83,7 +82,9 @@ fn main() -> ! {
     );
 
     //let mut pwm = tca.pwm(pwm_pins, 10.millis(), WaveformGenerationMode::SingleSlope).unwrap();
-    let mut pwm = t.pwm_hz(pwm_pins, 1.kHz(), WaveformGenerationMode::SingleSlope).unwrap();
+    let mut pwm = t
+        .pwm_hz(pwm_pins, 1.kHz(), WaveformGenerationMode::SingleSlope)
+        .unwrap();
 
     let max_duty = pwm.get_max_duty() as u16;
     ufmt::uwriteln!(s, "Max duty: {}", max_duty).unwrap();
@@ -99,12 +100,10 @@ fn main() -> ! {
 
     //let (pin1, pin2, pin3) = pwm.split();
 
-
     // Timer for delay
     let tcb = FTimer::<_, 10000000>::new(dp.TCB0, clocks.into()).unwrap();
     let mut d = tcb.delay();
     // hz2.start(100.millis()).unwrap();
-
 
     //unsafe { avr_device::interrupt::enable() };
 
@@ -118,7 +117,6 @@ fn main() -> ! {
         } else {
             led2.set_low().unwrap();
         }
-
 
         pwm.set_duty(Channel::C1, i);
         i += 10;

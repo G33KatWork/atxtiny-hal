@@ -6,19 +6,16 @@
 // TODO: interrupts
 
 use core::cmp::max;
-use core::{
-    ops::Deref,
-    marker::PhantomData,
-};
+use core::{marker::PhantomData, ops::Deref};
 
 use enumset::{EnumSet, EnumSetType};
 
-use crate::embedded_hal::spi::{SpiBus, ErrorType, MODE_0, MODE_1, MODE_2, MODE_3};
+use crate::embedded_hal::spi::{ErrorType, SpiBus, MODE_0, MODE_1, MODE_2, MODE_3};
 
 use crate::{
-    pac::spi0::{RegisterBlock, ctrla::PRESC_A, ctrlb::MODE_A},
-    time::*,
     clkctrl::Clocks,
+    pac::spi0::{ctrla::PRESC_A, ctrlb::MODE_A, RegisterBlock},
+    time::*,
 };
 
 pub mod config;
@@ -30,7 +27,6 @@ pub enum Error {
     // NOTE: only in buffered mode
     // /// Overrun occurred
     // Overrun,
-
     /// Write collision occurred
     WriteCollision,
 }
@@ -39,7 +35,7 @@ impl crate::embedded_hal::spi::Error for Error {
     fn kind(&self) -> crate::embedded_hal::spi::ErrorKind {
         use crate::embedded_hal::spi::ErrorKind;
         match *self {
-            Error::WriteCollision => ErrorKind::Other
+            Error::WriteCollision => ErrorKind::Other,
         }
     }
 }
@@ -84,10 +80,15 @@ where
     Mosi: MosiPin<SPI>,
 {
     pub(crate) fn new(sck: Sck, miso: Miso, mosi: Mosi) -> Self {
-        SpiPinset { _spi: PhantomData, sck, miso, mosi }
+        SpiPinset {
+            _spi: PhantomData,
+            sck,
+            miso,
+            mosi,
+        }
     }
 
-    pub fn free(self) -> (Sck, Miso, Mosi) { 
+    pub fn free(self) -> (Sck, Miso, Mosi) {
         (self.sck, self.miso, self.mosi)
     }
 
@@ -104,7 +105,7 @@ pub enum UnbufferedEvent {
     ///
     /// This flag is set when a serial transfer is complete, and one byte is
     /// completely shifted in/out of the SPIn.DATA register.
-    /// 
+    ///
     /// If SS is configured as input and is driven low when the SPI is in Host
     /// mode, this will also set this flag. The IF is cleared by hardware when
     /// executing the corresponding interrupt vector. Alternatively, the IF can
@@ -162,28 +163,40 @@ where
         let (clk2x, div) = Self::compute_baud_rate(clocks, config.frequency);
 
         // Disable the peripheral
-        spi.ctrla().modify(|_, w| { w.enable().clear_bit() });
+        spi.ctrla().modify(|_, w| w.enable().clear_bit());
 
         // Configure SPI peripheral
-        spi.ctrlb().modify(|_, w| { w
-            .bufen().clear_bit()
-            .bufwr().clear_bit()    // Disable buffer write mode (only valid for client mode anyway)
-            .mode().variant(mode)
-            .ssd().set_bit()        // Disable slave select
+        spi.ctrlb().modify(|_, w| {
+            w.bufen()
+                .clear_bit()
+                .bufwr()
+                .clear_bit() // Disable buffer write mode (only valid for client mode anyway)
+                .mode()
+                .variant(mode)
+                .ssd()
+                .set_bit() // Disable slave select
         });
 
-        spi.ctrla().modify(|_, w| { w
-            .dord().bit(config.order == DataOrder::LsbFirst)
-            .enable().set_bit()     // Enable peripheral
-            .master().set_bit()     // SPI Master
-
-            .clk2x().bit(clk2x)     // Clock double speed
-            .presc().variant(div)   // Clock prescaler
+        spi.ctrla().modify(|_, w| {
+            w.dord()
+                .bit(config.order == DataOrder::LsbFirst)
+                .enable()
+                .set_bit() // Enable peripheral
+                .master()
+                .set_bit() // SPI Master
+                .clk2x()
+                .bit(clk2x) // Clock double speed
+                .presc()
+                .variant(div) // Clock prescaler
         });
 
         spi.intctrl().reset();
 
-        Self { spi, pinset, _mode: PhantomData }
+        Self {
+            spi,
+            pinset,
+            _mode: PhantomData,
+        }
     }
 
     /// Enable the interrupt.
@@ -237,17 +250,17 @@ where
     SCK: SckPin<SPI>,
     MISO: MisoPin<SPI>,
     MOSI: MosiPin<SPI>,
-    MODE: ED
+    MODE: ED,
 {
     fn compute_baud_rate(clocks: Clocks, freq: Hertz) -> (bool, PRESC_A) {
         match SPI::clock(&clocks).raw() / freq.raw() {
             0 => unreachable!(),
-            1..=2 => (true, PRESC_A::DIV4),         // DIV_2
-            3..=5 => (false, PRESC_A::DIV4),        // DIV_4
-            6..=11 => (true, PRESC_A::DIV16),       // DIV_8
-            12..=23 => (false, PRESC_A::DIV16),     // DIV_16
-            24..=39 => (true, PRESC_A::DIV64),      // DIV_32
-            40..=95 => (false, PRESC_A::DIV64),     // DIV_64
+            1..=2 => (true, PRESC_A::DIV4),     // DIV_2
+            3..=5 => (false, PRESC_A::DIV4),    // DIV_4
+            6..=11 => (true, PRESC_A::DIV16),   // DIV_8
+            12..=23 => (false, PRESC_A::DIV16), // DIV_16
+            24..=39 => (true, PRESC_A::DIV64),  // DIV_32
+            40..=95 => (false, PRESC_A::DIV64), // DIV_64
             //96..=191 => (false, PRESC_A::DIV128),   // DIV_128
             _ => (false, PRESC_A::DIV128),
         }
@@ -289,7 +302,6 @@ where
     type Error = Error;
 }
 
-
 impl<SPI, MODE, SCK, MISO, MOSI> SpiBus for Spi<SPI, MODE, SpiPinset<SPI, SCK, MISO, MOSI>>
 where
     SPI: Instance,
@@ -318,7 +330,9 @@ where
         for i in 0..max(read.len(), write.len()) {
             let tx_byte = if i < write.len() { write[i] } else { 0xff };
             let rx_byte = self.transfer_byte(tx_byte)?;
-            if i < read.len() { read[i] = rx_byte };
+            if i < read.len() {
+                read[i] = rx_byte
+            };
         }
 
         Ok(())
@@ -341,15 +355,10 @@ where
 }
 
 /// SPI instance
-pub trait Instance:
-    Deref<Target = RegisterBlock>
-    + crate::private::Sealed
-{
+pub trait Instance: Deref<Target = RegisterBlock> + crate::private::Sealed {
     #[doc(hidden)]
     fn clock(clocks: &Clocks) -> Hertz;
 }
-
-
 
 macro_rules! spi {
     ({

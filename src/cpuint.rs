@@ -2,11 +2,11 @@
 
 use enumset::{EnumSet, EnumSetType};
 
-use crate::pac::{CPUINT, cpuint::*};
+use crate::pac::{cpuint::*, CPUINT};
 use avr_device::ccp::ProtectedWritable;
 
 /// Status Flags.
-/// 
+///
 /// Depending on what kind of interrupts fired, one or more of these flags are set in
 /// the interrupt controller.
 #[derive(ufmt::derive::uDebug, Debug)]
@@ -84,7 +84,7 @@ impl CPUINTExt for CPUINT {
             cpuint: self,
             ivsel: InterruptVectorSelect::AfterBootSection,
             cvt: false,
-            lvl0rr:false
+            lvl0rr: false,
         }
     }
 }
@@ -97,7 +97,7 @@ pub struct CpuInt {
 }
 
 pub struct CpuIntConfigured {
-    cpuint: CPUINT
+    cpuint: CPUINT,
 }
 
 impl CpuInt {
@@ -117,16 +117,21 @@ impl CpuInt {
     }
 
     pub fn configure(self) -> CpuIntConfigured {
-        self.cpuint.ctrla().write_protected(|w| { w
-            .ivsel().variant(into_ivsel(self.ivsel))
-            .cvt().variant(into_cvt(self.cvt))
-            .lvl0rr().variant(into_lvl0rr(self.lvl0rr))
+        self.cpuint.ctrla().write_protected(|w| {
+            w.ivsel()
+                .variant(into_ivsel(self.ivsel))
+                .cvt()
+                .variant(into_cvt(self.cvt))
+                .lvl0rr()
+                .variant(into_lvl0rr(self.lvl0rr))
         });
 
         self.cpuint.lvl0pri().write(|w| w.bits(0));
         self.cpuint.lvl1vec().write(|w| w.bits(0));
 
-        CpuIntConfigured { cpuint: self.cpuint }
+        CpuIntConfigured {
+            cpuint: self.cpuint,
+        }
     }
 }
 

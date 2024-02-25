@@ -1,8 +1,8 @@
 //! # Serial port panic handler
 
-use ufmt::uWrite;
-use core::panic::PanicInfo;
 use core::fmt::Write;
+use core::panic::PanicInfo;
+use ufmt::uWrite;
 
 struct WriteWrapper<'a, W: uWrite>(&'a mut W);
 
@@ -15,13 +15,19 @@ impl<'a, W: uWrite> Write for WriteWrapper<'a, W> {
 /// Called internally by the panic handler.
 pub fn _print_panic<W: uWrite>(w: &mut W, info: &PanicInfo) {
     if let Some(location) = info.location() {
-        _ = ufmt::uwrite!(w, "Panic at {}:{}:{}", location.file(), location.line(), location.column());
-        if !cfg!(feature="fullpanic") {
+        _ = ufmt::uwrite!(
+            w,
+            "Panic at {}:{}:{}",
+            location.file(),
+            location.line(),
+            location.column()
+        );
+        if !cfg!(feature = "fullpanic") {
             _ = w.write_str("\r\n");
         }
     }
 
-    if cfg!(feature="fullpanic") {
+    if cfg!(feature = "fullpanic") {
         if let Some(message) = info.message() {
             _ = w.write_str(": ");
             _ = core::fmt::write(&mut WriteWrapper(w), *message);

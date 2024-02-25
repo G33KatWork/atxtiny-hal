@@ -3,9 +3,13 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
-use atxtiny_hal::timer::{FTimer, Timer, Channel, tcb::{TCBClockSource, Tcb8bitPwmCapable}, rtc::RTCClockSource};
+use atxtiny_hal::prelude::*;
+use atxtiny_hal::timer::{
+    rtc::RTCClockSource,
+    tcb::{TCBClockSource, Tcb8bitPwmCapable},
+    Channel, FTimer, Timer,
+};
 use atxtiny_hal::traits::PwmTimer;
 
 #[avr_device::entry]
@@ -35,7 +39,7 @@ fn main() -> ! {
     // Create a timer with a variable frequency using TCB0 in 8 Bit PWM mode
     let tcb0_8bit_pwm = dp.TCB0.into_8bit_pwm();
     let t = Timer::new(tcb0_8bit_pwm, TCBClockSource::Peripheral(clocks));
-    
+
     // Build a PWM timer. Didive it down as much as possible. We should end up at about 39KHz
     let mut pwm = t.pwm_custom(pwm_wo, 2, 255, ()).unwrap();
 
@@ -52,7 +56,7 @@ fn main() -> ! {
 
         // Toggle the LED
         led.toggle().unwrap();
-        
+
         // Sleep
         d.delay(100.millis());
     }

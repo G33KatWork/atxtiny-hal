@@ -2,19 +2,11 @@
 
 // TODO: client mode
 
-use core::{
-    ops::Deref,
-    marker::PhantomData,
-};
+use core::{marker::PhantomData, ops::Deref};
 
-use embedded_hal::i2c::{I2c, ErrorType, Operation};
+use embedded_hal::i2c::{ErrorType, I2c, Operation};
 
-use crate::{
-    pac::twi0::RegisterBlock,
-    clkctrl::Clocks,
-    time::*,
-    Toggle
-};
+use crate::{clkctrl::Clocks, pac::twi0::RegisterBlock, time::*, Toggle};
 
 #[cfg(feature = "enumset")]
 use enumset::{EnumSet, EnumSetType};
@@ -31,7 +23,7 @@ pub trait SdaPin<TWI>: crate::private::Sealed {}
 pub struct TwiPinset<TWI, Scl: SclPin<TWI>, Sda: SdaPin<TWI>> {
     _twi: PhantomData<TWI>,
     scl: Scl,
-    sda: Sda
+    sda: Sda,
 }
 
 impl<TWI, Scl, Sda> TwiPinset<TWI, Scl, Sda>
@@ -40,10 +32,14 @@ where
     Sda: SdaPin<TWI>,
 {
     pub(crate) fn new(scl: Scl, sda: Sda) -> Self {
-        TwiPinset { _twi: PhantomData, scl, sda }
+        TwiPinset {
+            _twi: PhantomData,
+            scl,
+            sda,
+        }
     }
 
-    pub fn free(self) -> (Scl, Sda) { 
+    pub fn free(self) -> (Scl, Sda) {
         (self.scl, self.sda)
     }
 }
@@ -78,7 +74,9 @@ impl embedded_hal::i2c::Error for Error {
         match *self {
             Error::Arbitration => ErrorKind::ArbitrationLoss,
             Error::Bus => ErrorKind::Bus,
-            Error::Nack(NackSource::Address) => ErrorKind::NoAcknowledge(NoAcknowledgeSource::Address),
+            Error::Nack(NackSource::Address) => {
+                ErrorKind::NoAcknowledge(NoAcknowledgeSource::Address)
+            }
             Error::Nack(NackSource::Data) => ErrorKind::NoAcknowledge(NoAcknowledgeSource::Data),
             _ => ErrorKind::Other,
         }
@@ -126,7 +124,7 @@ pub enum Event {
     ReceivedAcknowledge,
 
     /// Arbitration Lost
-    /// 
+    ///
     /// When this bit is read as ‘1’, it indicates that the host has lost
     /// arbitration. This can happen in one of the following cases:
     /// 1. While transmitting a high data bit.
@@ -148,7 +146,7 @@ pub enum Event {
 }
 
 /// TWI bus state.
-/// 
+///
 /// Indication of the current TWI bus state.
 pub enum BusState {
     /// Unknown bus state
@@ -208,7 +206,7 @@ where
         pinset: TwiPinset<TWI, SCL, SDA>,
         config: Config,
         clocks: Clocks,
-    ) -> Self 
+    ) -> Self
     where
         Config: Into<config::Config>,
     {
@@ -220,9 +218,11 @@ where
         let rise_time = config.rise_time.ticks();
         let f_per = TWI::clock(&clocks).raw();
 
-        let baudrate: u8 = (((f_per/frequency) - ((f_per*rise_time)/1000000000) - 10) / 2) as u8;
+        let baudrate: u8 =
+            (((f_per / frequency) - ((f_per * rise_time) / 1000000000) - 10) / 2) as u8;
 
-        twi.ctrla().modify(|_, w| w.fmpen().variant(config.fast_mode_plus));
+        twi.ctrla()
+            .modify(|_, w| w.fmpen().variant(config.fast_mode_plus));
 
         // Set the baud rate divider and enable the peripheral
         twi.mctrla().modify(|_, w| w.enable().clear_bit());
@@ -233,11 +233,8 @@ where
         twi.mstatus().modify(|_, w| w.busstate().idle());
 
         // Clear a bunch of status flags
-        twi.mstatus().modify(|_, w| w
-            .rif().set_bit()
-            .wif().set_bit()
-            .buserr().set_bit()
-        );
+        twi.mstatus()
+            .modify(|_, w| w.rif().set_bit().wif().set_bit().buserr().set_bit());
 
         Self { twi, pinset }
     }
@@ -373,7 +370,7 @@ where
             Event::ReadInterrupt => w.rif().set_bit(),
             Event::WriteInterrupt => w.wif().set_bit(),
             Event::ClockHold => w.clkhold().set_bit(),
-            Event::ReceivedAcknowledge => w,                    // Not clearable
+            Event::ReceivedAcknowledge => w, // Not clearable
             Event::ArbitrationLost => w.arblost().set_bit(),
             Event::BusError => w.buserr().set_bit(),
         });
@@ -422,7 +419,7 @@ macro_rules! wait_ownership {
 
             if mstatus.busstate().is_owner() {
                 break;
-            } 
+            }
         }
     };
 }
@@ -457,7 +454,7 @@ where
                 Operation::Read(buffer) => {
                     // Write the address and read-bit
                     // This kicks off a START or repeated START condition on the bus
-                    self.twi.maddr().write(|w| { w.bits(address << 1 | 1) });
+                    self.twi.maddr().write(|w| w.bits(address << 1 | 1));
 
                     // Wait for the bus state to transition into OWNED
                     wait_ownership!(self.twi);
@@ -488,12 +485,12 @@ where
                         // Read data and trigger ACK/NACK
                         *b = self.twi.mdata().read().bits();
                     }
-                },
+                }
 
                 Operation::Write(buffer) => {
                     // Write the address and ~read-bit
                     // This kicks off a START or repeated START condition on the bus
-                    self.twi.maddr().write(|w| { w.bits(address << 1 | 0) });
+                    self.twi.maddr().write(|w| w.bits(address << 1 | 0));
 
                     // Wait for the bus state to transition into OWNED
                     wait_ownership!(self.twi);
@@ -520,15 +517,10 @@ where
 }
 
 /// TWI instance
-pub trait Instance:
-    Deref<Target = RegisterBlock>
-    + crate::private::Sealed
-{
+pub trait Instance: Deref<Target = RegisterBlock> + crate::private::Sealed {
     #[doc(hidden)]
     fn clock(clocks: &Clocks) -> Hertz;
 }
-
-
 
 macro_rules! twi {
     ({

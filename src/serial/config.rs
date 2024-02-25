@@ -1,6 +1,6 @@
 //! Types for configuring a serial interface.
 
-use crate::pac::usart0::ctrlc::{SBMODE_A, PMODE_A, CHSIZE_A};
+use crate::pac::usart0::ctrlc::{CHSIZE_A, PMODE_A, SBMODE_A};
 use crate::time::*;
 
 /// Stop Bit configuration parameter for serial.
@@ -97,7 +97,7 @@ impl From<CHSIZE_A> for CharacterSize {
             CHSIZE_A::_6BIT => CharacterSize::Size6,
             CHSIZE_A::_7BIT => CharacterSize::Size7,
             CHSIZE_A::_8BIT => CharacterSize::Size8,
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 }

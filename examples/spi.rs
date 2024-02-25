@@ -3,10 +3,10 @@
 
 use panic_halt as _;
 
-use atxtiny_hal::prelude::*;
 use atxtiny_hal::pac;
-use atxtiny_hal::spi::Spi;
+use atxtiny_hal::prelude::*;
 use atxtiny_hal::serial::Serial;
+use atxtiny_hal::spi::Spi;
 
 use atxtiny_hal::embedded_hal::spi::SpiDevice;
 use atxtiny_hal::embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
@@ -26,7 +26,11 @@ fn main() -> ! {
     let (a, c) = (dp.PORTA.split(), dp.PORTC.split());
 
     // Serial port setup
-    let usart_pair = (a.pa2.into_peripheral::<pac::USART0>(), a.pa1.into_peripheral::<pac::USART0>()).mux(&portmux);
+    let usart_pair = (
+        a.pa2.into_peripheral::<pac::USART0>(),
+        a.pa1.into_peripheral::<pac::USART0>(),
+    )
+        .mux(&portmux);
     let mut s = Serial::new(dp.USART0, usart_pair, 115200u32.bps(), clocks);
 
     // Grab the SPI pins
@@ -53,7 +57,7 @@ fn main() -> ! {
     // Read MS5611 PROM
     let mut prom = [0u16; 8];
     for i in 0..8 {
-        let mut buf = [0xA0 + i*2, 0xFF, 0xFF];
+        let mut buf = [0xA0 + i * 2, 0xFF, 0xFF];
         ms5611.transfer_in_place(&mut buf).unwrap();
 
         prom[i as usize] = ((buf[1] as u16) << 8) | (buf[2] as u16);
@@ -71,7 +75,7 @@ fn main() -> ! {
     }
     ufmt::uwriteln!(s, "").unwrap();
 
-    loop { }
+    loop {}
 }
 
 /// MSP5611 default factory coefficients
