@@ -1,14 +1,17 @@
 //! # Watchdog
 
+use crate::pac::{
+    wdt::ctrla::{PERIOD_A, WINDOW_A},
+    WDT,
+};
 use core::fmt;
-use crate::pac::{WDT, wdt::ctrla::{PERIOD_A, WINDOW_A}};
 
 use avr_device::ccp::ProtectedWritable;
 
 /// The timeout how long it should take for the watchdog take to expire when
 /// it's not fed by calling [`feed`]
-/// 
-/// [`feed`]: `crate::hal::watchdog::Watchdog::feed`
+///
+/// [`feed`]: `WatchdogTimer::feed`
 #[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WatchdogTimeout {
     Disabled,
@@ -109,19 +112,19 @@ impl WatchdogTimer {
     fn setup(&self, timeout: WatchdogTimeout, window: Option<WatchdogTimeout>) {
         let window = window.unwrap_or(WatchdogTimeout::Disabled);
 
-        self.wdt.ctrla().write_protected(|w| { w
-            .period().variant(timeout.into())
-            .window().variant(window.into())
+        self.wdt.ctrla().write_protected(|w| {
+            w.period()
+                .variant(timeout.into())
+                .window()
+                .variant(window.into())
         });
     }
 
     /// Lock the watchdog peripheral.
-    /// 
+    ///
     /// Once this function has been called, it cannot be reconfigured anymore
     pub fn lock(&self) {
-        self.wdt.status().write_protected(|w| { w
-            .lock().set_bit()
-        });
+        self.wdt.status().write_protected(|w| w.lock().set_bit());
     }
 
     /// Get access to the underlying register block.

@@ -10,6 +10,7 @@ dependencies = [
  "cfg-if",
  "embedded-hal",
  "embedded-hal-bus",
+ "embedded-hal-nb",
  "embedded-io",
  "enumset",
  "fugit",
@@ -106,6 +107,16 @@ checksum = "57b4e6ede84339ebdb418cd986e6320a34b017cdf99b5cc3efceec6450b06886"
 dependencies = [
  "critical-section",
  "embedded-hal",
+]
+
+[[package]]
+name = "embedded-hal-nb"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fba4268c14288c828995299e59b12babdbe170f6c6d73731af1b4648142e8605"
+dependencies = [
+ "embedded-hal",
+ "nb 1.0.0",
 ]
 
 [[package]]

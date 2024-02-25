@@ -1,4 +1,4 @@
-use super::{Timer, FTimer, Instance, PeriodicMode, AsClockSource, Error};
+use super::{AsClockSource, Error, FTimer, Instance, PeriodicMode, Timer};
 
 use core::ops::{Deref, DerefMut};
 
@@ -40,7 +40,9 @@ impl<TIM: Instance + PeriodicMode> CounterHz<TIM> {
         self.tim.set_periodic_mode();
         self.tim.clear_overflow();
 
-        let (period, prescaler) = self.tim.calculate_period_and_prescaler::<TIM>(clk, timeout)?;
+        let (period, prescaler) = self
+            .tim
+            .calculate_period_and_prescaler::<TIM>(clk, timeout)?;
         self.tim.set_prescaler(prescaler);
         self.tim.set_period(period)?;
         self.tim.trigger_update();
@@ -71,13 +73,13 @@ impl<TIM: Instance + PeriodicMode> CounterHz<TIM> {
 
 impl<TIM: Instance + AsClockSource> CounterHz<TIM> {
     pub fn use_as_clock_source(&self) -> TIM::OutputClock {
-        self.tim.use_as_clock_source(TIM::get_input_clock_rate(self.clk) / self.tim.read_prescaler() as u32)
+        self.tim.use_as_clock_source(
+            TIM::get_input_clock_rate(self.clk) / self.tim.read_prescaler() as u32,
+        )
     }
 }
 
-
-
-/// Periodic non-blocking timer that implements [embedded_hal::timer::CountDown]
+/// Periodic non-blocking timer
 pub struct Counter<TIM, const FREQ: u32>(pub(super) FTimer<TIM, FREQ>);
 
 impl<T, const FREQ: u32> Deref for Counter<T, FREQ> {
@@ -116,10 +118,12 @@ impl<TIM: Instance + PeriodicMode, const FREQ: u32> Counter<TIM, FREQ> {
         self.tim.set_periodic_mode();
         self.tim.clear_overflow();
 
-        let period = (timeout.ticks() - 1).try_into().map_err(|_| Error::ImpossiblePeriod)?;
+        let period = (timeout.ticks() - 1)
+            .try_into()
+            .map_err(|_| Error::ImpossiblePeriod)?;
         self.tim.set_period(period)?;
         self.tim.trigger_update();
-        
+
         // start counter
         self.tim.enable_counter();
 
@@ -145,7 +149,9 @@ impl<TIM: Instance + PeriodicMode, const FREQ: u32> Counter<TIM, FREQ> {
     }
 }
 
-impl<TIM: Instance + PeriodicMode, const FREQ: u32> fugit_timer::Timer<FREQ> for Counter<TIM, FREQ> {
+impl<TIM: Instance + PeriodicMode, const FREQ: u32> fugit_timer::Timer<FREQ>
+    for Counter<TIM, FREQ>
+{
     type Error = Error;
 
     fn now(&mut self) -> TimerInstantU32<FREQ> {

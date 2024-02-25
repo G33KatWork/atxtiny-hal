@@ -1,6 +1,6 @@
+use super::{AsClockSource, Counter, CounterHz, Delay, Error, General, Instance, PeriodicMode};
 use crate::time::*;
 use crate::Toggle;
-use super::{Counter, CounterHz, Delay, Instance, General, PeriodicMode, Error, AsClockSource};
 
 use enumset::EnumSet;
 
@@ -16,10 +16,7 @@ impl<TIM: Instance + General> Timer<TIM> {
     /// Initialize timer
     pub fn new(mut tim: TIM, clk: TIM::ClockSource) -> Self {
         tim.reset_counter_peripheral();
-        Self {
-            tim,
-            clk,
-        }
+        Self { tim, clk }
     }
 
     /// Releases the TIM peripheral
@@ -102,7 +99,7 @@ impl<TIM: Instance + General> Timer<TIM> {
 }
 
 impl<TIM: Instance + General + PeriodicMode> Timer<TIM> {
-    /// Creates [`CounterHz`] with dynamic precision that imlements [embedded_hal::timer::CountDown]
+    /// Creates [`CounterHz`] with dynamic precision
     pub fn counter_hz(self) -> CounterHz<TIM> {
         CounterHz(self)
     }
@@ -115,8 +112,6 @@ impl<TIM: Instance + General + PeriodicMode> Timer<TIM> {
 //     }
 // }
 
-
-
 /// Timer wrapper for fixed precision timers
 ///
 /// Uses `fugit::TimerDurationU32` for most of operations
@@ -126,7 +121,7 @@ pub struct FTimer<TIM, const FREQ: u32> {
 
 // /// `FTimer` with precision of 1 μs (1 MHz sampling)
 // pub type FTimerUs<TIM> = FTimer<TIM, 1_000_000>;
-// 
+//
 // /// `FTimer` with precision of 1 ms (1 kHz sampling)
 // pub type FTimerMs<TIM> = FTimer<TIM, 1_000>;
 
@@ -145,12 +140,12 @@ impl<TIM: Instance + General, const FREQ: u32> FTimer<TIM, FREQ> {
 
         let clk_rate = TIM::get_input_clock_rate(clk);
         if clk_rate.raw() % FREQ != 0 {
-            return Err(Error::ImpossiblePrescaler)
+            return Err(Error::ImpossiblePrescaler);
         }
 
         let psc = (clk_rate.raw() / FREQ) as u16;
         if !TIM::is_prescaler_valid(psc, clk) {
-            return Err(Error::ImpossiblePrescaler)
+            return Err(Error::ImpossiblePrescaler);
         }
 
         self.tim.set_prescaler(psc);
@@ -238,12 +233,12 @@ impl<TIM: Instance + General, const FREQ: u32> FTimer<TIM, FREQ> {
 }
 
 impl<TIM: Instance + General + PeriodicMode, const FREQ: u32> FTimer<TIM, FREQ> {
-    /// Creates `Counter` that imlements [embedded_hal::timer::CountDown]
+    /// Creates `Counter`
     pub fn counter(self) -> Counter<TIM, FREQ> {
         Counter(self)
     }
 
-    /// Creates `Delay` that imlements [embedded_hal::blocking::delay] traits
+    /// Creates `Delay` that imlements [embedded_hal::delay::DelayNs] traits
     pub fn delay(self) -> Delay<TIM, FREQ> {
         Delay(self)
     }

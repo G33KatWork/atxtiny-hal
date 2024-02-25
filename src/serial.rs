@@ -2,25 +2,29 @@
 //!
 //! Asynchronous serial communication using the interal USART peripherals
 //!
-//! The serial modules implement the [`Read`] and [`Write`] traits.
+//! The serial modules implement the `Read` and `Write` traits from `embedded-io` as well as `embedded-hal-nb`.
 //!
-//! [`Read`]: embedded_hal::serial::Read
-//! [`Write`]: embedded_hal::serial::Write
+//! `embedded-io`:
+//! * [`Read (embedded-io)`]
+//! * [`Write (embedded-io)`]
+//!
+//! `embedded-hal-nb`:
+//! * [`Read (embedded-hal-nb)`]
+//! * [`Write (embedded-hal-nb)`]
+//!
+//! [`Read (embedded-io)`]: embedded_io::Read
+//! [`Write (embedded-io)`]: embedded_io::Write
+//!
+//! [`Read (embedded-hal-nb)`]: embedded_hal_nb::serial::Read
+//! [`Write (embedded-hal-nb)`]: embedded_hal_nb::serial::Write
 
-use core::{
-    fmt,
-    ops::Deref,
-    marker::PhantomData,
-};
+use core::{fmt, marker::PhantomData, ops::Deref};
 
-use crate::pac::usart0::{RegisterBlock, ctrlb::RXMODE_A};
+use crate::embedded_hal_nb::serial::{ErrorType as NbErrorType, Read as NbRead, Write as NbWrite};
 use crate::embedded_io::{ErrorType as IoErrorType, Read as IoRead, Write as IoWrite};
+use crate::pac::usart0::{ctrlb::RXMODE_A, RegisterBlock};
 
-use crate::{
-    clkctrl::Clocks,
-    time::*,
-    Toggle,
-};
+use crate::{clkctrl::Clocks, time::*, Toggle};
 
 #[cfg(feature = "enumset")]
 use enumset::{EnumSet, EnumSetType};
@@ -37,7 +41,7 @@ pub trait RxPin<Usart>: crate::private::Sealed {}
 pub struct UartPinset<Usart, Rx: RxPin<Usart>, Tx: TxPin<Usart>> {
     _usart: PhantomData<Usart>,
     rx: Rx,
-    tx: Tx
+    tx: Tx,
 }
 
 impl<Usart, Rx, Tx> UartPinset<Usart, Rx, Tx>
@@ -46,10 +50,14 @@ where
     Tx: TxPin<Usart>,
 {
     pub(crate) fn new(rx: Rx, tx: Tx) -> Self {
-        UartPinset { _usart: PhantomData, rx, tx }
+        UartPinset {
+            _usart: PhantomData,
+            rx,
+            tx,
+        }
     }
 
-    pub fn free(self) -> (Rx, Tx) { 
+    pub fn free(self) -> (Rx, Tx) {
         (self.rx, self.tx)
     }
 }
@@ -65,7 +73,7 @@ pub enum Event {
     /// Receive Complete Interrupt Flag
     ///
     /// This event is set by hardware when new data is present in the receive buffer.
-    /// It is cleared by [`Serial`]s [`serial::Read::read()`] when reading data from the receive buffer.
+    /// It is cleared by [`Serial`]s [`Serial::read()`] when reading data from the receive buffer.
     #[doc(alias = "RXCIF")]
     ReceiveComplete,
 
@@ -91,7 +99,7 @@ pub enum Event {
     ReceiveStart,
 
     /// Inconsistent Synchronization Field Flag
-    /// 
+    ///
     /// This flag is set if an auto-baud mode is enabled, and the synchronization field is
     /// too short or too long to give a valid baud setting. It will also be set when USART
     /// is set to LINAUTO mode, and the SYNC character differs from data value 0x55.
@@ -101,7 +109,7 @@ pub enum Event {
     /// Break Detected Flag
     ///
     /// This event is set if an auto-baud mode is enabled and a valid break and synchronization
-    /// character is detected, and is cleared when the next data are received. 
+    /// character is detected, and is cleared when the next data are received.
     #[doc(alias = "BDF")]
     BreakDetected,
 }
@@ -119,7 +127,7 @@ pub enum Interrupt {
     /// Receive Complete Interrupt Enable
     ///
     /// This event is set by hardware when new data is present in the receive buffer.
-    /// It is cleared by [`Serial`]s [`serial::Read::read()`] when reading data from the receive buffer.
+    /// It is cleared by [`Serial`]s [`Serial::read()`] when reading data from the receive buffer.
     #[doc(alias = "RXCIE")]
     ReceiveComplete,
 
@@ -186,7 +194,18 @@ impl crate::embedded_io::Error for Error {
         match *self {
             Error::Framing => ErrorKind::Other,
             Error::Overrun => ErrorKind::Other,
-            Error::Parity =>  ErrorKind::Other,
+            Error::Parity => ErrorKind::Other,
+        }
+    }
+}
+
+impl crate::embedded_hal_nb::serial::Error for Error {
+    fn kind(&self) -> embedded_hal_nb::serial::ErrorKind {
+        use crate::embedded_hal_nb::serial::ErrorKind;
+        match *self {
+            Error::Framing => ErrorKind::Other,
+            Error::Overrun => ErrorKind::Other,
+            Error::Parity => ErrorKind::Other,
         }
     }
 }
@@ -345,10 +364,9 @@ where
         let config = config.into();
 
         // Disable the transmitter and receiver
-        usart.ctrlb().modify(|_, w| w
-            .rxen().clear_bit()
-            .txen().clear_bit()
-        );
+        usart
+            .ctrlb()
+            .modify(|_, w| w.rxen().clear_bit().txen().clear_bit());
 
         // Calculate and set the baud rate
         let baudrate = config.baudrate.0;
@@ -364,33 +382,53 @@ where
         assert!(brr >= 64, "impossible baud rate");
 
         // FIXME: does the 16 bit write work correctly on the AVR mega cores?
-        usart.baud().write(|w| { w.bits(brr as u16) });
+        usart.baud().write(|w| w.bits(brr as u16));
 
         // Asynchronous mode, Parity, Stopbits and character size according to config
-        usart.ctrlc().write(|w| w
-            .cmode().asynchronous()
-            .pmode().variant(config.parity.into())
-            .sbmode().variant(config.stopbits.into())
-            .chsize().variant(config.character_size.into())
-        );
+        usart.ctrlc().write(|w| {
+            w.cmode()
+                .asynchronous()
+                .pmode()
+                .variant(config.parity.into())
+                .sbmode()
+                .variant(config.stopbits.into())
+                .chsize()
+                .variant(config.character_size.into())
+        });
 
         // Disable all interrupts for now
-        usart.ctrla().write(|w| w
-            .rxcie().clear_bit()        // Receive Complete Interrupt Enable
-            .txcie().clear_bit()        // Transmit Complete Interrupt Enable
-            .dreie().clear_bit()        // Data Register Empty Interrupt Enable
-            .rxsie().clear_bit()        // Receiver Start Frame Interrupt Enable
-            .lbme().clear_bit()         // Loop-Back Mode Enable
-            .abeie().clear_bit()        // Auto-Baud Error Interrupt Enable
-            .rs485().off()              // RS-485 Mode
+        usart.ctrla().write(
+            |w| {
+                w.rxcie()
+                    .clear_bit() // Receive Complete Interrupt Enable
+                    .txcie()
+                    .clear_bit() // Transmit Complete Interrupt Enable
+                    .dreie()
+                    .clear_bit() // Data Register Empty Interrupt Enable
+                    .rxsie()
+                    .clear_bit() // Receiver Start Frame Interrupt Enable
+                    .lbme()
+                    .clear_bit() // Loop-Back Mode Enable
+                    .abeie()
+                    .clear_bit() // Auto-Baud Error Interrupt Enable
+                    .rs485()
+                    .off()
+            }, // RS-485 Mode
         );
 
-        usart.ctrlb().write(|w| w
-            .rxen().set_bit()           // Enable receiver
-            .txen().set_bit()           // Enable transmitter
-            .sfden().clear_bit()        // Disable start-of-frame detection
-            .odme().clear_bit()         // Disable open-drain mode
-            .rxmode().variant(rxmode)   // Set the baudrate generator mode
+        usart.ctrlb().write(
+            |w| {
+                w.rxen()
+                    .set_bit() // Enable receiver
+                    .txen()
+                    .set_bit() // Enable transmitter
+                    .sfden()
+                    .clear_bit() // Disable start-of-frame detection
+                    .odme()
+                    .clear_bit() // Disable open-drain mode
+                    .rxmode()
+                    .variant(rxmode)
+            }, // Set the baudrate generator mode
         );
 
         Self { usart, pinset }
@@ -411,10 +449,9 @@ where
 
     /// Releases the USART peripheral and associated pinset
     pub fn free(self) -> (Usart, UartPinset<Usart, RX, TX>) {
-        self.usart.ctrlb().modify(|_, w| w
-            .rxen().clear_bit()
-            .txen().clear_bit()
-        );
+        self.usart
+            .ctrlb()
+            .modify(|_, w| w.rxen().clear_bit().txen().clear_bit());
         (self.usart, self.pinset)
     }
 
@@ -465,12 +502,12 @@ where
     ///
     /// ## Embedded HAL
     ///
-    /// To have a more managed way to read from the serial use the [`embedded_hal::serial::Read`]
+    /// To have a more managed way to read from the serial use the [`Serial::read()`]
     /// trait implementation.
     #[doc(alias = "RDR")]
     pub fn read_data_register(&self) -> Option<u8> {
         if self.usart.rxdatah().read().rxcif().bit_is_clear() {
-            return None
+            return None;
         }
 
         Some(self.usart.rxdatal().read().bits() as u8)
@@ -483,7 +520,7 @@ where
     #[doc(alias = "RDR")]
     pub fn read_data_register_9bit(&self) -> Option<u16> {
         if self.usart.rxdatah().read().rxcif().bit_is_clear() {
-            return None
+            return None;
         }
 
         let bit9 = self.usart.rxdatah().read().data8().bit() as u16;
@@ -606,9 +643,9 @@ where
     #[inline]
     pub fn clear_event(&mut self, event: Event) {
         self.usart.status().write(|w| match event {
-            Event::ReceiveComplete => w,                    // Not clearable
+            Event::ReceiveComplete => w, // Not clearable
             Event::TransmitComplete => w.txcif().set_bit(),
-            Event::DataRegisterEmpty => w,                  // Not clearable
+            Event::DataRegisterEmpty => w, // Not clearable
             Event::ReceiveStart => w.rxsif().set_bit(),
             Event::InconsistentSynchronizationField => w.isfif().set_bit(),
             Event::BreakDetected => w.bdf().set_bit(),
@@ -635,7 +672,7 @@ where
         let enable: Toggle = enable.into();
         let enable: bool = enable.into();
 
-        self.usart.status().write(|w| w.wfb().bit(enable) );
+        self.usart.status().write(|w| w.wfb().bit(enable));
     }
 
     /// Enable or disable the multiprocessor communication mode.
@@ -645,7 +682,7 @@ where
         let enable: Toggle = enable.into();
         let enable: bool = enable.into();
 
-        self.usart.ctrlb().write(|w| w.mpcm().bit(enable) );
+        self.usart.ctrlb().write(|w| w.mpcm().bit(enable));
     }
 }
 
@@ -744,7 +781,40 @@ where
     }
 }
 
+impl<Usart, RX, TX> NbErrorType for Serial<Usart, UartPinset<Usart, RX, TX>>
+where
+    Usart: Instance,
+    RX: RxPin<Usart>,
+    TX: TxPin<Usart>,
+{
+    type Error = Error;
+}
+
+impl<Usart, RX, TX> NbRead for Serial<Usart, UartPinset<Usart, RX, TX>>
+where
+    Usart: Instance,
+    RX: RxPin<Usart>,
+    TX: TxPin<Usart>,
+{
+    /// This implementation shares the same effects as the [`Serial`]s [`embedded_io::Read`] implemenation.
+    fn read(&mut self) -> embedded_hal_nb::nb::Result<u8, Self::Error> {
+        if let Some(b) = eh_read(&mut self.usart)? {
+            Ok(b)
+        } else {
+            Err(embedded_hal_nb::nb::Error::WouldBlock)
+        }
+    }
+}
+
 impl<Usart, Pin> IoErrorType for Rx<Usart, Pin>
+where
+    Usart: Instance,
+    Pin: RxPin<Usart>,
+{
+    type Error = Error;
+}
+
+impl<Usart, Pin> NbErrorType for Rx<Usart, Pin>
 where
     Usart: Instance,
     Pin: RxPin<Usart>,
@@ -757,14 +827,28 @@ where
     Usart: Instance,
     Pin: RxPin<Usart>,
 {
-
-    /// This implementation shares the same effects as the [`Serial`]s [`serial::Read`] implemenation.
+    /// This implementation shares the same effects as the [`Serial`]s [`embedded_io::Read`] implemenation.
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         loop {
             if let Some(b) = eh_read(unsafe { self.usart_mut() })? {
                 buf[0] = b;
                 return Ok(1);
             }
+        }
+    }
+}
+
+impl<Usart, Pin> NbRead for Rx<Usart, Pin>
+where
+    Usart: Instance,
+    Pin: RxPin<Usart>,
+{
+    /// This implementation shares the same effects as the [`Serial`]s [`embedded_io::Read`] implemenation.
+    fn read(&mut self) -> embedded_hal_nb::nb::Result<u8, Self::Error> {
+        if let Some(b) = eh_read(unsafe { self.usart_mut() })? {
+            Ok(b)
+        } else {
+            Err(embedded_hal_nb::nb::Error::WouldBlock)
         }
     }
 }
@@ -791,6 +875,31 @@ where
     }
 }
 
+impl<Usart, RX, TX> NbWrite for Serial<Usart, UartPinset<Usart, RX, TX>>
+where
+    Usart: Instance,
+    RX: RxPin<Usart>,
+    TX: TxPin<Usart>,
+{
+    fn write(&mut self, word: u8) -> embedded_hal_nb::nb::Result<(), Self::Error> {
+        if self.usart.status().read().dreif().bit_is_set() {
+            self.usart.txdatal().write(|w| w.bits(word));
+            Ok(())
+        } else {
+            Err(nb::Error::WouldBlock)
+        }
+    }
+
+    fn flush(&mut self) -> embedded_hal_nb::nb::Result<(), Self::Error> {
+        if self.usart.status().read().txcif().bit_is_set() {
+            self.usart.status().write(|w| w.txcif().set_bit());
+            Ok(())
+        } else {
+            Err(nb::Error::WouldBlock)
+        }
+    }
+}
+
 impl<Usart, RX, TX> fmt::Write for Serial<Usart, UartPinset<Usart, RX, TX>>
 where
     Serial<Usart, UartPinset<Usart, RX, TX>>: IoWrite,
@@ -798,7 +907,9 @@ where
     TX: TxPin<Usart>,
 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write(s.as_bytes()).map(|_x| ()).map_err(|_| fmt::Error)
+        self.write(s.as_bytes())
+            .map(|_x| ())
+            .map_err(|_| fmt::Error)
     }
 }
 
@@ -811,7 +922,9 @@ where
     type Error = uWriteError;
 
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-        self.write(s.as_bytes()).map(|_x| ()).map_err(|_| uWriteError)
+        self.write(s.as_bytes())
+            .map(|_x| ())
+            .map_err(|_| uWriteError)
     }
 
     fn write_char(&mut self, c: char) -> Result<(), Self::Error> {
@@ -827,12 +940,19 @@ where
     type Error = Error;
 }
 
+impl<Usart, Pin> NbErrorType for Tx<Usart, Pin>
+where
+    Usart: Instance,
+    Pin: TxPin<Usart>,
+{
+    type Error = Error;
+}
+
 impl<Usart, Pin> IoWrite for Tx<Usart, Pin>
 where
     Usart: Instance,
     Pin: TxPin<Usart>,
 {
-
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         for b in buf {
             unsafe {
@@ -853,12 +973,42 @@ where
     }
 }
 
+impl<Usart, Pin> NbWrite for Tx<Usart, Pin>
+where
+    Usart: Instance,
+    Pin: TxPin<Usart>,
+{
+    fn write(&mut self, word: u8) -> embedded_hal_nb::nb::Result<(), Self::Error> {
+        let status = unsafe { self.usart().status().read() };
+
+        if status.dreif().bit_is_set() {
+            unsafe { self.usart().txdatal().write(|w| w.bits(word)) };
+            Ok(())
+        } else {
+            Err(nb::Error::WouldBlock)
+        }
+    }
+
+    fn flush(&mut self) -> embedded_hal_nb::nb::Result<(), Self::Error> {
+        let status = unsafe { self.usart().status().read() };
+
+        if status.txcif().bit_is_set() {
+            unsafe { self.usart().status().write(|w| w.txcif().set_bit()) };
+            Ok(())
+        } else {
+            Err(nb::Error::WouldBlock)
+        }
+    }
+}
+
 impl<Usart, Pin> fmt::Write for Tx<Usart, Pin>
 where
     Tx<Usart, Pin>: IoWrite,
 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write(s.as_bytes()).map(|_x| ()).map_err(|_| fmt::Error)
+        self.write(s.as_bytes())
+            .map(|_x| ())
+            .map_err(|_| fmt::Error)
     }
 }
 
@@ -869,7 +1019,9 @@ where
     type Error = uWriteError;
 
     fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-        self.write(s.as_bytes()).map(|_x| ()).map_err(|_| uWriteError)
+        self.write(s.as_bytes())
+            .map(|_x| ())
+            .map_err(|_| uWriteError)
     }
 
     fn write_char(&mut self, c: char) -> Result<(), Self::Error> {
@@ -877,18 +1029,11 @@ where
     }
 }
 
-
-
 /// UART instance
-pub trait Instance:
-    Deref<Target = RegisterBlock>
-    + crate::private::Sealed
-{
+pub trait Instance: Deref<Target = RegisterBlock> + crate::private::Sealed {
     #[doc(hidden)]
     fn clock(clocks: &Clocks) -> Hertz;
 }
-
-
 
 macro_rules! uart {
     ({

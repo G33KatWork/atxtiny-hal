@@ -3,12 +3,12 @@
 #![feature(panic_info_message)]
 #![feature(associated_type_defaults)]
 #![feature(associated_const_equality)]
-
 #![deny(rustdoc::broken_intra_doc_links)]
 
 pub use embedded_hal;
-pub use embedded_io;
 pub use embedded_hal_bus;
+pub use embedded_hal_nb;
+pub use embedded_io;
 
 mod private {
     /// Private sealed trait to seal all GPIO implementations
@@ -16,36 +16,36 @@ mod private {
     pub trait Sealed {}
 }
 
-pub mod time;
-pub mod prelude;
 pub mod panic_serial;
+pub mod prelude;
+pub mod time;
 
 pub use avr_device;
 
 #[cfg(feature = "attiny817")]
 pub use avr_device::attiny817 as pac;
 
-pub mod traits;
-pub mod clkctrl;
-pub mod gpio;
-pub mod portmux;
-pub mod serial;
-pub mod twi;
-pub mod spi;
-pub mod watchdog;
-pub mod nvmctrl;
-pub mod ccl;
-pub mod slpctrl;
-pub mod rstctrl;
-pub mod bod;
-pub mod vref;
-pub mod dac;
 pub mod ac;
-pub mod timer;
+pub mod bod;
+pub mod ccl;
+pub mod clkctrl;
 pub mod cpuint;
-pub mod syscfg;
-pub mod evsys;
+pub mod dac;
 pub mod evout;
+pub mod evsys;
+pub mod gpio;
+pub mod nvmctrl;
+pub mod portmux;
+pub mod rstctrl;
+pub mod serial;
+pub mod slpctrl;
+pub mod spi;
+pub mod syscfg;
+pub mod timer;
+pub mod traits;
+pub mod twi;
+pub mod vref;
+pub mod watchdog;
 
 /// Toggle something on or off.
 ///
