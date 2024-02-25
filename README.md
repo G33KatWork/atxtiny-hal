@@ -51,9 +51,9 @@ I built this by myself for private projects by looking at similar HAL crates for
 
 ## General TODOs:
 
-* Implement SPI and UART `embedded_hal_nb` traits
+* Implement SPI `embedded_hal_nb` traits
 
-* FIXME: When releasing a pin from the portmux, we never mux back to GPIO. We should do that when releasing all the pinsets
+* FIXME: When releasing a pin from the portmux, we never mux back to the default pinset. We should do that when releasing all the pinsets
 
 * FIXME: move all the pin modes in portmux from Output<Sateless> to Peripheral<PERI> to avoid type conflicts? Already done for TWI and EVOUT
 
