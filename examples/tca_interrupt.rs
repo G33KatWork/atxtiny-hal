@@ -10,14 +10,16 @@ use atxtiny_hal::prelude::*;
 use atxtiny_hal::gpio::{Gpiox, Output, Pin, Stateful, Ux};
 use atxtiny_hal::timer::{tca::Event, tca::Interrupt, Counter, FTimer};
 
+use core::cell::RefCell;
 use core::mem::MaybeUninit;
+use critical_section::Mutex;
 
 struct InterruptState {
     pub counter: Counter<pac::Tca0, 312500>,
     pub led: Pin<Gpiox, Ux, Output<Stateful>>,
 }
 
-static mut INTERRUPT_STATE: MaybeUninit<InterruptState> = MaybeUninit::uninit();
+static INTERRUPT_STATE: Mutex<RefCell<MaybeUninit<InterruptState>>> = Mutex::new(RefCell::new(MaybeUninit::uninit()));
 
 #[avr_device::entry]
 fn main() -> ! {
@@ -52,17 +54,14 @@ fn main() -> ! {
     // an Error
     c.start(100.millis()).unwrap();
 
-    unsafe {
-        // SAFETY: Interrupts are not enabled at this point so we can safely write the global
-        // variable here.  A memory barrier afterwards ensures the compiler won't reorder this
-        // after any operation that enables interrupts.
-        INTERRUPT_STATE = MaybeUninit::new(InterruptState {
-            counter: c,
-            led: led.downgrade().downgrade(),
-        });
-
-        core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
-    }
+    critical_section::with(|cs| {
+        INTERRUPT_STATE.borrow(cs).borrow_mut().write(
+            InterruptState {
+                counter: c,
+                led: led.downgrade().downgrade(),
+            }
+        );
+    });
 
     // Enable the interrupts globally
     unsafe { avr_device::interrupt::enable() };
@@ -72,17 +71,15 @@ fn main() -> ! {
 
 #[avr_device::interrupt(attiny817)]
 fn TCA0_LUNF_OVF() {
-    let state = unsafe {
-        // SAFETY: We _know_ that interrupts will only be enabled after the global was
-        // initialized so this ISR will never run when the state is still uninitialized.
-        // Also this is the only interrupt accessing this state, so we don't need to
-        // lock it with a Mutex or similar.
-        &mut *INTERRUPT_STATE.as_mut_ptr()
-    };
+    critical_section::with(|cs| {
+        let mut cell = INTERRUPT_STATE.borrow(cs).borrow_mut();
+        // SAFETY: We know this is initialized before interrupts are enabled
+        let state = unsafe { cell.assume_init_mut() };
 
-    // Clear the interrupt so it isn't triggered immediately after returning from this ISR
-    state.counter.clear_event(Event::Overflow);
+        // Clear the interrupt so it isn't triggered immediately after returning from this ISR
+        state.counter.clear_event(Event::Overflow);
 
-    // Toggle the LED
-    state.led.toggle().unwrap();
+        // Toggle the LED
+        state.led.toggle().unwrap();
+    });
 }

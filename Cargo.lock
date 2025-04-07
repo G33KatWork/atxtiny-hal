@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "avr-device",
  "cfg-if",
+ "critical-section",
  "embedded-hal",
  "embedded-hal-bus",
  "embedded-hal-nb",
@@ -29,6 +30,7 @@ dependencies = [
  "avr-device-macros",
  "bare-metal",
  "cfg-if",
+ "critical-section",
  "vcell",
 ]
 
