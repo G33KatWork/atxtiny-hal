@@ -52,7 +52,7 @@ fn main() -> ! {
     let spi = Spi::new_unbuffered(dp.spi0, spi_pair, 625_000.Hz(), clocks);
 
     // Create an SpiDevice for the MS5611
-    let mut ms5611 = ExclusiveDevice::new(spi, cs_ms, NoDelay);
+    let mut ms5611 = ExclusiveDevice::new(spi, cs_ms, NoDelay).expect("Unable to create SPI device");
 
     // Read MS5611 PROM
     let mut prom = [0u16; 8];
