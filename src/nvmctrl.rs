@@ -1,11 +1,11 @@
 //! # Non-Volatile Memory Controller
 
-use cfg_if::cfg_if;
-
-use crate::pac::Nvmctrl;
 use core::ptr;
 
-use avr_device::{attiny817::nvmctrl::ctrla::Cmd, ccp::ProtectedWritable};
+use cfg_if::cfg_if;
+use avr_device::ccp::ProtectedWritable;
+
+use crate::pac::{nvmctrl::ctrla::Cmd, Nvmctrl};
 
 // TODO: SIGROW  = 0x1100
 //       FUSES   = 0x1280
@@ -14,7 +14,7 @@ use avr_device::{attiny817::nvmctrl::ctrla::Cmd, ccp::ProtectedWritable};
 
 cfg_if! {
     if #[cfg(any(
-        feature = "attiny414",
+        feature = "attiny417",
     ))] {
         /// Start address of the flash in data space
         pub const FLASH_START:      usize = 0x8000;
@@ -36,8 +36,6 @@ cfg_if! {
         pub const EEPROM_PAGE_SIZE: usize = 32;
 
     } else if #[cfg(any(
-        feature = "attiny814",
-        feature = "attiny816",
         feature = "attiny817",
     ))] {
         /// Start address of the flash in data space
@@ -60,8 +58,6 @@ cfg_if! {
         pub const EEPROM_PAGE_SIZE: usize = 32;
 
     } else if #[cfg(any(
-        feature = "attiny1614",
-        feature = "attiny1616",
         feature = "attiny1617",
     ))] {
         /// Start address of the flash in data space
@@ -84,7 +80,6 @@ cfg_if! {
         pub const EEPROM_PAGE_SIZE: usize = 32;
 
     } else if #[cfg(any(
-        feature = "attiny3216",
         feature = "attiny3217",
     ))] {
         /// Start address of the flash in data space

@@ -1,4 +1,4 @@
-use avr_device::attiny817::Tcb0 as TCB0;
+use crate::pac::Tcb0 as TCB0;
 
 use crate::{time::*, Toggle};
 

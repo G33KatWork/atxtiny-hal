@@ -255,14 +255,14 @@ where
     fn compute_baud_rate(clocks: Clocks, freq: Hertz) -> (bool, Presc) {
         match SPI::clock(&clocks).raw() / freq.raw() {
             0 => unreachable!(),
-            1..=2 => (true, Presc::Div4),     // DIV_2
-            3..=5 => (false, Presc::Div4),    // DIV_4
-            6..=11 => (true, Presc::Div16),   // DIV_8
-            12..=23 => (false, Presc::Div16), // DIV_16
-            24..=39 => (true, Presc::Div64),  // DIV_32
-            40..=95 => (false, Presc::Div64), // DIV_64
+            1..=2 => (true, Presc::ClkPer4_2),     // DIV_2
+            3..=5 => (false, Presc::ClkPer4_2),    // DIV_4
+            6..=11 => (true, Presc::ClkPer16_8),   // DIV_8
+            12..=23 => (false, Presc::ClkPer16_8), // DIV_16
+            24..=39 => (true, Presc::ClkPer64_32),  // DIV_32
+            40..=95 => (false, Presc::ClkPer64_32), // DIV_64
             //96..=191 => (false, Presc::Div128),   // DIV_128
-            _ => (false, Presc::Div128),
+            _ => (false, Presc::ClkPer128_64),
         }
     }
 

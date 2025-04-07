@@ -456,7 +456,7 @@ macro_rules! gpio_trait {
             impl GpioRegExt for crate::pac::$gpioy::RegisterBlock {
                 #[inline(always)]
                 fn is_low(&self, i: u8) -> bool {
-                    self.in_().read().bits() & (1 << i) == 0
+                    self.input().read().bits() & (1 << i) == 0
                 }
 
                 #[inline(always)]

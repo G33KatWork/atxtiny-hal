@@ -1,3 +1,22 @@
+do this for different examples & chips
+https://github.com/steffengy/cargo-board/blob/master/src/main.rs
+
+417 == 817
+1617 == 3217
+
+diff 4/8 to 16/32
+    16/32 -> 2 TCB instead of 1
+    16/32 -> 2 ADC instead of 1
+    16/32 -> 3 DAC instead of 1
+    16/32 -> 3 AC instead of 1
+
+später:
+1614==1616==1617, nur mit mehr oder weniger pins?
+3216==3217, nur mit mehr oder weniger pins?
+in erster linie evsys, portmux, ac und adc mit anderen pins
+
+
+
 https://www.radiolocman.com/shem/schematics.html?di=148255
 https://jared.geek.nz/2013/feb/linear-led-pwm
 

@@ -110,6 +110,7 @@ pub enum Level {
     Level430V,
 }
 
+#[cfg(any(feature = "attiny417", feature = "attiny817"))]
 impl From<bod::ctrlb::Lvl> for Level {
     fn from(value: bod::ctrlb::Lvl) -> Self {
         use bod::ctrlb::Lvl::*;
@@ -122,6 +123,19 @@ impl From<bod::ctrlb::Lvl> for Level {
             Bodlevel5 => Level::Level370V,
             Bodlevel6 => Level::Level400V,
             Bodlevel7 => Level::Level430V,
+        }
+    }
+}
+
+#[cfg(any(feature = "attiny1617", feature = "attiny3217"))]
+impl From<Option<bod::ctrlb::Lvl>> for Level {
+    fn from(value: Option<bod::ctrlb::Lvl>) -> Self {
+        use bod::ctrlb::Lvl::*;
+        match value {
+            Some(Bodlevel0) => Level::Level180V,
+            Some(Bodlevel2) => Level::Level260V,
+            Some(Bodlevel7) => Level::Level430V,
+            None => panic!("Invalid value for BOD level"),
         }
     }
 }

@@ -34,25 +34,10 @@ rt = ["avr-device/rt"]
 fullpanic = []
 
 # devices
-#attiny414 = ["avr-device/attiny414", "device-selected"]
-#attiny814 = ["avr-device/attiny814", "device-selected"]
-#attiny816 = ["avr-device/attiny816", "device-selected"]
+attiny417 = ["avr-device/attiny417", "device-selected"]
 attiny817 = ["avr-device/attiny817", "device-selected"]
-#attiny1614 = ["avr-device/attiny1614", "device-selected"]
-#attiny1616 = ["avr-device/attiny1616", "device-selected"]
-#attiny1617 = ["avr-device/attiny1617", "device-selected"]
-#attiny3216 = ["avr-device/attiny3216", "device-selected"]
-#attiny3217 = ["avr-device/attiny3217", "device-selected"]
-
-# FIXME: add these to avr-device
-attiny414 = ["device-selected"]
-attiny814 = ["device-selected"]
-attiny816 = ["device-selected"]
-attiny1614 = ["device-selected"]
-attiny1616 = ["device-selected"]
-attiny1617 = ["device-selected"]
-attiny3216 = ["device-selected"]
-attiny3217 = ["device-selected"]
+attiny1617 = ["avr-device/attiny1617", "device-selected"]
+attiny3217 = ["avr-device/attiny3217", "device-selected"]
 
 # features for bins
 ms5611 = []

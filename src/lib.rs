@@ -21,9 +21,6 @@ pub mod time;
 
 pub use avr_device;
 
-#[cfg(feature = "attiny817")]
-pub use avr_device::attiny817 as pac;
-
 pub mod ac;
 pub mod bod;
 pub mod ccl;
@@ -72,3 +69,15 @@ impl From<bool> for Toggle {
         }
     }
 }
+
+#[cfg(feature = "attiny417")]
+pub use avr_device::attiny417 as pac;
+
+#[cfg(feature = "attiny817")]
+pub use avr_device::attiny817 as pac;
+
+#[cfg(feature = "attiny1617")]
+pub use avr_device::attiny1617 as pac;
+
+#[cfg(feature = "attiny3217")]
+pub use avr_device::attiny3217 as pac;
