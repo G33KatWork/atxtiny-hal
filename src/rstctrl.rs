@@ -1,6 +1,5 @@
 //! # Reset Controller
 
-use crate::pac::RSTCTRL;
 use enumset::{EnumSet, EnumSetType};
 
 /// Reset Flags.
@@ -54,14 +53,14 @@ pub enum ResetReason {
     PowerOn,
 }
 
-/// Extension trait that constrains the [`RSTCTRL`] peripheral
+/// Extension trait that constrains the [`crate::pac::Rstctrl`] peripheral
 pub trait RstctrlExt {
-    /// Constrains the [`RSTCTRL`] peripheral.
+    /// Constrains the [`pac::RSTCTRL`] peripheral.
     ///
     /// Consumes the [`pac::RSTCTRL`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::RSTCTRL`]: `crate::pac::RSTCTRL`
+    /// [`pac::RSTCTRL`]: `crate::pac::Rstctrl`
     /// [`HAL`]: `crate`
     fn constrain(self) -> Rstctrl;
 }
@@ -69,17 +68,17 @@ pub trait RstctrlExt {
 /// Constrained Rstctrl peripheral
 ///
 /// An instance of this struct is acquired by calling the [`constrain`](RstctrlExt::constrain) function
-/// on the [`RSTCTRL`] struct.
+/// on the [`Rstctrl`] struct.
 ///
 /// ```
 /// let dp = pac::Peripherals::take().unwrap();
 /// let rstctrl = dp.RSTCTRL.constrain();
 /// ```
 pub struct Rstctrl {
-    rstctrl: RSTCTRL,
+    rstctrl: crate::pac::Rstctrl,
 }
 
-impl RstctrlExt for RSTCTRL {
+impl RstctrlExt for crate::pac::Rstctrl {
     fn constrain(self) -> Rstctrl {
         Rstctrl { rstctrl: self }
     }

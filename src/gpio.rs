@@ -496,32 +496,32 @@ macro_rules! gpio_trait {
 
                 #[inline(always)]
                 fn floating(&self, i: u8) {
-                    self.pinctrl(i as usize).modify(|_, w| w.pullupen().clear_bit())
+                    self.pinctrl(i as usize).modify(|_, w| w.pullupen().clear_bit());
                 }
 
                 #[inline(always)]
                 fn pull_up(&self, i: u8) {
-                    self.pinctrl(i as usize).modify(|_, w| w.pullupen().set_bit())
+                    self.pinctrl(i as usize).modify(|_, w| w.pullupen().set_bit());
                 }
 
                 #[inline(always)]
                 fn normal(&self, i: u8) {
-                    self.pinctrl(i as usize).modify(|_, w| w.inven().clear_bit())
+                    self.pinctrl(i as usize).modify(|_, w| w.inven().clear_bit());
                 }
 
                 #[inline(always)]
                 fn inverted(&self, i: u8) {
-                    self.pinctrl(i as usize).modify(|_, w| w.inven().set_bit())
+                    self.pinctrl(i as usize).modify(|_, w| w.inven().set_bit());
                 }
 
                 #[inline(always)]
                 fn enable_input_buffer(&self, i: u8) {
-                    self.pinctrl(i as usize).modify(|_, w| w.isc().intdisable())
+                    self.pinctrl(i as usize).modify(|_, w| w.isc().intdisable());
                 }
 
                 #[inline(always)]
                 fn disable_input_buffer(&self, i: u8) {
-                    self.pinctrl(i as usize).modify(|_, w| w.isc().input_disable())
+                    self.pinctrl(i as usize).modify(|_, w| w.isc().input_disable());
                 }
 
                 #[inline(always)]
@@ -542,7 +542,7 @@ macro_rules! gpio_trait {
                         Edge::Falling => self.pinctrl(i as usize).modify(|_, w| w.isc().falling()),
                         Edge::RisingFalling => self.pinctrl(i as usize).modify(|_, w| w.isc().bothedges()),
                         Edge::LowLevel => self.pinctrl(i as usize).modify(|_, w| w.isc().level()),
-                    }
+                    };
                 }
             }
         )+
@@ -551,7 +551,6 @@ macro_rules! gpio_trait {
 
 macro_rules! gpio {
     ({
-        PORT: $PORTX:ident,
         port: $portx:ident,
         Port: $Portx:ident,
         port_index: $port_index:literal,
@@ -563,7 +562,7 @@ macro_rules! gpio {
            ),
         )+],
     }) => {
-        #[doc = concat!("GPIO port ", stringify!($PORTX), " (type state)")]
+        #[doc = concat!("GPIO port ", stringify!($Portx), " (type state)")]
         #[derive(ufmt::derive::uDebug, Debug)]
         pub struct $Portx;
 
@@ -572,7 +571,7 @@ macro_rules! gpio {
 
             #[inline(always)]
             fn ptr(&self) -> *const Self::Reg {
-                crate::pac::$PORTX::ptr()
+                crate::pac::$Portx::ptr()
             }
 
             #[inline(always)]
@@ -589,14 +588,12 @@ macro_rules! gpio {
             pub type $PXi<Mode> = Pin<$Portx, U<$i>, Mode>;
         )+
 
-        #[doc = concat!("Partially erased pin for ", stringify!($PORTX))]
+        #[doc = concat!("Partially erased pin for ", stringify!($Portx))]
         pub type $PXx<Mode> = Pin<$Portx, Ux, Mode>;
 
-        #[doc = concat!("All Pins and associated registers for GPIO port ", stringify!($PORTX))]
+        #[doc = concat!("All Pins and associated registers for GPIO port ", stringify!($Portx))]
         pub mod $portx {
             use core::marker::PhantomData;
-
-            use crate::pac::$PORTX;
 
             use super::{$Portx, GpioExt, U};
             use super::Input;
@@ -616,7 +613,7 @@ macro_rules! gpio {
                 )+
             }
 
-            impl GpioExt for $PORTX {
+            impl GpioExt for crate::pac::$Portx {
                 type Parts = Parts;
 
                 fn split(self) -> Parts {
@@ -647,7 +644,6 @@ macro_rules! gpio {
             gpio_trait!($pacs);
             $(
                 gpio!({
-                    PORT: [<PORT $X>],
                     port: [<port $x>],
                     Port: [<Port $x>],
                     port_index: $port_index,

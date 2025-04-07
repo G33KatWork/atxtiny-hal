@@ -1,16 +1,16 @@
 //! # System configuration
 
-use crate::pac::SYSCFG;
+use crate::pac::Syscfg;
 
-/// Extension trait for the [`SYSCFG`] peripheral
+/// Extension trait for the [`Syscfg`] peripheral
 pub trait SyscfgExt {
-    /// Return the revision ID of the chip from the [`SYSCFG`] peripheral.
+    /// Return the revision ID of the chip from the [`Syscfg`] peripheral.
     ///
-    /// [`pac::SYSCFG`]: `crate::pac::SYSCFG`
+    /// [`pac::Syscfg`]: `crate::pac::Syscfg`
     fn get_revision_id(&self) -> u8;
 }
 
-impl SyscfgExt for SYSCFG {
+impl SyscfgExt for Syscfg {
     fn get_revision_id(&self) -> u8 {
         self.revid().read().bits()
     }

@@ -13,17 +13,17 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain a few peripherals into our HAL types
-    let clkctrl = dp.CLKCTRL.constrain();
-    let portmux = dp.PORTMUX.constrain();
+    let clkctrl = dp.clkctrl.constrain();
+    let portmux = dp.portmux.constrain();
 
     // Configure our clocks
     let clocks = clkctrl.freeze();
 
     // Split the PORTB peripheral into its pins
-    let b = dp.PORTB.split();
+    let b = dp.portb.split();
 
     // Create a timer with a dynamic frequency using TCA0
-    let t = Timer::new(dp.TCA0, clocks);
+    let t = Timer::new(dp.tca0, clocks);
 
     // Build a set of PWM pins and multiplex them accordingly
     let pwm_pins = (
@@ -56,7 +56,7 @@ fn main() -> ! {
     // TCB only has prescalers of 1 and 2, so we have to make it tick at 10MHz
     // The delay() function is just going to let the timer expire multiple times
     // to achieve longer delays
-    let mut d = FTimer::<_, 10000000>::new(dp.TCB0, clocks.into())
+    let mut d = FTimer::<_, 10000000>::new(dp.tcb0, clocks.into())
         .unwrap()
         .delay();
 

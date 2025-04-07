@@ -1,6 +1,5 @@
 #![no_std]
 #![feature(asm_experimental_arch)]
-#![feature(panic_info_message)]
 #![feature(associated_type_defaults)]
 #![feature(associated_const_equality)]
 #![deny(rustdoc::broken_intra_doc_links)]

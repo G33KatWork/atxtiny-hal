@@ -2,16 +2,16 @@
 
 use core::arch::asm;
 
-use crate::pac::{slpctrl, SLPCTRL};
+use crate::pac::{slpctrl, Slpctrl as SLPCTRL};
 
-/// Extension trait that constrains the [`SLPCTRL`] peripheral
+/// Extension trait that constrains the [`crate::pac::Slpctrl`] peripheral
 pub trait SlpctrlExt {
-    /// Constrains the [`SLPCTRL`] peripheral.
+    /// Constrains the [`pac::SLPCTRL`] peripheral.
     ///
     /// Consumes the [`pac::SLPCTRL`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::SLPCTRL`]: `crate::pac::SLPCTRL`
+    /// [`pac::SLPCTRL`]: `crate::pac::Slpctrl`
     /// [`HAL`]: `crate`
     fn constrain(self) -> Slpctrl;
 }
@@ -60,12 +60,12 @@ pub enum SleepMode {
     PowerDown,
 }
 
-impl From<SleepMode> for slpctrl::ctrla::SMODE_A {
+impl From<SleepMode> for slpctrl::ctrla::Smode {
     fn from(value: SleepMode) -> Self {
         match value {
-            SleepMode::Idle => slpctrl::ctrla::SMODE_A::IDLE,
-            SleepMode::Standby => slpctrl::ctrla::SMODE_A::STANDBY,
-            SleepMode::PowerDown => slpctrl::ctrla::SMODE_A::PDOWN,
+            SleepMode::Idle => slpctrl::ctrla::Smode::Idle,
+            SleepMode::Standby => slpctrl::ctrla::Smode::Standby,
+            SleepMode::PowerDown => slpctrl::ctrla::Smode::Pdown,
         }
     }
 }

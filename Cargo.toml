@@ -20,7 +20,7 @@ embedded-hal = "1.0"
 embedded-io = "0.6"
 embedded-hal-bus = "0.1"
 embedded-hal-nb = "1.0"
-avr-device = "*"
+avr-device = "0.7"
 fugit = "0.3"
 fugit-timer = "0.1"
 void = { default-features = false, version = "1.0" }

@@ -6,7 +6,12 @@
 #[cfg(feature = "enumset")]
 use enumset::EnumSetType;
 
-use crate::{clkctrl::Clocks, pac::tca0::*, time::*, Toggle};
+use crate::{
+    clkctrl::Clocks,
+    pac::{tca0::*, Tca0},
+    time::*,
+    Toggle,
+};
 
 /// Enum for waveform genreation modes
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,15 +23,15 @@ pub enum WaveformGenerationMode {
     DualSlopeBottom,
 }
 
-impl From<WaveformGenerationMode> for single_ctrlb::WGMODE_A {
+impl From<WaveformGenerationMode> for single_ctrlb::Wgmode {
     fn from(value: WaveformGenerationMode) -> Self {
-        use single_ctrlb::WGMODE_A::*;
+        use single_ctrlb::Wgmode::*;
         match value {
-            WaveformGenerationMode::Frequency => FRQ,
-            WaveformGenerationMode::SingleSlope => SINGLESLOPE,
-            WaveformGenerationMode::DualSlopeStop => DSTOP,
-            WaveformGenerationMode::DualSlopeBoth => DSBOTH,
-            WaveformGenerationMode::DualSlopeBottom => DSBOTTOM,
+            WaveformGenerationMode::Frequency => Frq,
+            WaveformGenerationMode::SingleSlope => Singleslope,
+            WaveformGenerationMode::DualSlopeStop => Dstop,
+            WaveformGenerationMode::DualSlopeBoth => Dsboth,
+            WaveformGenerationMode::DualSlopeBottom => Dsbottom,
         }
     }
 }
@@ -67,11 +72,9 @@ pub enum Event {
     CompareChannel2,
 }
 
-use crate::pac::TCA0;
+impl super::Instance for Tca0 {}
 
-impl super::Instance for TCA0 {}
-
-impl super::TimerClock for TCA0 {
+impl super::TimerClock for Tca0 {
     type ClockSource = Clocks;
 
     #[inline(always)]
@@ -98,7 +101,7 @@ impl super::TimerClock for TCA0 {
     }
 }
 
-impl super::General for TCA0 {
+impl super::General for Tca0 {
     const TIMER_WIDTH_BITS: u8 = 16;
     type CounterValue = u16;
     type Interrupt = Interrupt;
@@ -144,7 +147,7 @@ impl super::General for TCA0 {
             Interrupt::CompareChannel0 => self.single_intctrl().modify(|_, w| w.cmp0().bit(enable)),
             Interrupt::CompareChannel1 => self.single_intctrl().modify(|_, w| w.cmp1().bit(enable)),
             Interrupt::CompareChannel2 => self.single_intctrl().modify(|_, w| w.cmp2().bit(enable)),
-        }
+        };
     }
 
     #[inline(always)]
@@ -176,15 +179,15 @@ impl super::General for TCA0 {
             Event::CompareChannel0 => self.single_intflags().modify(|_, w| w.cmp0().set_bit()),
             Event::CompareChannel1 => self.single_intflags().modify(|_, w| w.cmp1().set_bit()),
             Event::CompareChannel2 => self.single_intflags().modify(|_, w| w.cmp2().set_bit()),
-        }
+        };
     }
 }
 
-impl super::PeriodicMode for TCA0 {
+impl super::PeriodicMode for Tca0 {
     #[inline(always)]
     fn set_periodic_mode(&mut self) {
         self.single_ctrlb()
-            .modify(|_, w| w.wgmode().variant(single_ctrlb::WGMODE_A::NORMAL));
+            .modify(|_, w| w.wgmode().variant(single_ctrlb::Wgmode::Normal));
     }
 
     #[inline(always)]
@@ -194,7 +197,7 @@ impl super::PeriodicMode for TCA0 {
 
     #[inline(always)]
     fn read_period() -> Self::CounterValue {
-        let tim = unsafe { &*TCA0::ptr() };
+        let tim = unsafe { &*Tca0::ptr() };
         tim.single_per().read().bits()
     }
 
@@ -219,38 +222,40 @@ impl super::PeriodicMode for TCA0 {
     }
 }
 
-impl super::WithPwm for TCA0 {
+impl super::WithPwm for Tca0 {
     const CH_NUMBER: u8 = 3;
     type GenerationMode = WaveformGenerationMode;
     type CompareValue = u16;
 
     fn set_pwm_mode(&mut self, mode: Self::GenerationMode) {
+        //crate::pac::Usart0
+        //crate::pac::Peripherals::steal().usart0
         self.single_ctrlb()
             .modify(|_, w| w.wgmode().variant(mode.into()));
     }
 
     fn enable_channel(channel: u8, b: bool) {
-        let tim = unsafe { &*TCA0::ptr() };
+        let tim = unsafe { &*Tca0::ptr() };
         match channel {
             0 => tim.single_ctrlb().modify(|_, w| w.cmp0en().bit(b)),
             1 => tim.single_ctrlb().modify(|_, w| w.cmp1en().bit(b)),
             2 => tim.single_ctrlb().modify(|_, w| w.cmp2en().bit(b)),
             _ => panic!("invalid channel number"),
-        }
+        };
     }
 
     fn set_compare_value(channel: u8, value: Self::CompareValue) {
-        let tim = unsafe { &*TCA0::ptr() };
+        let tim = unsafe { &*Tca0::ptr() };
         match channel {
-            0 => tim.single_cmp0buf().write(|w| w.bits(value)),
-            1 => tim.single_cmp1buf().write(|w| w.bits(value)),
-            2 => tim.single_cmp2buf().write(|w| w.bits(value)),
+            0 => tim.single_cmp0buf().write(|w| w.set(value)),
+            1 => tim.single_cmp1buf().write(|w| w.set(value)),
+            2 => tim.single_cmp2buf().write(|w| w.set(value)),
             _ => panic!("invalid channel number"),
-        }
+        };
     }
 
     fn read_compare_value(channel: u8) -> Self::CompareValue {
-        let tim = unsafe { &*TCA0::ptr() };
+        let tim = unsafe { &*Tca0::ptr() };
         match channel {
             0 => tim.single_cmp0().read().bits(),
             1 => tim.single_cmp1().read().bits(),
@@ -261,18 +266,18 @@ impl super::WithPwm for TCA0 {
 
     #[inline(always)]
     fn clear_compare_match(channel: u8) {
-        let tim = unsafe { &*TCA0::ptr() };
+        let tim = unsafe { &*Tca0::ptr() };
         match channel {
             0 => tim.single_intflags().modify(|_, w| w.cmp0().set_bit()),
             1 => tim.single_intflags().modify(|_, w| w.cmp1().set_bit()),
             2 => tim.single_intflags().modify(|_, w| w.cmp2().set_bit()),
             _ => panic!("invalid channel number"),
-        }
+        };
     }
 
     #[inline(always)]
     fn get_compare_match(channel: u8) -> bool {
-        let tim = unsafe { &*TCA0::ptr() };
+        let tim = unsafe { &*Tca0::ptr() };
         match channel {
             0 => tim.single_intflags().read().cmp0().bit_is_set(),
             1 => tim.single_intflags().read().cmp1().bit_is_set(),
@@ -282,36 +287,36 @@ impl super::WithPwm for TCA0 {
     }
 }
 
-fn into_clksrc(prescaler: u16) -> single_ctrla::CLKSEL_A {
-    use single_ctrla::CLKSEL_A::*;
+fn into_clksrc(prescaler: u16) -> single_ctrla::Clksel {
+    use single_ctrla::Clksel::*;
     match prescaler {
-        1 => DIV1,
-        2 => DIV2,
-        4 => DIV4,
-        8 => DIV8,
-        16 => DIV16,
-        64 => DIV64,
-        256 => DIV256,
-        1024 => DIV1024,
+        1 => Div1,
+        2 => Div2,
+        4 => Div4,
+        8 => Div8,
+        16 => Div16,
+        64 => Div64,
+        256 => Div256,
+        1024 => Div1024,
         _ => panic!("Invalid prescaler"),
     }
 }
 
-fn from_clksrc(prescaler: single_ctrla::CLKSEL_A) -> u16 {
-    use single_ctrla::CLKSEL_A::*;
+fn from_clksrc(prescaler: single_ctrla::Clksel) -> u16 {
+    use single_ctrla::Clksel::*;
     match prescaler {
-        DIV1 => 1,
-        DIV2 => 2,
-        DIV4 => 4,
-        DIV8 => 8,
-        DIV16 => 16,
-        DIV64 => 64,
-        DIV256 => 256,
-        DIV1024 => 1024,
+        Div1 => 1,
+        Div2 => 2,
+        Div4 => 4,
+        Div8 => 8,
+        Div16 => 16,
+        Div64 => 64,
+        Div256 => 256,
+        Div1024 => 1024,
     }
 }
 
-impl crate::private::Sealed for crate::pac::TCA0 {}
+impl crate::private::Sealed for Tca0 {}
 
 use super::pwm::{WaveformOutputPinset, C1, C2, C3};
 use crate::gpio::{Output, Stateless};
@@ -342,23 +347,23 @@ where
     }
 }
 
-impl<WaveformOutput: WaveformOutputPin<TCA0, CHAN>, const CHAN: u8> WaveformOutputPinset<TCA0, CHAN>
-    for TcaPinset<TCA0, WaveformOutput, CHAN>
+impl<WaveformOutput: WaveformOutputPin<Tca0, CHAN>, const CHAN: u8> WaveformOutputPinset<Tca0, CHAN>
+    for TcaPinset<Tca0, WaveformOutput, CHAN>
 {
 }
 
-impl WaveformOutputPin<TCA0, C1> for crate::gpio::portb::PB0<Output<Stateless>> {}
-impl WaveformOutputPin<TCA0, C2> for crate::gpio::portb::PB1<Output<Stateless>> {}
-impl WaveformOutputPin<TCA0, C3> for crate::gpio::portb::PB2<Output<Stateless>> {}
+impl WaveformOutputPin<Tca0, C1> for crate::gpio::portb::PB0<Output<Stateless>> {}
+impl WaveformOutputPin<Tca0, C2> for crate::gpio::portb::PB1<Output<Stateless>> {}
+impl WaveformOutputPin<Tca0, C3> for crate::gpio::portb::PB2<Output<Stateless>> {}
 // In split mode:
-//impl WaveformOutputPin<TCA0, C4> for crate::gpio::porta::PA3<Output<Stateless>> {}
-//impl WaveformOutputPin<TCA0, C5> for crate::gpio::porta::PA4<Output<Stateless>> {}
-//impl WaveformOutputPin<TCA0, C6> for crate::gpio::porta::PA5<Output<Stateless>> {}
+//impl WaveformOutputPin<Tca0, C4> for crate::gpio::porta::PA3<Output<Stateless>> {}
+//impl WaveformOutputPin<Tca0, C5> for crate::gpio::porta::PA4<Output<Stateless>> {}
+//impl WaveformOutputPin<Tca0, C6> for crate::gpio::porta::PA5<Output<Stateless>> {}
 
-impl WaveformOutputPin<TCA0, C1> for crate::gpio::portb::PB3<Output<Stateless>> {}
-impl WaveformOutputPin<TCA0, C2> for crate::gpio::portb::PB4<Output<Stateless>> {}
-impl WaveformOutputPin<TCA0, C3> for crate::gpio::portb::PB5<Output<Stateless>> {}
+impl WaveformOutputPin<Tca0, C1> for crate::gpio::portb::PB3<Output<Stateless>> {}
+impl WaveformOutputPin<Tca0, C2> for crate::gpio::portb::PB4<Output<Stateless>> {}
+impl WaveformOutputPin<Tca0, C3> for crate::gpio::portb::PB5<Output<Stateless>> {}
 // In split mode:
-//impl WaveformOutputPin<TCA0, C4> for crate::gpio::portc::PC3<Output<Stateless>> {}
-//impl WaveformOutputPin<TCA0, C5> for crate::gpio::portc::PC4<Output<Stateless>> {}
-//impl WaveformOutputPin<TCA0, C6> for crate::gpio::portc::PC5<Output<Stateless>> {}
+//impl WaveformOutputPin<Tca0, C4> for crate::gpio::portc::PC3<Output<Stateless>> {}
+//impl WaveformOutputPin<Tca0, C5> for crate::gpio::portc::PC4<Output<Stateless>> {}
+//impl WaveformOutputPin<Tca0, C6> for crate::gpio::portc::PC5<Output<Stateless>> {}

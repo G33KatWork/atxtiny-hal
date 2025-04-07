@@ -5,7 +5,7 @@
 
 use core::marker::PhantomData;
 
-use crate::pac::DAC0;
+use crate::pac::Dac0;
 use crate::vref::DACReferenceVoltage;
 
 /// DAC Register interface traits private to this module
@@ -33,14 +33,14 @@ impl ED for Enabled {}
 impl ED for Disabled {}
 impl ED for LockedEnabled {}
 
-/// Extension trait that constrains the [`DAC0`] peripheral
+/// Extension trait that constrains the [`crate::pac::Dac0`] peripheral
 pub trait DacExt<INST: DacRegExt, const IDX: u8> {
-    /// Constrains the [`DAC0`] peripheral.
+    /// Constrains the [`Dac0`] peripheral.
     ///
-    /// Consumes the [`pac::DAC0`] peripheral and converts it to a [`HAL`] internal type
+    /// Consumes the [`pac::Dac0`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::DAC0`]: `crate::pac::DAC0`
+    /// [`pac::Dac0`]: `crate::pac::Dac0`
     /// [`HAL`]: `crate`
     fn constrain(self, ref_voltage: DACReferenceVoltage<IDX>) -> Dac<INST, Disabled>;
 }
@@ -48,7 +48,7 @@ pub trait DacExt<INST: DacRegExt, const IDX: u8> {
 /// Constrained DAC peripheral
 ///
 /// An instance of this struct is acquired by calling the [`constrain`](DacExt::constrain) function
-/// on the [`DAC0`] struct.
+/// on the [`Dac0`] struct.
 ///
 /// ```
 /// let dp = pac::Peripherals::take().unwrap();
@@ -60,7 +60,7 @@ pub struct Dac<INST, ED> {
     _enabled: PhantomData<ED>,
 }
 
-impl DacExt<DAC0, 0> for DAC0 {
+impl DacExt<Dac0, 0> for Dac0 {
     fn constrain(self, ref_voltage: DACReferenceVoltage<0>) -> Dac<Self, Disabled> {
         Dac {
             dac: self,
@@ -158,7 +158,7 @@ impl<const IDX: u8> crate::private::Sealed for DACOutputToAC<IDX> {}
 
 // TODO: implement macros for the following code
 
-impl DacRegExt for DAC0 {
+impl DacRegExt for Dac0 {
     #[inline]
     fn enable(&self, enable: bool) {
         self.ctrla().modify(|_, w| w.enable().variant(enable));
@@ -171,7 +171,7 @@ impl DacRegExt for DAC0 {
 
     #[inline]
     fn set_value(&self, value: u8) {
-        self.data().write(|w| w.bits(value));
+        self.data().write(|w| w.set(value));
     }
 }
 

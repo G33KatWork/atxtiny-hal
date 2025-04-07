@@ -2,10 +2,10 @@
 
 use cfg_if::cfg_if;
 
-use crate::pac::NVMCTRL;
+use crate::pac::Nvmctrl;
 use core::ptr;
 
-use avr_device::{attiny817::nvmctrl::ctrla::CMD_A, ccp::ProtectedWritable};
+use avr_device::{attiny817::nvmctrl::ctrla::Cmd, ccp::ProtectedWritable};
 
 // TODO: SIGROW  = 0x1100
 //       FUSES   = 0x1280
@@ -108,7 +108,7 @@ cfg_if! {
     }
 }
 
-impl crate::private::Sealed for NVMCTRL {}
+impl crate::private::Sealed for Nvmctrl {}
 
 pub trait NvmctrlExt: crate::private::Sealed {
     /// Create a [`FlashAccess`] instance that allows to read and write program flash pages
@@ -118,7 +118,7 @@ pub trait NvmctrlExt: crate::private::Sealed {
     fn eeprom(&self) -> EepromAccess;
 }
 
-impl NvmctrlExt for NVMCTRL {
+impl NvmctrlExt for Nvmctrl {
     /// Get access to the Flash of the microcontroller for reading and writing
     fn flash(&self) -> FlashAccess {
         FlashAccess { nvmctrl: self }
@@ -143,7 +143,7 @@ pub enum Error {
 
 /// The flash access module which allows reading from and writing to flash
 pub struct FlashAccess<'a> {
-    nvmctrl: &'a NVMCTRL,
+    nvmctrl: &'a Nvmctrl,
 }
 
 impl FlashAccess<'_> {
@@ -165,7 +165,7 @@ impl FlashAccess<'_> {
         let mut ptr = ((FLASH_START + offset) & !(FLASH_PAGE_SIZE - 1)) as *mut u8;
 
         // Clear the page buffer
-        self.nvmctrl_cmd(CMD_A::PBC)?;
+        self.nvmctrl_cmd(Cmd::Pbc)?;
 
         // Fill the page buffer with original data that should not be overwritten
         let start_offset = offset % FLASH_PAGE_SIZE;
@@ -183,7 +183,7 @@ impl FlashAccess<'_> {
                 ptr = ptr.add(1);
 
                 if ptr as usize % FLASH_PAGE_SIZE == 0 {
-                    self.nvmctrl_cmd(CMD_A::ERWP)?;
+                    self.nvmctrl_cmd(Cmd::Erwp)?;
                 }
             };
         }
@@ -197,7 +197,7 @@ impl FlashAccess<'_> {
                 }
             }
 
-            self.nvmctrl_cmd(CMD_A::ERWP)?;
+            self.nvmctrl_cmd(Cmd::Erwp)?;
         }
 
         Ok(())
@@ -219,7 +219,7 @@ impl FlashAccess<'_> {
         Ok(unsafe { core::slice::from_raw_parts(ptr, len) })
     }
 
-    fn nvmctrl_cmd(&self, cmd: CMD_A) -> Result<(), Error> {
+    fn nvmctrl_cmd(&self, cmd: Cmd) -> Result<(), Error> {
         self.nvmctrl
             .ctrla()
             .write_protected(|w| w.cmd().variant(cmd));
@@ -236,7 +236,7 @@ impl FlashAccess<'_> {
 
 /// The EEPROM access module which allows reading from and writing to EEPROM
 pub struct EepromAccess<'a> {
-    nvmctrl: &'a NVMCTRL,
+    nvmctrl: &'a Nvmctrl,
 }
 
 impl EepromAccess<'_> {
@@ -256,7 +256,7 @@ impl EepromAccess<'_> {
         let mut ptr = (EEPROM_START + offset) as *mut u8;
 
         // Clear the page buffer
-        self.nvmctrl_cmd(CMD_A::PBC)?;
+        self.nvmctrl_cmd(Cmd::Pbc)?;
 
         // Write the new data into the page buffer and flush it
         // to the EEPROM when reaching a page boundary
@@ -266,14 +266,14 @@ impl EepromAccess<'_> {
                 ptr = ptr.add(1);
 
                 if ptr as usize % EEPROM_PAGE_SIZE == 0 {
-                    self.nvmctrl_cmd(CMD_A::ERWP)?;
+                    self.nvmctrl_cmd(Cmd::Erwp)?;
                 }
             };
         }
 
         // Write the remaining bytes from the page buffer into the EEPROM
         if (ptr as usize) % FLASH_PAGE_SIZE > 0 {
-            self.nvmctrl_cmd(CMD_A::ERWP)?;
+            self.nvmctrl_cmd(Cmd::Erwp)?;
         }
 
         Ok(())
@@ -295,7 +295,7 @@ impl EepromAccess<'_> {
         Ok(unsafe { core::slice::from_raw_parts(ptr, len) })
     }
 
-    fn nvmctrl_cmd(&self, cmd: CMD_A) -> Result<(), Error> {
+    fn nvmctrl_cmd(&self, cmd: Cmd) -> Result<(), Error> {
         self.nvmctrl
             .ctrla()
             .write_protected(|w| w.cmd().variant(cmd));

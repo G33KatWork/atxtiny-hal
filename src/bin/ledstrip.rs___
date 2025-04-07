@@ -110,7 +110,7 @@ fn main() -> ! {
     //dp.CPU.ccp.write(|w| { unsafe { w.bits(0xD8) } });
     //dp.CLKCTRL.mclkctrlb.modify(|_, w| { w.pen().clear_bit() });
 
-    let clkctrl = dp.CLKCTRL.constrain();
+    let clkctrl = dp.clkctrl.constrain();
 
     let _clocks = clkctrl
         .clk_src_main(MainClkSrc::Osc20M)

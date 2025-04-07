@@ -22,7 +22,7 @@ use core::{fmt, marker::PhantomData, ops::Deref};
 
 use crate::embedded_hal_nb::serial::{ErrorType as NbErrorType, Read as NbRead, Write as NbWrite};
 use crate::embedded_io::{ErrorType as IoErrorType, Read as IoRead, Write as IoWrite};
-use crate::pac::usart0::{ctrlb::RXMODE_A, RegisterBlock};
+use crate::pac::usart0::{ctrlb::Rxmode, RegisterBlock};
 
 use crate::{clkctrl::Clocks, time::*, Toggle};
 
@@ -373,16 +373,16 @@ where
         let f_per = Usart::clock(&clocks).raw();
 
         let (rxmode, brr) = if baudrate > (f_per / 16) {
-            (RXMODE_A::CLK2X, (4 * f_per) / (baudrate / 2))
+            (Rxmode::Clk2x, (4 * f_per) / (baudrate / 2))
         } else {
-            (RXMODE_A::NORMAL, (4 * f_per) / baudrate)
+            (Rxmode::Normal, (4 * f_per) / baudrate)
         };
 
         // FIXME: return error
         assert!(brr >= 64, "impossible baud rate");
 
         // FIXME: does the 16 bit write work correctly on the AVR mega cores?
-        usart.baud().write(|w| w.bits(brr as u16));
+        usart.baud().write(|w| w.set(brr as u16));
 
         // Asynchronous mode, Parity, Stopbits and character size according to config
         usart.ctrlc().write(|w| {
@@ -862,7 +862,7 @@ where
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         for b in buf {
             while self.usart.status().read().dreif().bit_is_clear() {}
-            self.usart.txdatal().write(|w| w.bits(*b));
+            self.usart.txdatal().write(|w| w.set(*b));
         }
 
         Ok(buf.len())
@@ -883,7 +883,7 @@ where
 {
     fn write(&mut self, word: u8) -> embedded_hal_nb::nb::Result<(), Self::Error> {
         if self.usart.status().read().dreif().bit_is_set() {
-            self.usart.txdatal().write(|w| w.bits(word));
+            self.usart.txdatal().write(|w| w.set(word));
             Ok(())
         } else {
             Err(nb::Error::WouldBlock)
@@ -1035,9 +1035,9 @@ pub trait Instance: Deref<Target = RegisterBlock> + crate::private::Sealed {
     fn clock(clocks: &Clocks) -> Hertz;
 }
 
-macro_rules! uart {
+macro_rules! usart {
     ({
-        instance: $USART:ident,
+        instance: $X:literal,
         pins: [$(
             {
                 tx: ($X_tx:ident/$x_tx:ident, $pin_tx:literal),
@@ -1045,60 +1045,65 @@ macro_rules! uart {
             },
         )+]
     }) => {
-        use crate::pac::$USART;
+        paste::paste! {
+            mod [<usart $X>] {
+                use super::*;
+                use crate::pac::[<Usart $X>] as USART;
 
-        impl Instance for crate::pac::$USART {
-            fn clock(clocks: &Clocks) -> Hertz {
-                clocks.per()
+                impl Instance for USART {
+                    fn clock(clocks: &Clocks) -> Hertz {
+                        clocks.per()
+                    }
+                }
+
+                impl crate::private::Sealed for USART {}
+
+                impl<RX, TX> Serial<USART, UartPinset<USART, RX, TX>>
+                where
+                    RX: RxPin<USART>,
+                    TX: TxPin<USART>,
+                {
+                    /// Splits the [`Serial`] abstraction into a transmitter and a receiver half.
+                    ///
+                    /// This allows using [`Tx`] and [`Rx`] related actions to
+                    /// be handled independently and even use these safely in different
+                    /// contexts (like interrupt routines) without needing to do synchronization work
+                    /// between them.
+                    pub fn split(self) -> (split::Rx<USART, RX>, split::Tx<USART, TX>) {
+                        // NOTE(unsafe): This essentially duplicates the USART peripheral
+                        //
+                        // As RX and TX both do have direct access to the peripheral,
+                        // they must guarantee to only do atomic operations on the peripheral
+                        // registers to avoid data races.
+                        //
+                        // Tx and Rx won't access the same registers anyways,
+                        // as they have independent responsibilities, which are NOT represented
+                        // in the type system.
+                        let (rx, tx) = unsafe {
+                            (
+                                crate::pac::Peripherals::steal().[<usart $X>],
+                                crate::pac::Peripherals::steal().[<usart $X>],
+                            )
+                        };
+                        (split::Rx::new(rx, self.pinset.rx), split::Tx::new(tx, self.pinset.tx))
+                    }
+                }
+
+                $(
+                    paste::paste! {
+                        impl TxPin<USART> for crate::gpio::[<port $x_tx>]::[<P $X_tx $pin_tx>]<Output<Stateless>> {}
+                        impl RxPin<USART> for crate::gpio::[<port $x_rx>]::[<P $X_rx $pin_rx>]<Input> {}
+                    }
+                )+
             }
         }
-
-        impl crate::private::Sealed for crate::pac::$USART {}
-
-        impl<RX, TX> Serial<crate::pac::$USART, UartPinset<crate::pac::$USART, RX, TX>>
-        where
-            RX: RxPin<crate::pac::$USART>,
-            TX: TxPin<crate::pac::$USART>,
-        {
-            /// Splits the [`Serial`] abstraction into a transmitter and a receiver half.
-            ///
-            /// This allows using [`Tx`] and [`Rx`] related actions to
-            /// be handled independently and even use these safely in different
-            /// contexts (like interrupt routines) without needing to do synchronization work
-            /// between them.
-            pub fn split(self) -> (split::Rx<crate::pac::$USART, RX>, split::Tx<crate::pac::$USART, TX>) {
-                // NOTE(unsafe): This essentially duplicates the USART peripheral
-                //
-                // As RX and TX both do have direct access to the peripheral,
-                // they must guarantee to only do atomic operations on the peripheral
-                // registers to avoid data races.
-                //
-                // Tx and Rx won't access the same registers anyways,
-                // as they have independent responsibilities, which are NOT represented
-                // in the type system.
-                let (rx, tx) = unsafe {
-                    (
-                        crate::pac::Peripherals::steal().$USART,
-                        crate::pac::Peripherals::steal().$USART,
-                    )
-                };
-                (split::Rx::new(rx, self.pinset.rx), split::Tx::new(tx, self.pinset.tx))
-            }
-        }
-
-        $(
-            paste::paste! {
-                impl TxPin<$USART> for crate::gpio::[<port $x_tx>]::[<P $X_tx $pin_tx>]<Output<Stateless>> {}
-                impl RxPin<$USART> for crate::gpio::[<port $x_rx>]::[<P $X_rx $pin_rx>]<Input> {}
-            }
-        )+
     };
 }
 
 use crate::gpio::{Input, Output, Stateless};
 
-uart!({
-    instance: USART0,
+usart!({
+    instance: 0,
     pins: [
         {
             tx: (B/b, 2),

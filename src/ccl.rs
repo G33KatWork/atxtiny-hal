@@ -3,7 +3,7 @@
 use crate::pac::{
     ccl::lut::{lutctrla, lutctrlb, lutctrlc},
     ccl::seqctrl,
-    CCL,
+    Ccl as CCL,
 };
 use crate::Toggle;
 
@@ -311,7 +311,7 @@ impl CclRegExt for crate::pac::ccl::RegisterBlock {
 
     #[inline(always)]
     fn lut_table(&self, lut_idx: u8, table: u8) {
-        self.lut(lut_idx as usize).truth().write(|w| w.bits(table));
+        self.lut(lut_idx as usize).truth().write(|w| w.set(table));
     }
 }
 
@@ -444,14 +444,14 @@ pub enum SequencerConfig {
     RSLatch,
 }
 
-impl From<SequencerConfig> for seqctrl::SEQSEL_A {
+impl From<SequencerConfig> for seqctrl::Seqsel {
     fn from(value: SequencerConfig) -> Self {
         match value {
-            SequencerConfig::Disable => seqctrl::SEQSEL_A::DISABLE,
-            SequencerConfig::DFlipFlop => seqctrl::SEQSEL_A::DFF,
-            SequencerConfig::JKFlipFlop => seqctrl::SEQSEL_A::JK,
-            SequencerConfig::DLatch => seqctrl::SEQSEL_A::LATCH,
-            SequencerConfig::RSLatch => seqctrl::SEQSEL_A::RS,
+            SequencerConfig::Disable => seqctrl::Seqsel::Disable,
+            SequencerConfig::DFlipFlop => seqctrl::Seqsel::Dff,
+            SequencerConfig::JKFlipFlop => seqctrl::Seqsel::Jk,
+            SequencerConfig::DLatch => seqctrl::Seqsel::Latch,
+            SequencerConfig::RSLatch => seqctrl::Seqsel::Rs,
         }
     }
 }
@@ -463,12 +463,12 @@ pub enum FilterSelection {
     FilterEnabled,
 }
 
-impl From<FilterSelection> for lutctrla::FILTSEL_A {
+impl From<FilterSelection> for lutctrla::Filtsel {
     fn from(value: FilterSelection) -> Self {
         match value {
-            FilterSelection::Disable => lutctrla::FILTSEL_A::DISABLE,
-            FilterSelection::SynchronizerEnabled => lutctrla::FILTSEL_A::SYNCH,
-            FilterSelection::FilterEnabled => lutctrla::FILTSEL_A::FILTER,
+            FilterSelection::Disable => lutctrla::Filtsel::Disable,
+            FilterSelection::SynchronizerEnabled => lutctrla::Filtsel::Synch,
+            FilterSelection::FilterEnabled => lutctrla::Filtsel::Filter,
         }
     }
 }
@@ -503,21 +503,21 @@ pub enum Input0 {
     Spi0Sck,
 }
 
-impl From<Input0> for lutctrlb::INSEL0_A {
+impl From<Input0> for lutctrlb::Insel0 {
     fn from(input: Input0) -> Self {
         match input {
-            Input0::Masked => lutctrlb::INSEL0_A::MASK,
-            Input0::Feedback => lutctrlb::INSEL0_A::FEEDBACK,
-            Input0::Link => lutctrlb::INSEL0_A::LINK,
-            Input0::Event01 => lutctrlb::INSEL0_A::EVENT0,
-            Input0::Event23 => lutctrlb::INSEL0_A::EVENT1,
-            Input0::IoPin => lutctrlb::INSEL0_A::IO,
-            Input0::Ac0Out => lutctrlb::INSEL0_A::AC0,
-            Input0::Tcb0Wo => lutctrlb::INSEL0_A::TCB0,
-            Input0::Tca0Wo0 => lutctrlb::INSEL0_A::TCA0,
-            Input0::Tcd0Woa => lutctrlb::INSEL0_A::TCD0,
-            Input0::Usart0Xck => lutctrlb::INSEL0_A::USART0,
-            Input0::Spi0Sck => lutctrlb::INSEL0_A::SPI0,
+            Input0::Masked => lutctrlb::Insel0::Mask,
+            Input0::Feedback => lutctrlb::Insel0::Feedback,
+            Input0::Link => lutctrlb::Insel0::Link,
+            Input0::Event01 => lutctrlb::Insel0::Event0,
+            Input0::Event23 => lutctrlb::Insel0::Event1,
+            Input0::IoPin => lutctrlb::Insel0::Io,
+            Input0::Ac0Out => lutctrlb::Insel0::Ac0,
+            Input0::Tcb0Wo => lutctrlb::Insel0::Tcb0,
+            Input0::Tca0Wo0 => lutctrlb::Insel0::Tca0,
+            Input0::Tcd0Woa => lutctrlb::Insel0::Tcd0,
+            Input0::Usart0Xck => lutctrlb::Insel0::Usart0,
+            Input0::Spi0Sck => lutctrlb::Insel0::Spi0,
         }
     }
 }
@@ -537,21 +537,21 @@ pub enum Input1 {
     Spi0Mosi,
 }
 
-impl From<Input1> for lutctrlb::INSEL1_A {
+impl From<Input1> for lutctrlb::Insel1 {
     fn from(input: Input1) -> Self {
         match input {
-            Input1::Masked => lutctrlb::INSEL1_A::MASK,
-            Input1::Feedback => lutctrlb::INSEL1_A::FEEDBACK,
-            Input1::Link => lutctrlb::INSEL1_A::LINK,
-            Input1::Event01 => lutctrlb::INSEL1_A::EVENT0,
-            Input1::Event23 => lutctrlb::INSEL1_A::EVENT1,
-            Input1::IoPin => lutctrlb::INSEL1_A::IO,
-            Input1::Ac0Out => lutctrlb::INSEL1_A::AC0,
-            Input1::Tcb0Wo => lutctrlb::INSEL1_A::TCB0,
-            Input1::Tca0Wo1 => lutctrlb::INSEL1_A::TCA0,
-            Input1::Tcd0Wob => lutctrlb::INSEL1_A::TCD0,
-            Input1::Usart0Txd => lutctrlb::INSEL1_A::USART0,
-            Input1::Spi0Mosi => lutctrlb::INSEL1_A::SPI0,
+            Input1::Masked => lutctrlb::Insel1::Mask,
+            Input1::Feedback => lutctrlb::Insel1::Feedback,
+            Input1::Link => lutctrlb::Insel1::Link,
+            Input1::Event01 => lutctrlb::Insel1::Event0,
+            Input1::Event23 => lutctrlb::Insel1::Event1,
+            Input1::IoPin => lutctrlb::Insel1::Io,
+            Input1::Ac0Out => lutctrlb::Insel1::Ac0,
+            Input1::Tcb0Wo => lutctrlb::Insel1::Tcb0,
+            Input1::Tca0Wo1 => lutctrlb::Insel1::Tca0,
+            Input1::Tcd0Wob => lutctrlb::Insel1::Tcd0,
+            Input1::Usart0Txd => lutctrlb::Insel1::Usart0,
+            Input1::Spi0Mosi => lutctrlb::Insel1::Spi0,
         }
     }
 }
@@ -570,20 +570,20 @@ pub enum Input2 {
     Spi0Miso,
 }
 
-impl From<Input2> for lutctrlc::INSEL2_A {
+impl From<Input2> for lutctrlc::Insel2 {
     fn from(input: Input2) -> Self {
         match input {
-            Input2::Masked => lutctrlc::INSEL2_A::MASK,
-            Input2::Feedback => lutctrlc::INSEL2_A::FEEDBACK,
-            Input2::Link => lutctrlc::INSEL2_A::LINK,
-            Input2::Event0 => lutctrlc::INSEL2_A::EVENT0,
-            Input2::Event1 => lutctrlc::INSEL2_A::EVENT1,
-            Input2::IoPin => lutctrlc::INSEL2_A::IO,
-            Input2::Ac0Out => lutctrlc::INSEL2_A::AC0,
-            Input2::Tcb0Wo => lutctrlc::INSEL2_A::TCB0,
-            Input2::Tca0Wo2 => lutctrlc::INSEL2_A::TCA0,
-            Input2::Tcd0Woa => lutctrlc::INSEL2_A::TCD0,
-            Input2::Spi0Miso => lutctrlc::INSEL2_A::SPI0,
+            Input2::Masked => lutctrlc::Insel2::Mask,
+            Input2::Feedback => lutctrlc::Insel2::Feedback,
+            Input2::Link => lutctrlc::Insel2::Link,
+            Input2::Event0 => lutctrlc::Insel2::Event0,
+            Input2::Event1 => lutctrlc::Insel2::Event1,
+            Input2::IoPin => lutctrlc::Insel2::Io,
+            Input2::Ac0Out => lutctrlc::Insel2::Ac0,
+            Input2::Tcb0Wo => lutctrlc::Insel2::Tcb0,
+            Input2::Tca0Wo2 => lutctrlc::Insel2::Tca0,
+            Input2::Tcd0Woa => lutctrlc::Insel2::Tcd0,
+            Input2::Spi0Miso => lutctrlc::Insel2::Spi0,
         }
     }
 }

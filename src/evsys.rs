@@ -2,8 +2,6 @@
 
 use core::marker::PhantomData;
 
-use crate::pac::EVSYS;
-
 /// Extension trait to configure an `EVSYS` peripheral and all containing channels
 pub trait EvsysExt {
     /// The Parts to split the `EVSYS` peripheral into
@@ -141,7 +139,7 @@ macro_rules! evsys {
                 type Reg = crate::pac::evsys::RegisterBlock;
 
                 fn ptr(&self) -> *const Self::Reg {
-                    EVSYS::ptr()
+                    crate::pac::Evsys::ptr()
                 }
             }
 
@@ -184,7 +182,7 @@ macro_rules! evsys {
                 )+
             }
 
-            impl EvsysExt for EVSYS {
+            impl EvsysExt for crate::pac::Evsys {
                 type Parts = Parts;
 
                 fn split(self) -> Self::Parts {

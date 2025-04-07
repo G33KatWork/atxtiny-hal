@@ -8,7 +8,7 @@ use core::cell::RefCell;
 use avr_device::{interrupt, interrupt::Mutex};
 
 use atxtiny_hal::gpio::{Input, Output, Pin, Porta, Stateless, U};
-use atxtiny_hal::pac::{self, USART0};
+use atxtiny_hal::pac::{self, Usart0};
 use atxtiny_hal::prelude::*;
 use atxtiny_hal::serial::{Serial, UartPinset};
 
@@ -16,8 +16,8 @@ static USART: Mutex<
     RefCell<
         Option<
             Serial<
-                USART0,
-                UartPinset<USART0, Pin<Porta, U<2>, Input>, Pin<Porta, U<1>, Output<Stateless>>>,
+                Usart0,
+                UartPinset<Usart0, Pin<Porta, U<2>, Input>, Pin<Porta, U<1>, Output<Stateless>>>,
             >,
         >,
     >,
@@ -40,21 +40,21 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain a few peripherals into our HAL types
-    let clkctrl = dp.CLKCTRL.constrain();
-    let portmux = dp.PORTMUX.constrain();
+    let clkctrl = dp.clkctrl.constrain();
+    let portmux = dp.portmux.constrain();
 
     // Configure our clocks
     let clocks = clkctrl.freeze();
 
     // Split the PORTA/B peripheral into its pins
-    let a = dp.PORTA.split();
+    let a = dp.porta.split();
 
     let usart_pair = (
-        a.pa2.into_peripheral::<USART0>(),
-        a.pa1.into_peripheral::<USART0>(),
+        a.pa2.into_peripheral::<Usart0>(),
+        a.pa1.into_peripheral::<Usart0>(),
     )
         .mux(&portmux);
-    let s = Serial::new(dp.USART0, usart_pair, 115200u32.bps(), clocks);
+    let s = Serial::new(dp.usart0, usart_pair, 115200u32.bps(), clocks);
 
     // Initialize global USART variable
     interrupt::free(|cs| {

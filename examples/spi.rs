@@ -16,22 +16,22 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain a few peripherals into our HAL types
-    let clkctrl = dp.CLKCTRL.constrain();
-    let portmux = dp.PORTMUX.constrain();
+    let clkctrl = dp.clkctrl.constrain();
+    let portmux = dp.portmux.constrain();
 
     // Configure our clocks
     let clocks = clkctrl.freeze();
 
-    // Split the POARTA and PORTC peripheral into its pins
-    let (a, c) = (dp.PORTA.split(), dp.PORTC.split());
+    // Split the porta and portc peripheral into its pins
+    let (a, c) = (dp.porta.split(), dp.portc.split());
 
     // Serial port setup
     let usart_pair = (
-        a.pa2.into_peripheral::<pac::USART0>(),
-        a.pa1.into_peripheral::<pac::USART0>(),
+        a.pa2.into_peripheral::<pac::Usart0>(),
+        a.pa1.into_peripheral::<pac::Usart0>(),
     )
         .mux(&portmux);
-    let mut s = Serial::new(dp.USART0, usart_pair, 115200u32.bps(), clocks);
+    let mut s = Serial::new(dp.usart0, usart_pair, 115200u32.bps(), clocks);
 
     // Grab the SPI pins
     let sckpin = c.pc0.into_peripheral();
@@ -49,7 +49,7 @@ fn main() -> ! {
     let spi_pair = spi_pair.mux(&portmux);
 
     // Create an SPI abstraction
-    let spi = Spi::new_unbuffered(dp.SPI0, spi_pair, 625_000.Hz(), clocks);
+    let spi = Spi::new_unbuffered(dp.spi0, spi_pair, 625_000.Hz(), clocks);
 
     // Create an SpiDevice for the MS5611
     let mut ms5611 = ExclusiveDevice::new(spi, cs_ms, NoDelay);

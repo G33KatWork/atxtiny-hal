@@ -1,4 +1,4 @@
-use avr_device::attiny817::TCB0;
+use avr_device::attiny817::Tcb0 as TCB0;
 
 use crate::{time::*, Toggle};
 
@@ -12,7 +12,7 @@ impl super::Instance for TCB8Bit {}
 impl crate::private::Sealed for TCB8Bit {}
 
 impl super::TimerClock for TCB8Bit {
-    type ClockSource = <avr_device::attiny817::TCB0 as super::TimerClock>::ClockSource;
+    type ClockSource = <TCB0 as super::TimerClock>::ClockSource;
 
     #[inline(always)]
     fn get_input_clock_rate(clk: Self::ClockSource) -> Hertz {
@@ -98,7 +98,7 @@ impl super::General for TCB8Bit {
 impl super::PeriodicMode for TCB8Bit {
     #[inline(always)]
     fn set_periodic_mode(&mut self) {
-        self.tim.ctrlb().modify(|_, w| w.cntmode().pwm8())
+        self.tim.ctrlb().modify(|_, w| w.cntmode().pwm8());
     }
 
     #[inline(always)]
@@ -152,7 +152,7 @@ impl super::WithPwm for TCB8Bit {
     fn enable_channel(channel: u8, b: bool) {
         let tim = unsafe { &*TCB0::ptr() };
         match channel {
-            0 => tim.ctrlb().modify(|_, w| w.ccmpen().bit(b)),
+            0 => _ = tim.ctrlb().modify(|_, w| w.ccmpen().bit(b)),
             _ => panic!("invalid channel number"),
         }
     }
@@ -160,7 +160,7 @@ impl super::WithPwm for TCB8Bit {
     fn set_compare_value(channel: u8, value: Self::CompareValue) {
         let tim = unsafe { &*TCB0::ptr() };
         match channel {
-            0 => tim.ccmph().write(|w| unsafe { w.bits(value) }),
+            0 => _ = tim.ccmph().write(|w| unsafe { w.bits(value) }),
             _ => panic!("invalid channel number"),
         }
     }
@@ -177,7 +177,7 @@ impl super::WithPwm for TCB8Bit {
     fn clear_compare_match(channel: u8) {
         let tim = unsafe { &*TCB0::ptr() };
         match channel {
-            0 => tim.intflags().modify(|_, w| w.capt().set_bit()),
+            0 => _ = tim.intflags().modify(|_, w| w.capt().set_bit()),
             _ => panic!("invalid channel number"),
         }
     }

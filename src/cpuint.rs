@@ -2,7 +2,7 @@
 
 use enumset::{EnumSet, EnumSetType};
 
-use crate::pac::{cpuint::*, CPUINT};
+use crate::pac::{cpuint::*, Cpuint};
 use avr_device::ccp::ProtectedWritable;
 
 /// Status Flags.
@@ -38,15 +38,15 @@ pub enum InterruptControllerStatus {
     LVL0,
 }
 
-impl crate::private::Sealed for CPUINT {}
+impl crate::private::Sealed for Cpuint {}
 
-pub trait CPUINTExt: crate::private::Sealed {
-    /// Constrains the [`CPUINT`] peripheral.
+pub trait CpuintExt: crate::private::Sealed {
+    /// Constrains the [`pac::Cpuint`] peripheral.
     ///
-    /// Consumes the [`pac::CPUINT`] peripheral and converts it to a [`HAL`] internal type
+    /// Consumes the [`pac::Cpuint`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::CPUINT`]: `crate::pac::CPUINT`
+    /// [`pac::Cpuint`]: `crate::pac::Cpuint`
     /// [`HAL`]: `crate`
     fn constrain(self) -> CpuInt;
 }
@@ -57,28 +57,28 @@ pub enum InterruptVectorSelect {
     StartOfBootSection,
 }
 
-fn into_ivsel(ivsel: InterruptVectorSelect) -> ctrla::IVSEL_A {
+fn into_ivsel(ivsel: InterruptVectorSelect) -> ctrla::Ivsel {
     match ivsel {
-        InterruptVectorSelect::AfterBootSection => ctrla::IVSEL_A::AFTERBOOT,
-        InterruptVectorSelect::StartOfBootSection => ctrla::IVSEL_A::INBOOT,
+        InterruptVectorSelect::AfterBootSection => ctrla::Ivsel::Afterboot,
+        InterruptVectorSelect::StartOfBootSection => ctrla::Ivsel::Inboot,
     }
 }
 
-fn into_cvt(cvt: bool) -> ctrla::CVT_A {
+fn into_cvt(cvt: bool) -> ctrla::Cvt {
     match cvt {
-        false => ctrla::CVT_A::NORMAL,
-        true => ctrla::CVT_A::COMPACT,
+        false => ctrla::Cvt::Normal,
+        true => ctrla::Cvt::Compact,
     }
 }
 
-fn into_lvl0rr(lvl0rr: bool) -> ctrla::LVL0RR_A {
+fn into_lvl0rr(lvl0rr: bool) -> ctrla::Lvl0rr {
     match lvl0rr {
-        false => ctrla::LVL0RR_A::FIXED,
-        true => ctrla::LVL0RR_A::ROUNDROBIN,
+        false => ctrla::Lvl0rr::Fixed,
+        true => ctrla::Lvl0rr::Roundrobin,
     }
 }
 
-impl CPUINTExt for CPUINT {
+impl CpuintExt for Cpuint {
     fn constrain(self) -> CpuInt {
         CpuInt {
             cpuint: self,
@@ -90,14 +90,14 @@ impl CPUINTExt for CPUINT {
 }
 
 pub struct CpuInt {
-    cpuint: CPUINT,
+    cpuint: Cpuint,
     ivsel: InterruptVectorSelect,
     cvt: bool,
     lvl0rr: bool,
 }
 
 pub struct CpuIntConfigured {
-    cpuint: CPUINT,
+    cpuint: Cpuint,
 }
 
 impl CpuInt {
@@ -126,8 +126,8 @@ impl CpuInt {
                 .variant(into_lvl0rr(self.lvl0rr))
         });
 
-        self.cpuint.lvl0pri().write(|w| w.bits(0));
-        self.cpuint.lvl1vec().write(|w| w.bits(0));
+        self.cpuint.lvl0pri().write(|w| w.set(0));
+        self.cpuint.lvl1vec().write(|w| w.set(0));
 
         CpuIntConfigured {
             cpuint: self.cpuint,
@@ -143,7 +143,7 @@ impl CpuIntConfigured {
 
     #[inline]
     pub fn set_lvl0_priority(&mut self, level: u8) {
-        self.cpuint.lvl0pri().write(|w| w.bits(level))
+        self.cpuint.lvl0pri().write(|w| w.set(level));
     }
 
     #[inline]
@@ -153,7 +153,7 @@ impl CpuIntConfigured {
 
     #[inline]
     pub fn set_lvl1_vector(&mut self, vector: u8) {
-        self.cpuint.lvl1vec().write(|w| w.bits(vector))
+        self.cpuint.lvl1vec().write(|w| w.set(vector));
     }
 
     /// Check for a status.

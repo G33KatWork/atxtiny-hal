@@ -1,5 +1,6 @@
 [build]
-target = "avr-attiny817.json"
+target = "avr-none"
+rustflags = ["-C", "target-cpu=attiny817"]
 
 [unstable]
 # with normal panics

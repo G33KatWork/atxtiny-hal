@@ -3,7 +3,7 @@
 use crate::{
     dac::DACOutputToAC,
     gpio::{Analog, Output, Stateless},
-    pac::AC0,
+    pac::Ac0,
 };
 use core::marker::PhantomData;
 
@@ -97,7 +97,7 @@ macro_rules! impl_comparator {
             ) -> Comparator<$COMP, Disabled> {
                 self.ctrla().modify(|_, w| {
                     w.hysmode()
-                        .bits(config.hysteresis as u8)
+                        .set(config.hysteresis as u8)
                         .lpmode()
                         .bit(config.low_power_mode)
                 });
@@ -204,7 +204,7 @@ macro_rules! positive_input_pin {
         impl PositiveInput<$COMP> for $pin {
             #[inline]
             fn setup(&self, comp: &$COMP) {
-                comp.muxctrla().modify(|_, w| w.muxpos().variant($variant))
+                comp.muxctrla().modify(|_, w| w.muxpos().variant($variant));
             }
         }
     };
@@ -215,7 +215,7 @@ macro_rules! negative_input_pin {
         impl NegativeInput<$COMP> for $pin {
             #[inline]
             fn setup(&self, comp: &$COMP) {
-                comp.muxctrla().modify(|_, w| w.muxneg().variant($variant))
+                comp.muxctrla().modify(|_, w| w.muxneg().variant($variant));
             }
         }
     };
@@ -226,7 +226,7 @@ macro_rules! output_pin {
         impl ComparatorOutput<$COMP> for $pin {
             #[inline]
             fn setup(&self, comp: &$COMP) {
-                comp.ctrla().modify(|_, w| w.outen().set_bit())
+                comp.ctrla().modify(|_, w| w.outen().set_bit());
             }
         }
     };
@@ -237,50 +237,50 @@ macro_rules! refint_input {
         impl NegativeInput<$COMP> for $reft {
             #[inline]
             fn setup(&self, comp: &$COMP) {
-                comp.muxctrla().modify(|_, w| w.muxneg().variant($variant))
+                comp.muxctrla().modify(|_, w| w.muxneg().variant($variant));
             }
         }
     };
 }
 
-impl_comparator!(AC0, ac0);
+impl_comparator!(Ac0, ac0);
 
 positive_input_pin!(
-    AC0,
+    Ac0,
     crate::gpio::porta::PA7<Analog>,
-    crate::pac::ac0::muxctrla::MUXPOS_A::PIN0
+    crate::pac::ac0::muxctrla::Muxpos::Pin0
 );
 positive_input_pin!(
-    AC0,
+    Ac0,
     crate::gpio::portb::PB5<Analog>,
-    crate::pac::ac0::muxctrla::MUXPOS_A::PIN1
+    crate::pac::ac0::muxctrla::Muxpos::Pin1
 );
 
 negative_input_pin!(
-    AC0,
+    Ac0,
     crate::gpio::porta::PA6<Analog>,
-    crate::pac::ac0::muxctrla::MUXNEG_A::PIN0
+    crate::pac::ac0::muxctrla::Muxneg::Pin0
 );
 negative_input_pin!(
-    AC0,
+    Ac0,
     crate::gpio::portb::PB4<Analog>,
-    crate::pac::ac0::muxctrla::MUXNEG_A::PIN1
+    crate::pac::ac0::muxctrla::Muxneg::Pin1
 );
 
-impl NegativeInput<AC0> for DACOutputToAC<0> {
+impl NegativeInput<Ac0> for DACOutputToAC<0> {
     #[inline]
-    fn setup(&self, comp: &AC0) {
-        comp.muxctrla().modify(|_, w| w.muxneg().dac())
+    fn setup(&self, comp: &Ac0) {
+        comp.muxctrla().modify(|_, w| w.muxneg().dac());
     }
 }
 
-output_pin!(AC0, crate::gpio::porta::PA5<Output<Stateless>>);
+output_pin!(Ac0, crate::gpio::porta::PA5<Output<Stateless>>);
 
 use crate::vref::DACReferenceVoltage;
 refint_input!(
-    AC0,
+    Ac0,
     DACReferenceVoltage<0>,
-    crate::pac::ac0::muxctrla::MUXNEG_A::VREF
+    crate::pac::ac0::muxctrla::Muxneg::Vref
 );
 
 use crate::evsys::ChannelConfigurator;

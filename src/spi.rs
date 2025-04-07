@@ -14,7 +14,7 @@ use crate::embedded_hal::spi::{ErrorType, SpiBus, MODE_0, MODE_1, MODE_2, MODE_3
 
 use crate::{
     clkctrl::Clocks,
-    pac::spi0::{ctrla::PRESC_A, ctrlb::MODE_A, RegisterBlock},
+    pac::spi0::{ctrla::Presc, ctrlb::Mode, RegisterBlock},
     time::*,
 };
 
@@ -154,10 +154,10 @@ where
         let config = config.into();
 
         let mode = match config.mode {
-            MODE_0 => MODE_A::_0,
-            MODE_1 => MODE_A::_1,
-            MODE_2 => MODE_A::_2,
-            MODE_3 => MODE_A::_3,
+            MODE_0 => Mode::_0,
+            MODE_1 => Mode::_1,
+            MODE_2 => Mode::_2,
+            MODE_3 => Mode::_3,
         };
 
         let (clk2x, div) = Self::compute_baud_rate(clocks, config.frequency);
@@ -252,17 +252,17 @@ where
     MOSI: MosiPin<SPI>,
     MODE: ED,
 {
-    fn compute_baud_rate(clocks: Clocks, freq: Hertz) -> (bool, PRESC_A) {
+    fn compute_baud_rate(clocks: Clocks, freq: Hertz) -> (bool, Presc) {
         match SPI::clock(&clocks).raw() / freq.raw() {
             0 => unreachable!(),
-            1..=2 => (true, PRESC_A::DIV4),     // DIV_2
-            3..=5 => (false, PRESC_A::DIV4),    // DIV_4
-            6..=11 => (true, PRESC_A::DIV16),   // DIV_8
-            12..=23 => (false, PRESC_A::DIV16), // DIV_16
-            24..=39 => (true, PRESC_A::DIV64),  // DIV_32
-            40..=95 => (false, PRESC_A::DIV64), // DIV_64
-            //96..=191 => (false, PRESC_A::DIV128),   // DIV_128
-            _ => (false, PRESC_A::DIV128),
+            1..=2 => (true, Presc::Div4),     // DIV_2
+            3..=5 => (false, Presc::Div4),    // DIV_4
+            6..=11 => (true, Presc::Div16),   // DIV_8
+            12..=23 => (false, Presc::Div16), // DIV_16
+            24..=39 => (true, Presc::Div64),  // DIV_32
+            40..=95 => (false, Presc::Div64), // DIV_64
+            //96..=191 => (false, Presc::Div128),   // DIV_128
+            _ => (false, Presc::Div128),
         }
     }
 
@@ -285,7 +285,7 @@ where
     }
 
     fn transfer_byte(&mut self, tx: u8) -> Result<u8, Error> {
-        self.spi.data().write(|w| w.bits(tx));
+        self.spi.data().write(|w| w.set(tx));
         while self.spi.intflags().read().if_().bit_is_clear() {}
         Ok(self.spi.data().read().bits())
     }
@@ -398,7 +398,7 @@ macro_rules! spi {
 use crate::gpio::{Input, Output, Stateless};
 
 spi!({
-    instance: SPI0,
+    instance: Spi0,
     pins: [
         {
             sck: (A/a, 3),

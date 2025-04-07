@@ -3,16 +3,16 @@
 // TODO: macros for different CPUs which have different peripherals
 // FIXME: move this into the DAC and ADC modules? DAC and AC share the channel though
 
-use crate::{pac::VREF, Toggle};
+use crate::Toggle;
 
-/// Extension trait that constrains the [`VREF`] peripheral
+/// Extension trait that constrains the [`crate::pac::Vref`] peripheral
 pub trait VrefExt {
-    /// Constrains the [`VREF`] peripheral.
+    /// Constrains the [`pac::VREF`] peripheral.
     ///
     /// Consumes the [`pac::VREF`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::VREF`]: `crate::pac::VREF`
+    /// [`pac::VREF`]: `crate::pac::Vref`
     /// [`HAL`]: `crate`
     fn constrain(self) -> Vref;
 }
@@ -27,10 +27,10 @@ pub trait VrefExt {
 /// let vref = dp.VREF.constrain();
 /// ```
 pub struct Vref {
-    vref: VREF,
+    vref: crate::pac::Vref,
 }
 
-impl VrefExt for VREF {
+impl VrefExt for crate::pac::Vref {
     fn constrain(self) -> Vref {
         Vref { vref: self }
     }

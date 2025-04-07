@@ -3,7 +3,7 @@
 #[cfg(feature = "enumset")]
 use enumset::EnumSetType;
 
-use crate::pac::{TCA0, TCB0};
+use crate::pac::{Tca0, Tcb0};
 use crate::{clkctrl::Clocks, pac::tcb0::ctrla, time::*, Toggle};
 
 use super::tcb_8bit::TCB8Bit;
@@ -52,14 +52,14 @@ pub trait Tcb8bitPwmCapable: super::Instance + super::TimerClock {
     fn into_8bit_pwm(self) -> TCB8Bit;
 }
 
-impl super::Instance for TCB0 {}
-impl Tcb8bitPwmCapable for TCB0 {
+impl super::Instance for Tcb0 {}
+impl Tcb8bitPwmCapable for Tcb0 {
     fn into_8bit_pwm(self) -> TCB8Bit {
         TCB8Bit { tim: self }
     }
 }
 
-impl super::TimerClock for TCB0 {
+impl super::TimerClock for Tcb0 {
     type ClockSource = TCBClockSource;
 
     #[inline(always)]
@@ -74,7 +74,7 @@ impl super::TimerClock for TCB0 {
     fn prepare_clock_source(&mut self, clk: Self::ClockSource) {
         match clk {
             TCBClockSource::Peripheral(_) => {}
-            TCBClockSource::TCA(_) => self.ctrla().modify(|_, w| w.clksel().clktca()),
+            TCBClockSource::TCA(_) => _ = self.ctrla().modify(|_, w| w.clksel().clktca()),
         }
     }
 
@@ -96,16 +96,16 @@ impl super::TimerClock for TCB0 {
 
     #[inline(always)]
     fn read_prescaler(&self) -> u16 {
-        use ctrla::CLKSEL_A::*;
+        use ctrla::Clksel::*;
         let prescaler = self.ctrla().read().clksel().variant().unwrap();
         match prescaler {
-            CLKTCA => 1,
+            Clktca => 1,
             _ => from_clksrc(prescaler),
         }
     }
 }
 
-impl super::AsClockSource for TCA0 {
+impl super::AsClockSource for Tca0 {
     type OutputClock = TCBClockSource;
 
     #[inline(always)]
@@ -114,7 +114,7 @@ impl super::AsClockSource for TCA0 {
     }
 }
 
-impl super::General for TCB0 {
+impl super::General for Tcb0 {
     const TIMER_WIDTH_BITS: u8 = 16;
     type CounterValue = u16;
     type Interrupt = Interrupt;
@@ -153,7 +153,7 @@ impl super::General for TCB0 {
         let enable: Toggle = enable.into();
         let enable: bool = enable.into();
         match interrupt {
-            Interrupt::CaptureCompare => self.intctrl().modify(|_, w| w.capt().bit(enable)),
+            Interrupt::CaptureCompare => _ = self.intctrl().modify(|_, w| w.capt().bit(enable)),
         }
     }
 
@@ -176,12 +176,12 @@ impl super::General for TCB0 {
     #[inline(always)]
     fn clear_event(&mut self, event: Self::Event) {
         match event {
-            Event::CaptureCompare => self.intflags().modify(|_, w| w.capt().set_bit()),
+            Event::CaptureCompare => _ = self.intflags().modify(|_, w| w.capt().set_bit()),
         }
     }
 }
 
-impl super::PeriodicMode for TCB0 {
+impl super::PeriodicMode for Tcb0 {
     #[inline(always)]
     fn set_periodic_mode(&mut self) {
         self.ctrlb().modify(|_, w| w.cntmode().int());
@@ -193,7 +193,7 @@ impl super::PeriodicMode for TCB0 {
         //        have a reference to the Timer, hence this stuff
         //        When the split pwm channels get a ref to the timer, we can
         //        get rid of this again
-        let tim = unsafe { &*TCB0::ptr() };
+        let tim = unsafe { &*Tcb0::ptr() };
         tim.ccmp().read().bits()
     }
 
@@ -223,25 +223,25 @@ impl super::PeriodicMode for TCB0 {
     }
 }
 
-fn into_clksrc(prescaler: u16) -> ctrla::CLKSEL_A {
-    use ctrla::CLKSEL_A::*;
+fn into_clksrc(prescaler: u16) -> ctrla::Clksel {
+    use ctrla::Clksel::*;
     match prescaler {
-        1 => CLKDIV1,
-        2 => CLKDIV2,
+        1 => Clkdiv1,
+        2 => Clkdiv2,
         _ => panic!("Invalid prescaler"),
     }
 }
 
-fn from_clksrc(prescaler: ctrla::CLKSEL_A) -> u16 {
-    use ctrla::CLKSEL_A::*;
+fn from_clksrc(prescaler: ctrla::Clksel) -> u16 {
+    use ctrla::Clksel::*;
     match prescaler {
-        CLKDIV1 => 1,
-        CLKDIV2 => 2,
+        Clkdiv1 => 1,
+        Clkdiv2 => 2,
         _ => panic!("Invalid prescaler"),
     }
 }
 
-impl crate::private::Sealed for crate::pac::TCB0 {}
+impl crate::private::Sealed for crate::pac::Tcb0 {}
 
 use super::pwm::{WaveformOutputPinset, C1};
 use crate::gpio::{Output, Stateless};

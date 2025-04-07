@@ -226,7 +226,7 @@ where
 
         // Set the baud rate divider and enable the peripheral
         twi.mctrla().modify(|_, w| w.enable().clear_bit());
-        twi.mbaud().write(|w| w.bits(baudrate));
+        twi.mbaud().write(|w| w.set(baudrate));
         twi.mctrla().modify(|_, w| w.enable().set_bit());
 
         // Force the state-machine into IDLE state
@@ -454,7 +454,7 @@ where
                 Operation::Read(buffer) => {
                     // Write the address and read-bit
                     // This kicks off a START or repeated START condition on the bus
-                    self.twi.maddr().write(|w| w.bits(address << 1 | 1));
+                    self.twi.maddr().write(|w| w.set(address << 1 | 1));
 
                     // Wait for the bus state to transition into OWNED
                     wait_ownership!(self.twi);
@@ -490,7 +490,7 @@ where
                 Operation::Write(buffer) => {
                     // Write the address and ~read-bit
                     // This kicks off a START or repeated START condition on the bus
-                    self.twi.maddr().write(|w| w.bits(address << 1 | 0));
+                    self.twi.maddr().write(|w| w.set(address << 1 | 0));
 
                     // Wait for the bus state to transition into OWNED
                     wait_ownership!(self.twi);
@@ -502,7 +502,7 @@ where
                     // Should the sent byte be NACKed, the busy_wait! macro will
                     // return and issue a STOP condition on the bus
                     for b in buffer.iter() {
-                        self.twi.mdata().write(|w| w.bits(*b));
+                        self.twi.mdata().write(|w| w.set(*b));
                         busy_wait!(self.twi, NackSource::Data);
                     }
                 }
@@ -554,7 +554,7 @@ macro_rules! twi {
 use crate::gpio::Peripheral;
 
 twi!({
-    instance: TWI0,
+    instance: Twi0,
     pins: [
         {
             scl: (B/b, 0),

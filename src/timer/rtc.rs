@@ -4,7 +4,7 @@
 use enumset::EnumSetType;
 
 use crate::{
-    pac::{rtc::ctrla, RTC},
+    pac::{rtc::ctrla, Rtc},
     time::*,
     Toggle,
 };
@@ -38,9 +38,9 @@ pub enum RTCClockSource {
     TOSC1(Hertz),
 }
 
-impl Instance for RTC {}
+impl Instance for Rtc {}
 
-impl TimerClock for RTC {
+impl TimerClock for Rtc {
     type ClockSource = RTCClockSource;
 
     #[inline(always)]
@@ -60,7 +60,7 @@ impl TimerClock for RTC {
             RTCClockSource::OSCULP32K_1K => self.clksel().write(|w| w.clksel().int1k()),
             //RTCClockSource::XOSC32K => self.clksel().write(|w| w.clksel().tosc32k()),
             RTCClockSource::TOSC1(_) => self.clksel().write(|w| w.clksel().extclk()),
-        }
+        };
     }
 
     #[inline(always)]
@@ -83,7 +83,7 @@ impl TimerClock for RTC {
     }
 }
 
-impl General for RTC {
+impl General for Rtc {
     const TIMER_WIDTH_BITS: u8 = 16;
     type CounterValue = u16;
     type Interrupt = Interrupt;
@@ -127,7 +127,7 @@ impl General for RTC {
         match interrupt {
             Interrupt::CompareMatch => self.intctrl().modify(|_, w| w.cmp().bit(enable)),
             Interrupt::Overflow => self.intctrl().modify(|_, w| w.ovf().bit(enable)),
-        }
+        };
     }
 
     #[inline(always)]
@@ -153,11 +153,11 @@ impl General for RTC {
         match event {
             Event::CompareMatch => self.intflags().modify(|_, w| w.cmp().set_bit()),
             Event::Overflow => self.intflags().modify(|_, w| w.ovf().set_bit()),
-        }
+        };
     }
 }
 
-impl PeriodicMode for RTC {
+impl PeriodicMode for Rtc {
     #[inline(always)]
     fn set_periodic_mode(&mut self) {}
 
@@ -167,7 +167,7 @@ impl PeriodicMode for RTC {
         //        have a reference to the Timer, hence this stuff
         //        When the split pwm channels get a ref to the timer, we can
         //        get rid of this again
-        let rtc = unsafe { &*RTC::ptr() };
+        let rtc = unsafe { &*Rtc::ptr() };
         rtc.per().read().bits()
     }
 
@@ -201,49 +201,49 @@ impl PeriodicMode for RTC {
 // FIXME: implement compare mode for RTC
 // FIXME: implement PIT in RTC
 
-fn into_prescaler(prescaler: u16) -> ctrla::PRESCALER_A {
-    use ctrla::PRESCALER_A::*;
+fn into_prescaler(prescaler: u16) -> ctrla::Prescaler {
+    use ctrla::Prescaler::*;
     match prescaler {
-        1 => DIV1,
-        2 => DIV2,
-        4 => DIV4,
-        8 => DIV8,
-        16 => DIV16,
-        32 => DIV32,
-        64 => DIV64,
-        128 => DIV128,
-        256 => DIV256,
-        512 => DIV512,
-        1024 => DIV1024,
-        2048 => DIV2048,
-        4096 => DIV4096,
-        8192 => DIV8192,
-        16384 => DIV16384,
-        32768 => DIV32768,
+        1 => Div1,
+        2 => Div2,
+        4 => Div4,
+        8 => Div8,
+        16 => Div16,
+        32 => Div32,
+        64 => Div64,
+        128 => Div128,
+        256 => Div256,
+        512 => Div512,
+        1024 => Div1024,
+        2048 => Div2048,
+        4096 => Div4096,
+        8192 => Div8192,
+        16384 => Div16384,
+        32768 => Div32768,
         _ => panic!("Invalid prescaler"),
     }
 }
 
-fn from_prescaler(prescaler: ctrla::PRESCALER_A) -> u16 {
-    use ctrla::PRESCALER_A::*;
+fn from_prescaler(prescaler: ctrla::Prescaler) -> u16 {
+    use ctrla::Prescaler::*;
     match prescaler {
-        DIV1 => 1,
-        DIV2 => 2,
-        DIV4 => 4,
-        DIV8 => 8,
-        DIV16 => 16,
-        DIV32 => 32,
-        DIV64 => 64,
-        DIV128 => 128,
-        DIV256 => 256,
-        DIV512 => 512,
-        DIV1024 => 1024,
-        DIV2048 => 2048,
-        DIV4096 => 4096,
-        DIV8192 => 8192,
-        DIV16384 => 16384,
-        DIV32768 => 32768,
+        Div1 => 1,
+        Div2 => 2,
+        Div4 => 4,
+        Div8 => 8,
+        Div16 => 16,
+        Div32 => 32,
+        Div64 => 64,
+        Div128 => 128,
+        Div256 => 256,
+        Div512 => 512,
+        Div1024 => 1024,
+        Div2048 => 2048,
+        Div4096 => 4096,
+        Div8192 => 8192,
+        Div16384 => 16384,
+        Div32768 => 32768,
     }
 }
 
-impl crate::private::Sealed for crate::pac::RTC {}
+impl crate::private::Sealed for crate::pac::Rtc {}

@@ -17,14 +17,14 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain a few peripherals into our HAL types
-    let clkctrl = dp.CLKCTRL.constrain();
-    let portmux = dp.PORTMUX.constrain();
+    let clkctrl = dp.clkctrl.constrain();
+    let portmux = dp.portmux.constrain();
 
     // Configure our clocks
     let clocks = clkctrl.freeze();
 
-    // Split the PORTB peripheral into its pins
-    let (a, b) = (dp.PORTA.split(), dp.PORTB.split());
+    // Split the porta and portb peripherals into their pins
+    let (a, b) = (dp.porta.split(), dp.portb.split());
 
     // Grab a pin for an LED
     let mut led = b.pb6.into_push_pull_output();
@@ -33,11 +33,11 @@ fn main() -> ! {
     let pwm_wo = a.pa5.into_stateless_push_pull_output().mux(&portmux);
 
     // Delay timer
-    let t = FTimer::<_, 1024>::new(dp.RTC, RTCClockSource::OSCULP32K_32K).unwrap();
+    let t = FTimer::<_, 1024>::new(dp.rtc, RTCClockSource::OSCULP32K_32K).unwrap();
     let mut d = t.delay();
 
     // Create a timer with a variable frequency using TCB0 in 8 Bit PWM mode
-    let tcb0_8bit_pwm = dp.TCB0.into_8bit_pwm();
+    let tcb0_8bit_pwm = dp.tcb0.into_8bit_pwm();
     let t = Timer::new(tcb0_8bit_pwm, TCBClockSource::Peripheral(clocks));
 
     // Build a PWM timer. Didive it down as much as possible. We should end up at about 39KHz

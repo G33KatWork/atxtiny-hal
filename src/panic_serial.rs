@@ -14,24 +14,19 @@ impl<'a, W: uWrite> Write for WriteWrapper<'a, W> {
 
 /// Called internally by the panic handler.
 pub fn _print_panic<W: uWrite>(w: &mut W, info: &PanicInfo) {
-    if let Some(location) = info.location() {
-        _ = ufmt::uwrite!(
-            w,
-            "Panic at {}:{}:{}",
-            location.file(),
-            location.line(),
-            location.column()
-        );
-        if !cfg!(feature = "fullpanic") {
-            _ = w.write_str("\r\n");
-        }
-    }
-
     if cfg!(feature = "fullpanic") {
-        if let Some(message) = info.message() {
-            _ = w.write_str(": ");
-            _ = core::fmt::write(&mut WriteWrapper(w), *message);
-            _ = w.write_str("\r\n");
+        _ = core::fmt::write(&mut WriteWrapper(w), format_args!("{}", info));
+    } else {
+        if let Some(location) = info.location() {
+            _ = ufmt::uwrite!(
+                w,
+                "Panic at {}:{}:{}",
+                location.file(),
+                location.line(),
+                location.column()
+            );
+        } else {
+            _ = ufmt::uwrite!(w, "Panic");
         }
     }
 }
@@ -49,6 +44,8 @@ macro_rules! impl_panic_handler {
         #[inline(never)]
         #[panic_handler]
         fn panic(info: &::core::panic::PanicInfo) -> ! {
+            use ::atxtiny_hal::embedded_io::Write;
+
             unsafe { avr_device::interrupt::disable() };
 
             if let Some(panic_port) = unsafe { PANIC_PORT.as_mut() } {

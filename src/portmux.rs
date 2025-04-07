@@ -6,16 +6,14 @@
 
 use embedded_hal::digital::OutputPin;
 
-use crate::pac::PORTMUX;
-
-/// Extension trait that constrains the [`PORTMUX`] peripheral
+/// Extension trait that constrains the [`crate::pac::Portmux`] peripheral
 pub trait PortmuxExt {
-    /// Constrains the [`PORTMUX`] peripheral.
+    /// Constrains the [`pac::PORTMUX`] peripheral.
     ///
     /// Consumes the [`pac::PORTMUX`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::PORTMUX`]: `crate::pac::PORTMUX`
+    /// [`pac::PORTMUX`]: `crate::pac::Portmux`
     /// [`HAL`]: `crate`
     fn constrain(self) -> Portmux;
 }
@@ -27,13 +25,13 @@ pub trait PortmuxExt {
 ///
 /// ```
 /// let dp = pac::Peripherals::take().unwrap();
-/// let portmux = dp.PORTMUX.constrain();
+/// let portmux = dp.portmux.constrain();
 /// ```
 pub struct Portmux {
-    mux: PORTMUX,
+    mux: crate::pac::Portmux,
 }
 
-impl PortmuxExt for PORTMUX {
+impl PortmuxExt for crate::pac::Portmux {
     fn constrain(self) -> Portmux {
         Portmux { mux: self }
     }
@@ -46,7 +44,7 @@ impl PortmuxExt for PORTMUX {
 ///
 /// ```
 /// let dp = pac::Peripherals::take().unwrap();
-/// let portmux = dp.PORTMUX.constrain();
+/// let portmux = dp.portmux.constrain();
 /// let porta = dp.PORTA.split();
 ///
 /// let rxpin = porta.pa2.into_peripheral::<pac::USART0>();
@@ -70,17 +68,17 @@ pub trait IntoMuxedPinset<Peripheral> {
 use crate::gpio::{Input, Output, Peripheral, Stateless};
 
 // Serial
-use crate::pac::USART0;
+use crate::pac::Usart0;
 use crate::serial::UartPinset;
 
-impl IntoMuxedPinset<USART0>
+impl IntoMuxedPinset<Usart0>
     for (
-        crate::gpio::portb::PB3<Peripheral<USART0>>,
-        crate::gpio::portb::PB2<Peripheral<USART0>>,
+        crate::gpio::portb::PB3<Peripheral<Usart0>>,
+        crate::gpio::portb::PB2<Peripheral<Usart0>>,
     )
 {
     type Pinset = UartPinset<
-        USART0,
+        Usart0,
         crate::gpio::portb::PB3<Input>,
         crate::gpio::portb::PB2<Output<Stateless>>,
     >;
@@ -100,14 +98,14 @@ impl IntoMuxedPinset<USART0>
     }
 }
 
-impl IntoMuxedPinset<USART0>
+impl IntoMuxedPinset<Usart0>
     for (
-        crate::gpio::porta::PA2<Peripheral<USART0>>,
-        crate::gpio::porta::PA1<Peripheral<USART0>>,
+        crate::gpio::porta::PA2<Peripheral<Usart0>>,
+        crate::gpio::porta::PA1<Peripheral<Usart0>>,
     )
 {
     type Pinset = UartPinset<
-        USART0,
+        Usart0,
         crate::gpio::porta::PA2<Input>,
         crate::gpio::porta::PA1<Output<Stateless>>,
     >;
@@ -128,19 +126,19 @@ impl IntoMuxedPinset<USART0>
 }
 
 // TWI
-use crate::pac::TWI0;
+use crate::pac::Twi0;
 use crate::twi::TwiPinset;
 
-impl IntoMuxedPinset<TWI0>
+impl IntoMuxedPinset<Twi0>
     for (
-        crate::gpio::portb::PB0<Peripheral<TWI0>>,
-        crate::gpio::portb::PB1<Peripheral<TWI0>>,
+        crate::gpio::portb::PB0<Peripheral<Twi0>>,
+        crate::gpio::portb::PB1<Peripheral<Twi0>>,
     )
 {
     type Pinset = TwiPinset<
-        TWI0,
-        crate::gpio::portb::PB0<Peripheral<TWI0>>,
-        crate::gpio::portb::PB1<Peripheral<TWI0>>,
+        Twi0,
+        crate::gpio::portb::PB0<Peripheral<Twi0>>,
+        crate::gpio::portb::PB1<Peripheral<Twi0>>,
     >;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
@@ -149,16 +147,16 @@ impl IntoMuxedPinset<TWI0>
     }
 }
 
-impl IntoMuxedPinset<TWI0>
+impl IntoMuxedPinset<Twi0>
     for (
-        crate::gpio::porta::PA2<Peripheral<TWI0>>,
-        crate::gpio::porta::PA1<Peripheral<TWI0>>,
+        crate::gpio::porta::PA2<Peripheral<Twi0>>,
+        crate::gpio::porta::PA1<Peripheral<Twi0>>,
     )
 {
     type Pinset = TwiPinset<
-        TWI0,
-        crate::gpio::porta::PA2<Peripheral<TWI0>>,
-        crate::gpio::porta::PA1<Peripheral<TWI0>>,
+        Twi0,
+        crate::gpio::porta::PA2<Peripheral<Twi0>>,
+        crate::gpio::porta::PA1<Peripheral<Twi0>>,
     >;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
@@ -168,18 +166,18 @@ impl IntoMuxedPinset<TWI0>
 }
 
 // SPI
-use crate::pac::SPI0;
+use crate::pac::Spi0;
 use crate::spi::SpiPinset;
 
-impl IntoMuxedPinset<SPI0>
+impl IntoMuxedPinset<Spi0>
     for (
-        crate::gpio::porta::PA3<Peripheral<SPI0>>,
-        crate::gpio::porta::PA2<Peripheral<SPI0>>,
-        crate::gpio::porta::PA1<Peripheral<SPI0>>,
+        crate::gpio::porta::PA3<Peripheral<Spi0>>,
+        crate::gpio::porta::PA2<Peripheral<Spi0>>,
+        crate::gpio::porta::PA1<Peripheral<Spi0>>,
     )
 {
     type Pinset = SpiPinset<
-        SPI0,
+        Spi0,
         crate::gpio::porta::PA3<Output<Stateless>>,
         crate::gpio::porta::PA2<Input>,
         crate::gpio::porta::PA1<Output<Stateless>>,
@@ -197,15 +195,15 @@ impl IntoMuxedPinset<SPI0>
     }
 }
 
-impl IntoMuxedPinset<SPI0>
+impl IntoMuxedPinset<Spi0>
     for (
-        crate::gpio::portc::PC0<Peripheral<SPI0>>,
-        crate::gpio::portc::PC1<Peripheral<SPI0>>,
-        crate::gpio::portc::PC2<Peripheral<SPI0>>,
+        crate::gpio::portc::PC0<Peripheral<Spi0>>,
+        crate::gpio::portc::PC1<Peripheral<Spi0>>,
+        crate::gpio::portc::PC2<Peripheral<Spi0>>,
     )
 {
     type Pinset = SpiPinset<
-        SPI0,
+        Spi0,
         crate::gpio::portc::PC0<Output<Stateless>>,
         crate::gpio::portc::PC1<Input>,
         crate::gpio::portc::PC2<Output<Stateless>>,
@@ -263,12 +261,12 @@ impl IntoMuxedPinset<LUT1> for crate::gpio::portc::PC1<Output<Stateless>> {
 }
 
 // TCA
-use crate::pac::TCA0;
+use crate::pac::Tca0;
 use crate::timer::tca::TcaPinset;
 use crate::timer::{C1, C2, C3};
 
-impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB0<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB0<Output<Stateless>>, C1>;
+impl IntoMuxedPinset<Tca0> for crate::gpio::portb::PB0<Output<Stateless>> {
+    type Pinset = TcaPinset<Tca0, crate::gpio::portb::PB0<Output<Stateless>>, C1>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
         portmux.mux.ctrlc().modify(|_r, w| w.tca00().clear_bit());
@@ -276,8 +274,8 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB0<Output<Stateless>> {
     }
 }
 
-impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB1<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB1<Output<Stateless>>, C2>;
+impl IntoMuxedPinset<Tca0> for crate::gpio::portb::PB1<Output<Stateless>> {
+    type Pinset = TcaPinset<Tca0, crate::gpio::portb::PB1<Output<Stateless>>, C2>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
         portmux.mux.ctrlc().modify(|_r, w| w.tca01().clear_bit());
@@ -285,8 +283,8 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB1<Output<Stateless>> {
     }
 }
 
-impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB2<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB2<Output<Stateless>>, C3>;
+impl IntoMuxedPinset<Tca0> for crate::gpio::portb::PB2<Output<Stateless>> {
+    type Pinset = TcaPinset<Tca0, crate::gpio::portb::PB2<Output<Stateless>>, C3>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
         portmux.mux.ctrlc().modify(|_r, w| w.tca02().clear_bit());
@@ -294,8 +292,8 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB2<Output<Stateless>> {
     }
 }
 
-impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB3<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB3<Output<Stateless>>, C1>;
+impl IntoMuxedPinset<Tca0> for crate::gpio::portb::PB3<Output<Stateless>> {
+    type Pinset = TcaPinset<Tca0, crate::gpio::portb::PB3<Output<Stateless>>, C1>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
         portmux.mux.ctrlc().modify(|_r, w| w.tca00().set_bit());
@@ -303,8 +301,8 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB3<Output<Stateless>> {
     }
 }
 
-impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB4<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB4<Output<Stateless>>, C2>;
+impl IntoMuxedPinset<Tca0> for crate::gpio::portb::PB4<Output<Stateless>> {
+    type Pinset = TcaPinset<Tca0, crate::gpio::portb::PB4<Output<Stateless>>, C2>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
         portmux.mux.ctrlc().modify(|_r, w| w.tca01().set_bit());
@@ -312,8 +310,8 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB4<Output<Stateless>> {
     }
 }
 
-impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB5<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB5<Output<Stateless>>, C3>;
+impl IntoMuxedPinset<Tca0> for crate::gpio::portb::PB5<Output<Stateless>> {
+    type Pinset = TcaPinset<Tca0, crate::gpio::portb::PB5<Output<Stateless>>, C3>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
         portmux.mux.ctrlc().modify(|_r, w| w.tca02().set_bit());
@@ -322,10 +320,10 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB5<Output<Stateless>> {
 }
 
 // TCB 8 Bit PWM outputs
-use crate::pac::TCB0;
+use crate::pac::Tcb0;
 use crate::timer::{tcb::TcbPinset, tcb_8bit::TCB8Bit};
 
-impl IntoMuxedPinset<TCB0> for crate::gpio::porta::PA5<Output<Stateless>> {
+impl IntoMuxedPinset<Tcb0> for crate::gpio::porta::PA5<Output<Stateless>> {
     type Pinset = TcbPinset<TCB8Bit, crate::gpio::porta::PA5<Output<Stateless>>, C1>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
@@ -334,7 +332,7 @@ impl IntoMuxedPinset<TCB0> for crate::gpio::porta::PA5<Output<Stateless>> {
     }
 }
 
-impl IntoMuxedPinset<TCB0> for crate::gpio::portc::PC0<Output<Stateless>> {
+impl IntoMuxedPinset<Tcb0> for crate::gpio::portc::PC0<Output<Stateless>> {
     type Pinset = TcbPinset<TCB8Bit, crate::gpio::portc::PC0<Output<Stateless>>, C1>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
@@ -346,10 +344,10 @@ impl IntoMuxedPinset<TCB0> for crate::gpio::portc::PC0<Output<Stateless>> {
 // EVOUT
 use crate::evout::EventOutputPinset;
 use crate::evout::{EVOUT0, EVOUT1, EVOUT2};
-use crate::pac::EVSYS;
+use crate::pac::Evsys;
 
-impl IntoMuxedPinset<EVSYS> for crate::gpio::porta::PA2<Peripheral<EVSYS>> {
-    type Pinset = EventOutputPinset<EVSYS, crate::gpio::porta::PA2<Peripheral<EVSYS>>, EVOUT0>;
+impl IntoMuxedPinset<Evsys> for crate::gpio::porta::PA2<Peripheral<Evsys>> {
+    type Pinset = EventOutputPinset<Evsys, crate::gpio::porta::PA2<Peripheral<Evsys>>, EVOUT0>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
         portmux.mux.ctrla().modify(|_r, w| w.evout0().set_bit());
@@ -357,8 +355,8 @@ impl IntoMuxedPinset<EVSYS> for crate::gpio::porta::PA2<Peripheral<EVSYS>> {
     }
 }
 
-impl IntoMuxedPinset<EVSYS> for crate::gpio::portb::PB2<Peripheral<EVSYS>> {
-    type Pinset = EventOutputPinset<EVSYS, crate::gpio::portb::PB2<Peripheral<EVSYS>>, EVOUT1>;
+impl IntoMuxedPinset<Evsys> for crate::gpio::portb::PB2<Peripheral<Evsys>> {
+    type Pinset = EventOutputPinset<Evsys, crate::gpio::portb::PB2<Peripheral<Evsys>>, EVOUT1>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
         portmux.mux.ctrla().modify(|_r, w| w.evout1().set_bit());
@@ -366,8 +364,8 @@ impl IntoMuxedPinset<EVSYS> for crate::gpio::portb::PB2<Peripheral<EVSYS>> {
     }
 }
 
-impl IntoMuxedPinset<EVSYS> for crate::gpio::portc::PC2<Peripheral<EVSYS>> {
-    type Pinset = EventOutputPinset<EVSYS, crate::gpio::portc::PC2<Peripheral<EVSYS>>, EVOUT2>;
+impl IntoMuxedPinset<Evsys> for crate::gpio::portc::PC2<Peripheral<Evsys>> {
+    type Pinset = EventOutputPinset<Evsys, crate::gpio::portc::PC2<Peripheral<Evsys>>, EVOUT2>;
 
     fn mux(self, portmux: &Portmux) -> Self::Pinset {
         portmux.mux.ctrla().modify(|_r, w| w.evout2().set_bit());
