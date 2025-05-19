@@ -18,8 +18,6 @@ pub mod tcb_8bit;
 use crate::time::*;
 
 mod sealed {
-    use enumset::EnumSetType;
-
     use super::{Error, TimerClock};
     use crate::time::*;
     use crate::Toggle;
@@ -30,8 +28,8 @@ mod sealed {
 
         cfg_if::cfg_if! {
             if #[cfg(feature = "enumset")] {
-                type Interrupt: EnumSetType;
-                type Event: EnumSetType;
+                type Interrupt: enumset::EnumSetType;
+                type Event: enumset::EnumSetType;
             } else {
                 type Interrupt;
                 type Event;

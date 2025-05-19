@@ -13,18 +13,18 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain a few peripherals into our HAL types
-    let clkctrl = dp.clkctrl.constrain();
+    let clkctrl = dp.CLKCTRL.constrain();
 
     // Configure our clocks
     let _clocks = clkctrl.freeze();
 
     // Split the PORTA peripheral into its pins
-    let a = dp.porta.split();
+    let a = dp.PORTA.split();
 
     // Setup VREF for DAC to 2.5V
     // This reference voltage can be passed into the AC negative input to
     // compare against
-    let mut vref = dp.vref.constrain();
+    let mut vref = dp.VREF.constrain();
     let dacref = vref.dac0(ReferenceVoltage::_2V50);
 
     // Grab AINP0
@@ -35,7 +35,7 @@ fn main() -> ! {
     acout.internal_pull_up(Toggle::Off);
 
     // Create a comparator
-    let ac = dp.ac0.comparator(
+    let ac = dp.AC0.comparator(
         ainp0,
         dacref,
         Config {

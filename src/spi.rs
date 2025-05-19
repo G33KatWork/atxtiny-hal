@@ -8,13 +8,11 @@
 use core::cmp::max;
 use core::{marker::PhantomData, ops::Deref};
 
-use enumset::{EnumSet, EnumSetType};
-
 use crate::embedded_hal::spi::{ErrorType, SpiBus, MODE_0, MODE_1, MODE_2, MODE_3};
 
 use crate::{
     clkctrl::Clocks,
-    pac::spi0::{ctrla::Presc, ctrlb::Mode, RegisterBlock},
+    pac::spi0::{ctrla::PRESC_A, ctrlb::MODE_A, RegisterBlock},
     time::*,
 };
 
@@ -98,7 +96,7 @@ where
 
 /// Unbuffered status events.
 #[derive(ufmt::derive::uDebug, Debug)]
-#[cfg_attr(feature = "enumset", derive(EnumSetType))]
+#[cfg_attr(feature = "enumset", derive(enumset::EnumSetType))]
 #[cfg_attr(not(feature = "enumset"), derive(Copy, Clone, PartialEq, Eq))]
 pub enum UnbufferedEvent {
     /// Interrupt
@@ -154,10 +152,10 @@ where
         let config = config.into();
 
         let mode = match config.mode {
-            MODE_0 => Mode::_0,
-            MODE_1 => Mode::_1,
-            MODE_2 => Mode::_2,
-            MODE_3 => Mode::_3,
+            MODE_0 => MODE_A::_0,
+            MODE_1 => MODE_A::_1,
+            MODE_2 => MODE_A::_2,
+            MODE_3 => MODE_A::_3,
         };
 
         let (clk2x, div) = Self::compute_baud_rate(clocks, config.frequency);
@@ -227,14 +225,14 @@ where
         }
     }
 
-    /// Get an [`EnumSet`] of all fired interrupt events.
+    /// Get an [`enumset::EnumSet`] of all fired interrupt events.
     #[cfg(feature = "enumset")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enumset")))]
     #[inline]
-    pub fn triggered_events(&self) -> EnumSet<UnbufferedEvent> {
-        let mut events = EnumSet::new();
+    pub fn triggered_events(&self) -> enumset::EnumSet<UnbufferedEvent> {
+        let mut events = enumset::EnumSet::new();
 
-        for event in EnumSet::<UnbufferedEvent>::all().iter() {
+        for event in enumset::EnumSet::<UnbufferedEvent>::all().iter() {
             if self.is_event_triggered(event) {
                 events |= event;
             }
@@ -252,17 +250,17 @@ where
     MOSI: MosiPin<SPI>,
     MODE: ED,
 {
-    fn compute_baud_rate(clocks: Clocks, freq: Hertz) -> (bool, Presc) {
+    fn compute_baud_rate(clocks: Clocks, freq: Hertz) -> (bool, PRESC_A) {
         match SPI::clock(&clocks).raw() / freq.raw() {
             0 => unreachable!(),
-            1..=2 => (true, Presc::ClkPer4_2),     // DIV_2
-            3..=5 => (false, Presc::ClkPer4_2),    // DIV_4
-            6..=11 => (true, Presc::ClkPer16_8),   // DIV_8
-            12..=23 => (false, Presc::ClkPer16_8), // DIV_16
-            24..=39 => (true, Presc::ClkPer64_32),  // DIV_32
-            40..=95 => (false, Presc::ClkPer64_32), // DIV_64
-            //96..=191 => (false, Presc::Div128),   // DIV_128
-            _ => (false, Presc::ClkPer128_64),
+            1..=2 => (true, PRESC_A::CLK_PER_4_2),     // DIV_2
+            3..=5 => (false, PRESC_A::CLK_PER_4_2),    // DIV_4
+            6..=11 => (true, PRESC_A::CLK_PER_16_8),   // DIV_8
+            12..=23 => (false, PRESC_A::CLK_PER_16_8), // DIV_16
+            24..=39 => (true, PRESC_A::CLK_PER_64_32),  // DIV_32
+            40..=95 => (false, PRESC_A::CLK_PER_64_32), // DIV_64
+            //96..=191 => (false, PRESC_A::Div128),   // DIV_128
+            _ => (false, PRESC_A::CLK_PER_64_32),
         }
     }
 
@@ -398,7 +396,7 @@ macro_rules! spi {
 use crate::gpio::{Input, Output, Stateless};
 
 spi!({
-    instance: Spi0,
+    instance: SPI0,
     pins: [
         {
             sck: (A/a, 3),

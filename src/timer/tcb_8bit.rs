@@ -1,4 +1,4 @@
-use crate::pac::Tcb0 as TCB0;
+use crate::pac::TCB0;
 
 use crate::{time::*, Toggle};
 

@@ -14,14 +14,14 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain a few peripherals into our HAL types
-    let clkctrl = dp.clkctrl.constrain();
-    let portmux = dp.portmux.constrain();
+    let clkctrl = dp.CLKCTRL.constrain();
+    let portmux = dp.PORTMUX.constrain();
 
     // Configure our clocks
     let clocks = clkctrl.freeze();
 
     // Split the PORTA/B peripheral into its pins
-    let b = dp.portb.split();
+    let b = dp.PORTB.split();
 
     // Grab the TWI pins
     let sclpin = b.pb0.into_peripheral();
@@ -32,7 +32,7 @@ fn main() -> ! {
     let twi_pair = twi_pair.mux(&portmux);
 
     // Create a TWI abstraction
-    let mut twi = Twi::new(dp.twi0, twi_pair, 100000.Hz(), clocks);
+    let mut twi = Twi::new(dp.TWI0, twi_pair, 100000.Hz(), clocks);
 
     // Send a string to address 3
     twi.write(0x03, "Hello over I2C".as_bytes()).unwrap();

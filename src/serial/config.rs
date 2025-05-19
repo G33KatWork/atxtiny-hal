@@ -1,6 +1,6 @@
 //! Types for configuring a serial interface.
 
-use crate::pac::usart0::ctrlc::{Chsize, Pmode, Sbmode};
+use crate::pac::usart0::ctrlc::{CHSIZE_A, PMODE_A, SBMODE_A};
 use crate::time::*;
 
 /// Stop Bit configuration parameter for serial.
@@ -14,20 +14,20 @@ pub enum StopBits {
     Stop2,
 }
 
-impl From<StopBits> for Sbmode {
+impl From<StopBits> for SBMODE_A {
     fn from(stopbit: StopBits) -> Self {
         match stopbit {
-            StopBits::Stop1 => Sbmode::_1bit,
-            StopBits::Stop2 => Sbmode::_2bit,
+            StopBits::Stop1 => SBMODE_A::_1BIT,
+            StopBits::Stop2 => SBMODE_A::_2BIT,
         }
     }
 }
 
-impl From<Sbmode> for StopBits {
-    fn from(stopbit: Sbmode) -> Self {
+impl From<SBMODE_A> for StopBits {
+    fn from(stopbit: SBMODE_A) -> Self {
         match stopbit {
-            Sbmode::_1bit => StopBits::Stop1,
-            Sbmode::_2bit => StopBits::Stop2,
+            SBMODE_A::_1BIT => StopBits::Stop1,
+            SBMODE_A::_2BIT => StopBits::Stop2,
         }
     }
 }
@@ -47,22 +47,22 @@ pub enum Parity {
     Odd,
 }
 
-impl From<Parity> for Pmode {
+impl From<Parity> for PMODE_A {
     fn from(stopbit: Parity) -> Self {
         match stopbit {
-            Parity::None => Pmode::Disabled,
-            Parity::Even => Pmode::Even,
-            Parity::Odd => Pmode::Odd,
+            Parity::None => PMODE_A::DISABLED,
+            Parity::Even => PMODE_A::EVEN,
+            Parity::Odd => PMODE_A::ODD,
         }
     }
 }
 
-impl From<Pmode> for Parity {
-    fn from(stopbit: Pmode) -> Self {
+impl From<PMODE_A> for Parity {
+    fn from(stopbit: PMODE_A) -> Self {
         match stopbit {
-            Pmode::Disabled => Parity::None,
-            Pmode::Even => Parity::Even,
-            Pmode::Odd => Parity::Odd,
+            PMODE_A::DISABLED => Parity::None,
+            PMODE_A::EVEN => Parity::Even,
+            PMODE_A::ODD => Parity::Odd,
         }
     }
 }
@@ -79,24 +79,24 @@ pub enum CharacterSize {
     //Size9_MSB,
 }
 
-impl From<CharacterSize> for Chsize {
+impl From<CharacterSize> for CHSIZE_A {
     fn from(chsize: CharacterSize) -> Self {
         match chsize {
-            CharacterSize::Size5 => Chsize::_5bit,
-            CharacterSize::Size6 => Chsize::_6bit,
-            CharacterSize::Size7 => Chsize::_7bit,
-            CharacterSize::Size8 => Chsize::_8bit,
+            CharacterSize::Size5 => CHSIZE_A::_5BIT,
+            CharacterSize::Size6 => CHSIZE_A::_6BIT,
+            CharacterSize::Size7 => CHSIZE_A::_7BIT,
+            CharacterSize::Size8 => CHSIZE_A::_8BIT,
         }
     }
 }
 
-impl From<Chsize> for CharacterSize {
-    fn from(chsize: Chsize) -> Self {
+impl From<CHSIZE_A> for CharacterSize {
+    fn from(chsize: CHSIZE_A) -> Self {
         match chsize {
-            Chsize::_5bit => CharacterSize::Size5,
-            Chsize::_6bit => CharacterSize::Size6,
-            Chsize::_7bit => CharacterSize::Size7,
-            Chsize::_8bit => CharacterSize::Size8,
+            CHSIZE_A::_5BIT => CharacterSize::Size5,
+            CHSIZE_A::_6BIT => CharacterSize::Size6,
+            CHSIZE_A::_7BIT => CharacterSize::Size7,
+            CHSIZE_A::_8BIT => CharacterSize::Size8,
             _ => unimplemented!(),
         }
     }

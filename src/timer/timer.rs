@@ -2,8 +2,6 @@ use super::{AsClockSource, Counter, CounterHz, Delay, Error, General, Instance, 
 use crate::time::*;
 use crate::Toggle;
 
-use enumset::EnumSet;
-
 /// Timer wrapper for dynamic precision timers
 ///
 /// This wrapper can be used for all different timer variants (A, B and D)
@@ -42,7 +40,7 @@ impl<TIM: Instance + General> Timer<TIM> {
     #[cfg(feature = "enumset")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enumset")))]
     #[inline]
-    pub fn configure_interrupts(&mut self, interrupts: EnumSet<TIM::Interrupt>) {
+    pub fn configure_interrupts(&mut self, interrupts: enumset::EnumSet<TIM::Interrupt>) {
         for event in interrupts.complement().iter() {
             self.configure_interrupt(event, false);
         }
@@ -60,10 +58,10 @@ impl<TIM: Instance + General> Timer<TIM> {
     #[cfg(feature = "enumset")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enumset")))]
     #[inline]
-    pub fn configured_interrupts(&mut self) -> EnumSet<TIM::Interrupt> {
+    pub fn configured_interrupts(&mut self) -> enumset::EnumSet<TIM::Interrupt> {
         let mut interrupts = EnumSet::new();
 
-        for interrupt in EnumSet::<TIM::Interrupt>::all().iter() {
+        for interrupt in enumset::EnumSet::<TIM::Interrupt>::all().iter() {
             if self.is_interrupt_configured(interrupt) {
                 interrupts |= interrupt;
             }
@@ -80,10 +78,10 @@ impl<TIM: Instance + General> Timer<TIM> {
     #[cfg(feature = "enumset")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enumset")))]
     #[inline]
-    pub fn triggered_events(&self) -> EnumSet<TIM::Event> {
-        let mut events = EnumSet::new();
+    pub fn triggered_events(&self) -> enumset::EnumSet<TIM::Event> {
+        let mut events = enumset::EnumSet::new();
 
-        for event in EnumSet::<TIM::Event>::all().iter() {
+        for event in enumset::EnumSet::<TIM::Event>::all().iter() {
             if self.is_event_triggered(event) {
                 events |= event;
             }
@@ -176,7 +174,7 @@ impl<TIM: Instance + General, const FREQ: u32> FTimer<TIM, FREQ> {
     #[cfg(feature = "enumset")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enumset")))]
     #[inline]
-    pub fn configure_interrupts(&mut self, interrupts: EnumSet<TIM::Interrupt>) {
+    pub fn configure_interrupts(&mut self, interrupts: enumset::EnumSet<TIM::Interrupt>) {
         for event in interrupts.complement().iter() {
             self.configure_interrupt(event, false);
         }
@@ -194,10 +192,10 @@ impl<TIM: Instance + General, const FREQ: u32> FTimer<TIM, FREQ> {
     #[cfg(feature = "enumset")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enumset")))]
     #[inline]
-    pub fn configured_interrupts(&mut self) -> EnumSet<TIM::Interrupt> {
-        let mut interrupts = EnumSet::new();
+    pub fn configured_interrupts(&mut self) -> enumset::EnumSet<TIM::Interrupt> {
+        let mut interrupts = enumset::EnumSet::new();
 
-        for interrupt in EnumSet::<TIM::Interrupt>::all().iter() {
+        for interrupt in enumset::EnumSet::<TIM::Interrupt>::all().iter() {
             if self.is_interrupt_configured(interrupt) {
                 interrupts |= interrupt;
             }
@@ -214,10 +212,10 @@ impl<TIM: Instance + General, const FREQ: u32> FTimer<TIM, FREQ> {
     #[cfg(feature = "enumset")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enumset")))]
     #[inline]
-    pub fn triggered_events(&self) -> EnumSet<TIM::Event> {
-        let mut events = EnumSet::new();
+    pub fn triggered_events(&self) -> enumset::EnumSet<TIM::Event> {
+        let mut events = enumset::EnumSet::new();
 
-        for event in EnumSet::<TIM::Event>::all().iter() {
+        for event in enumset::EnumSet::<TIM::Event>::all().iter() {
             if self.is_event_triggered(event) {
                 events |= event;
             }

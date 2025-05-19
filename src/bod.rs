@@ -1,7 +1,7 @@
 //! # Brownout Detector
 
 use crate::{
-    pac::{bod, Bod},
+    pac::{bod, BOD},
     Toggle,
 };
 
@@ -33,49 +33,49 @@ pub enum Mode {
     EnabledAndWakeupHaltedTillBODReady,
 }
 
-impl From<Mode> for bod::ctrla::Active {
+impl From<Mode> for bod::ctrla::ACTIVE_A {
     fn from(value: Mode) -> Self {
-        use bod::ctrla::Active::*;
+        use bod::ctrla::ACTIVE_A::*;
         match value {
-            Mode::Disabled => Dis,
-            Mode::Enabled => Enabled,
-            Mode::Sampled => Sampled,
-            Mode::EnabledAndWakeupHaltedTillBODReady => Enwake,
+            Mode::Disabled => DIS,
+            Mode::Enabled => ENABLED,
+            Mode::Sampled => SAMPLED,
+            Mode::EnabledAndWakeupHaltedTillBODReady => ENWAKE,
         }
     }
 }
 
-impl From<bod::ctrla::Active> for Mode {
-    fn from(value: bod::ctrla::Active) -> Self {
-        use bod::ctrla::Active::*;
+impl From<bod::ctrla::ACTIVE_A> for Mode {
+    fn from(value: bod::ctrla::ACTIVE_A) -> Self {
+        use bod::ctrla::ACTIVE_A::*;
         match value {
-            Dis => Mode::Disabled,
-            Enabled => Mode::Enabled,
-            Sampled => Mode::Sampled,
-            Enwake => Mode::EnabledAndWakeupHaltedTillBODReady,
+            DIS => Mode::Disabled,
+            ENABLED => Mode::Enabled,
+            SAMPLED => Mode::Sampled,
+            ENWAKE => Mode::EnabledAndWakeupHaltedTillBODReady,
         }
     }
 }
 
-impl From<Mode> for bod::ctrla::Sleep {
+impl From<Mode> for bod::ctrla::SLEEP_A {
     fn from(value: Mode) -> Self {
-        use bod::ctrla::Sleep::*;
+        use bod::ctrla::SLEEP_A::*;
         match value {
-            Mode::Disabled => Dis,
-            Mode::Enabled => Enabled,
-            Mode::Sampled => Sampled,
+            Mode::Disabled => DIS,
+            Mode::Enabled => ENABLED,
+            Mode::Sampled => SAMPLED,
             _ => unreachable!(),
         }
     }
 }
 
-impl From<bod::ctrla::Sleep> for Mode {
-    fn from(value: bod::ctrla::Sleep) -> Self {
-        use bod::ctrla::Sleep::*;
+impl From<bod::ctrla::SLEEP_A> for Mode {
+    fn from(value: bod::ctrla::SLEEP_A) -> Self {
+        use bod::ctrla::SLEEP_A::*;
         match value {
-            Dis => Mode::Disabled,
-            Enabled => Mode::Enabled,
-            Sampled => Mode::Sampled,
+            DIS => Mode::Disabled,
+            ENABLED => Mode::Enabled,
+            SAMPLED => Mode::Sampled,
         }
     }
 }
@@ -111,30 +111,30 @@ pub enum Level {
 }
 
 #[cfg(any(feature = "attiny417", feature = "attiny817"))]
-impl From<bod::ctrlb::Lvl> for Level {
-    fn from(value: bod::ctrlb::Lvl) -> Self {
-        use bod::ctrlb::Lvl::*;
+impl From<bod::ctrlb::LVL_A> for Level {
+    fn from(value: bod::ctrlb::LVL_A) -> Self {
+        use bod::ctrlb::LVL_A::*;
         match value {
-            Bodlevel0 => Level::Level180V,
-            Bodlevel1 => Level::Level215V,
-            Bodlevel2 => Level::Level260V,
-            Bodlevel3 => Level::Level295V,
-            Bodlevel4 => Level::Level330V,
-            Bodlevel5 => Level::Level370V,
-            Bodlevel6 => Level::Level400V,
-            Bodlevel7 => Level::Level430V,
+            BODLEVEL0 => Level::Level180V,
+            BODLEVEL1 => Level::Level215V,
+            BODLEVEL2 => Level::Level260V,
+            BODLEVEL3 => Level::Level295V,
+            BODLEVEL4 => Level::Level330V,
+            BODLEVEL5 => Level::Level370V,
+            BODLEVEL6 => Level::Level400V,
+            BODLEVEL7 => Level::Level430V,
         }
     }
 }
 
 #[cfg(any(feature = "attiny1617", feature = "attiny3217"))]
-impl From<Option<bod::ctrlb::Lvl>> for Level {
-    fn from(value: Option<bod::ctrlb::Lvl>) -> Self {
-        use bod::ctrlb::Lvl::*;
+impl From<Option<bod::ctrlb::LVL_A>> for Level {
+    fn from(value: Option<bod::ctrlb::LVL_A>) -> Self {
+        use bod::ctrlb::LVL_A::*;
         match value {
-            Some(Bodlevel0) => Level::Level180V,
-            Some(Bodlevel2) => Level::Level260V,
-            Some(Bodlevel7) => Level::Level430V,
+            Some(BODLEVEL0) => Level::Level180V,
+            Some(BODLEVEL2) => Level::Level260V,
+            Some(BODLEVEL7) => Level::Level430V,
             None => panic!("Invalid value for BOD level"),
         }
     }
@@ -153,24 +153,24 @@ pub enum VoltageLevelThreshold {
     TwentyfivePercentAbove,
 }
 
-impl From<VoltageLevelThreshold> for bod::vlmctrla::Vlmlvl {
+impl From<VoltageLevelThreshold> for bod::vlmctrla::VLMLVL_A {
     fn from(value: VoltageLevelThreshold) -> Self {
-        use bod::vlmctrla::Vlmlvl::*;
+        use bod::vlmctrla::VLMLVL_A::*;
         match value {
-            VoltageLevelThreshold::FivePercentAbove => _5above,
-            VoltageLevelThreshold::FifteenPercentAbove => _15above,
-            VoltageLevelThreshold::TwentyfivePercentAbove => _25above,
+            VoltageLevelThreshold::FivePercentAbove => _5ABOVE,
+            VoltageLevelThreshold::FifteenPercentAbove => _15ABOVE,
+            VoltageLevelThreshold::TwentyfivePercentAbove => _25ABOVE,
         }
     }
 }
 
-impl From<bod::vlmctrla::Vlmlvl> for VoltageLevelThreshold {
-    fn from(value: bod::vlmctrla::Vlmlvl) -> Self {
-        use bod::vlmctrla::Vlmlvl::*;
+impl From<bod::vlmctrla::VLMLVL_A> for VoltageLevelThreshold {
+    fn from(value: bod::vlmctrla::VLMLVL_A) -> Self {
+        use bod::vlmctrla::VLMLVL_A::*;
         match value {
-            _5above => VoltageLevelThreshold::FivePercentAbove,
-            _15above => VoltageLevelThreshold::FifteenPercentAbove,
-            _25above => VoltageLevelThreshold::TwentyfivePercentAbove,
+            _5ABOVE => VoltageLevelThreshold::FivePercentAbove,
+            _15ABOVE => VoltageLevelThreshold::FifteenPercentAbove,
+            _25ABOVE => VoltageLevelThreshold::TwentyfivePercentAbove,
         }
     }
 }
@@ -188,40 +188,40 @@ pub enum VlmConfiguration {
     Cross,
 }
 
-impl From<VlmConfiguration> for bod::intctrl::Vlmcfg {
+impl From<VlmConfiguration> for bod::intctrl::VLMCFG_A {
     fn from(value: VlmConfiguration) -> Self {
-        use bod::intctrl::Vlmcfg::*;
+        use bod::intctrl::VLMCFG_A::*;
         match value {
-            VlmConfiguration::VoltageRisesAboveThreshold => Above,
-            VlmConfiguration::VoltageFallsBelowThreshold => Below,
-            VlmConfiguration::Cross => Cross,
+            VlmConfiguration::VoltageRisesAboveThreshold => ABOVE,
+            VlmConfiguration::VoltageFallsBelowThreshold => BELOW,
+            VlmConfiguration::Cross => CROSS,
         }
     }
 }
 
-impl From<bod::intctrl::Vlmcfg> for VlmConfiguration {
-    fn from(value: bod::intctrl::Vlmcfg) -> Self {
-        use bod::intctrl::Vlmcfg::*;
+impl From<bod::intctrl::VLMCFG_A> for VlmConfiguration {
+    fn from(value: bod::intctrl::VLMCFG_A) -> Self {
+        use bod::intctrl::VLMCFG_A::*;
         match value {
-            Above => VlmConfiguration::VoltageRisesAboveThreshold,
-            Below => VlmConfiguration::VoltageFallsBelowThreshold,
-            Cross => VlmConfiguration::Cross,
+            ABOVE => VlmConfiguration::VoltageRisesAboveThreshold,
+            BELOW => VlmConfiguration::VoltageFallsBelowThreshold,
+            CROSS => VlmConfiguration::Cross,
         }
     }
 }
 
-/// Extension trait that constrains the [`crate::pac::Bod`] peripheral
+/// Extension trait that constrains the [`crate::pac::BOD`] peripheral
 pub trait BodExt {
-    /// Constrains the [`pac::Bod`] peripheral into a configurator.
+    /// Constrains the [`pac::BOD`] peripheral into a configurator.
     ///
-    /// Consumes the [`pac::Bod`] peripheral and converts it to a [`HAL`] internal type
+    /// Consumes the [`pac::BOD`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
     /// Using the [`configurator`], the peripheral can be initially configured with
     /// a builder pattern. Afterwards the settings can be changed using the
     /// provided methods.
     ///
-    /// [`pac::Bod`]: `crate::pac::Bod`
+    /// [`pac::BOD`]: `crate::pac::BOD`
     /// [`HAL`]: `crate`
     /// [`configurator`]: `BrownoutDetectorConfigurator`
     fn constrain(self) -> BrownoutDetectorConfigurator;
@@ -237,14 +237,14 @@ pub trait BodExt {
 /// let bod_cfg = dp.bod.constrain();
 /// ```
 pub struct BrownoutDetectorConfigurator {
-    bod: Bod,
+    bod: BOD,
     sleep_mode: Option<Mode>,
     vlm_level: VoltageLevelThreshold,
     vlm_mode: VlmConfiguration,
     vlm_int: bool,
 }
 
-impl BodExt for Bod {
+impl BodExt for BOD {
     fn constrain(self) -> BrownoutDetectorConfigurator {
         BrownoutDetectorConfigurator {
             bod: self,
@@ -259,7 +259,7 @@ impl BodExt for Bod {
 /// Configured BOD peripheral
 ///
 /// An instance of this struct is acquired by calling the [`constrain`](BodExt::constrain) function
-/// on the [`Bod`] struct and then [finishing the configuration](BrownoutDetectorConfigurator::configure)
+/// on the [`BOD`] struct and then [finishing the configuration](BrownoutDetectorConfigurator::configure)
 /// on the constrained peripheral.
 ///
 /// ```
@@ -268,7 +268,7 @@ impl BodExt for Bod {
 /// let bod = bod_cfg.configure();
 /// ```
 pub struct BrownoutDetector {
-    bod: Bod,
+    bod: BOD,
 }
 
 impl BrownoutDetectorConfigurator {

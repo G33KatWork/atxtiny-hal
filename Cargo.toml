@@ -4,12 +4,6 @@ version = "0.1.0"
 authors = ["Andreas Galauner <andreas@galauner.de>"]
 edition = "2021"
 
-[[bin]]
-name = "main"
-test = false
-bench = false
-required-features = ["ms5611"]
-
 [dependencies]
 cfg-if = "1.0"
 panic-halt = "1.0"
@@ -20,7 +14,7 @@ embedded-hal = "1.0"
 embedded-io = "0.6"
 embedded-hal-bus = "0.3"
 embedded-hal-nb = "1.0"
-avr-device = { version = "0.7", features = ["critical-section-impl"] }
+avr-device = { version = "0.7" }
 critical-section = "1.1.1"
 fugit = "0.3"
 fugit-timer = "0.1"
@@ -28,7 +22,7 @@ void = { default-features = false, version = "1.0" }
 enumset = { version = "1.1", optional = true}
 
 [features]
-default = ["attiny817", "rt", "enumset", "ms5611", "fullpanic"]
+default = ["attiny817", "rt"]
 device-selected = []
 rt = ["avr-device/rt"]
 fullpanic = []
@@ -39,11 +33,9 @@ attiny817 = ["avr-device/attiny817", "device-selected"]
 attiny1617 = ["avr-device/attiny1617", "device-selected"]
 attiny3217 = ["avr-device/attiny3217", "device-selected"]
 
-# features for bins
-ms5611 = []
-
 [patch.crates-io]
 avr-device = { path = "../avr-device" }
+svd2rust = { path = "../svd2rust" }
 
 # Configure the build for minimal size - AVRs have very little program memory
 [profile.dev]
@@ -58,70 +50,76 @@ debug = true
 lto = true
 opt-level = "z"
 
+[[bin]]
+name = "main"
+test = false
+bench = false
+required-features = ["attiny817", "rt"]
+
 [[example]]
 name = "gpio"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "nvmctrl"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "panic_serial"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt", "fullpanic"]
 
 [[example]]
 name = "serial"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "serial_println"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "spi"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "tca_clock_tcb"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "tca_delay"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "tca_interrupt"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "tca_pwm_hz"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "tca_pwm"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "tca_timer"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "tcb_pwm"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "twi"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "watchdog"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "evsys"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]
 
 [[example]]
 name = "rtc_delay"
-required-features = ["device-selected"]
+required-features = ["attiny817", "rt"]

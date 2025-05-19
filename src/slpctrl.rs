@@ -2,7 +2,7 @@
 
 use core::arch::asm;
 
-use crate::pac::{slpctrl, Slpctrl as SLPCTRL};
+use crate::pac::{slpctrl, SLPCTRL};
 
 /// Extension trait that constrains the [`crate::pac::Slpctrl`] peripheral
 pub trait SlpctrlExt {
@@ -60,12 +60,12 @@ pub enum SleepMode {
     PowerDown,
 }
 
-impl From<SleepMode> for slpctrl::ctrla::Smode {
+impl From<SleepMode> for slpctrl::ctrla::SMODE_A {
     fn from(value: SleepMode) -> Self {
         match value {
-            SleepMode::Idle => slpctrl::ctrla::Smode::Idle,
-            SleepMode::Standby => slpctrl::ctrla::Smode::Standby,
-            SleepMode::PowerDown => slpctrl::ctrla::Smode::Pdown,
+            SleepMode::Idle => slpctrl::ctrla::SMODE_A::IDLE,
+            SleepMode::Standby => slpctrl::ctrla::SMODE_A::STANDBY,
+            SleepMode::PowerDown => slpctrl::ctrla::SMODE_A::PDOWN,
         }
     }
 }

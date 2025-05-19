@@ -12,13 +12,13 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain a few peripherals into our HAL types
-    let clkctrl = dp.clkctrl.constrain();
+    let clkctrl = dp.CLKCTRL.constrain();
 
     // Configure our clocks
     let _clocks = clkctrl.freeze();
 
     // Split the PORTA peripheral into its pins
-    let a = dp.porta.split();
+    let a = dp.PORTA.split();
 
     // Grab AINN0 & AINP0
     let ainn0 = a.pa6.into_analog_input();
@@ -29,7 +29,7 @@ fn main() -> ! {
     acout.internal_pull_up(Toggle::Off);
 
     // Create a comparator
-    let ac = dp.ac0.comparator(
+    let ac = dp.AC0.comparator(
         ainp0,
         ainn0,
         Config {

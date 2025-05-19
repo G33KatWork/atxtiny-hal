@@ -2,30 +2,30 @@
 
 use crate::pac::{
     clkctrl::{mclkctrla, mclkctrlb},
-    Clkctrl,
+    CLKCTRL,
 };
 use crate::time::*;
 
 use avr_device::ccp::ProtectedWritable;
 
-impl crate::private::Sealed for Clkctrl {}
+impl crate::private::Sealed for CLKCTRL {}
 
 // FIXME: stop using from_raw now with fugit?
 // FIXME: allow to configure 32khz clock either from internal source, external crystal or external clock
 // TODO: allow config of RUNSTDBY in different oscillators
 
 pub trait ClkctrlExt: crate::private::Sealed {
-    /// Constrains the [`Clkctrl`] peripheral.
+    /// Constrains the [`CLKCTRL`] peripheral.
     ///
-    /// Consumes the [`pac::Clkctrl`] peripheral and converts it to a [`HAL`] internal type
+    /// Consumes the [`pac::CLKCTRL`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::Clkctrl`]: `crate::pac::Clkctrl`
+    /// [`pac::CLKCTRL`]: `crate::pac::CLKCTRL`
     /// [`HAL`]: `crate`
     fn constrain(self) -> ClkCtrl;
 }
 
-impl ClkctrlExt for Clkctrl {
+impl ClkctrlExt for CLKCTRL {
     fn constrain(self) -> ClkCtrl {
         ClkCtrl::default()
     }
@@ -43,28 +43,28 @@ pub enum MainClkSrc {
     ExtClk,
 }
 
-fn into_clksel(src: MainClkSrc) -> mclkctrla::Clksel {
+fn into_clksel(src: MainClkSrc) -> mclkctrla::CLKSEL_A {
     match src {
-        MainClkSrc::Osc20M => mclkctrla::Clksel::Osc20m,
-        MainClkSrc::OscUlp32K => mclkctrla::Clksel::Osculp32k,
-        MainClkSrc::XOsc32K => mclkctrla::Clksel::Xosc32k,
-        MainClkSrc::ExtClk => mclkctrla::Clksel::Extclk,
+        MainClkSrc::Osc20M => mclkctrla::CLKSEL_A::OSC20M,
+        MainClkSrc::OscUlp32K => mclkctrla::CLKSEL_A::OSCULP32K,
+        MainClkSrc::XOsc32K => mclkctrla::CLKSEL_A::XOSC32K,
+        MainClkSrc::ExtClk => mclkctrla::CLKSEL_A::EXTCLK,
     }
 }
 
-fn into_pdiv(div: u32) -> Option<mclkctrlb::Pdiv> {
+fn into_pdiv(div: u32) -> Option<mclkctrlb::PDIV_A> {
     match div {
-        2 => Some(mclkctrlb::Pdiv::_2x),
-        4 => Some(mclkctrlb::Pdiv::_4x),
-        6 => Some(mclkctrlb::Pdiv::_6x),
-        8 => Some(mclkctrlb::Pdiv::_8x),
-        10 => Some(mclkctrlb::Pdiv::_10x),
-        12 => Some(mclkctrlb::Pdiv::_12x),
-        16 => Some(mclkctrlb::Pdiv::_16x),
-        24 => Some(mclkctrlb::Pdiv::_24x),
-        32 => Some(mclkctrlb::Pdiv::_32x),
-        48 => Some(mclkctrlb::Pdiv::_48x),
-        64 => Some(mclkctrlb::Pdiv::_64x),
+        2 => Some(mclkctrlb::PDIV_A::_2X),
+        4 => Some(mclkctrlb::PDIV_A::_4X),
+        6 => Some(mclkctrlb::PDIV_A::_6X),
+        8 => Some(mclkctrlb::PDIV_A::_8X),
+        10 => Some(mclkctrlb::PDIV_A::_10X),
+        12 => Some(mclkctrlb::PDIV_A::_12X),
+        16 => Some(mclkctrlb::PDIV_A::_16X),
+        24 => Some(mclkctrlb::PDIV_A::_24X),
+        32 => Some(mclkctrlb::PDIV_A::_32X),
+        48 => Some(mclkctrlb::PDIV_A::_48X),
+        64 => Some(mclkctrlb::PDIV_A::_64X),
         _ => None,
     }
 }
@@ -152,19 +152,19 @@ impl ClkCtrl {
     pub fn freeze(self) -> Clocks {
         assert!(self.main_osc <= 20_000_000);
 
-        let clkctrl = unsafe { &*Clkctrl::ptr() };
+        let clkctrl = unsafe { &*CLKCTRL::ptr() };
         let clksel = into_clksel(self.main_clk_src);
 
         // Wait for the selected clock to stabilize
         match clksel {
-            mclkctrla::Clksel::Extclk => while clkctrl.mclkstatus().read().exts().bit_is_clear() {},
-            mclkctrla::Clksel::Osc20m => {
+            mclkctrla::CLKSEL_A::EXTCLK => while clkctrl.mclkstatus().read().exts().bit_is_clear() {},
+            mclkctrla::CLKSEL_A::OSC20M => {
                 while clkctrl.mclkstatus().read().osc20ms().bit_is_clear() {}
             }
-            mclkctrla::Clksel::Osculp32k => {
+            mclkctrla::CLKSEL_A::OSCULP32K => {
                 while clkctrl.mclkstatus().read().osc32ks().bit_is_clear() {}
             }
-            mclkctrla::Clksel::Xosc32k => {
+            mclkctrla::CLKSEL_A::XOSC32K => {
                 while clkctrl.mclkstatus().read().xosc32ks().bit_is_clear() {}
             }
         };

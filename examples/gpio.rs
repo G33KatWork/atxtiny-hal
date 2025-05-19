@@ -9,11 +9,11 @@ use atxtiny_hal::prelude::*;
 #[avr_device::entry]
 fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
-    let clkctrl = dp.clkctrl.constrain();
+    let clkctrl = dp.CLKCTRL.constrain();
 
     let _clocks = clkctrl.freeze();
 
-    let b = dp.portb.split();
+    let b = dp.PORTB.split();
     let mut btn = b.pb7.into_pull_up_input();
     let mut led = b.pb6.into_push_pull_output();
     let mut led2 = b.pb5.into_push_pull_output();

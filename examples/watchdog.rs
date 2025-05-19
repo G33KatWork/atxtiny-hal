@@ -9,12 +9,12 @@ use atxtiny_hal::prelude::*;
 #[avr_device::entry]
 fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
-    let clkctrl = dp.clkctrl.constrain();
+    let clkctrl = dp.CLKCTRL.constrain();
 
     let _clocks = clkctrl.freeze();
 
     // Constrain the Watchdog
-    let mut wd = dp.wdt.constrain();
+    let mut wd = dp.WDT.constrain();
 
     // Start it with an 8 second timeout
     wd.start(WatchdogTimeout::S8);

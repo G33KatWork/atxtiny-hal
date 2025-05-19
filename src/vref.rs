@@ -12,7 +12,7 @@ pub trait VrefExt {
     /// Consumes the [`pac::VREF`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::VREF`]: `crate::pac::Vref`
+    /// [`pac::VREF`]: `crate::pac::VREF`
     /// [`HAL`]: `crate`
     fn constrain(self) -> Vref;
 }
@@ -27,10 +27,10 @@ pub trait VrefExt {
 /// let vref = dp.VREF.constrain();
 /// ```
 pub struct Vref {
-    vref: crate::pac::Vref,
+    vref: crate::pac::VREF,
 }
 
-impl VrefExt for crate::pac::Vref {
+impl VrefExt for crate::pac::VREF {
     fn constrain(self) -> Vref {
         Vref { vref: self }
     }

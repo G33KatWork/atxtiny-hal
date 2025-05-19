@@ -24,21 +24,21 @@ mod misc;
 use core::fmt::Write;
 //use core::cell::RefCell;
 //use avr_device::interrupt::{self, Mutex};
-use atxtiny_hal::pac::Usart0;
+use atxtiny_hal::pac::USART0;
 
-atxtiny_hal::impl_panic_handler!(Serial<Usart0, UartPinset<Usart0, atxtiny_hal::gpio::porta::PA2<Input>, atxtiny_hal::gpio::porta::PA1<Output<Stateless>>>>);
+atxtiny_hal::impl_panic_handler!(Serial<USART0, UartPinset<USART0, atxtiny_hal::gpio::porta::PA2<Input>, atxtiny_hal::gpio::porta::PA1<Output<Stateless>>>>);
 
 #[avr_device::entry]
 fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
-    let clkctrl = dp.clkctrl.constrain();
-    let portmux = dp.portmux.constrain();
+    let clkctrl = dp.CLKCTRL.constrain();
+    let portmux = dp.PORTMUX.constrain();
 
     let clocks = clkctrl.freeze();
 
-    let a = dp.porta.split();
-    let b = dp.portb.split();
-    let _c = dp.portc.split();
+    let a = dp.PORTA.split();
+    let b = dp.PORTB.split();
+    let _c = dp.PORTC.split();
     let mut btn = b.pb7.into_pull_up_input();
     let mut led = b.pb6.into_push_pull_output();
     let mut led2 = b.pb5.into_push_pull_output();
@@ -46,15 +46,15 @@ fn main() -> ! {
     // Serial port
     // We need to annotate the pins with the peripheral here because PA1/2 can
     // also be used as TWI pins and we need to tell the MUX what bit to flip
-    let rxpin = a.pa2.into_peripheral::<Usart0>();
-    let txpin = a.pa1.into_peripheral::<Usart0>();
+    let rxpin = a.pa2.into_peripheral::<USART0>();
+    let txpin = a.pa1.into_peripheral::<USART0>();
     // let rxpin = b.pb3.into_peripheral();
     // let txpin = b.pb2.into_peripheral();
 
     let usart_pair = (rxpin, txpin);
     let usart_pair = usart_pair.mux(&portmux);
 
-    let s = Serial::new(dp.usart0, usart_pair, 115200u32.bps(), clocks);
+    let s = Serial::new(dp.USART0, usart_pair, 115200u32.bps(), clocks);
     let s = share_serial_port_with_panic(s);
     s.write_str("Hello\r\n".into()).unwrap();
 
@@ -65,7 +65,7 @@ fn main() -> ! {
     // });
 
     // Watchdog
-    let mut wd = dp.wdt.constrain();
+    let mut wd = dp.WDT.constrain();
     wd.start(WatchdogTimeout::S8);
 
     use atxtiny_hal::timer::tca::WaveformGenerationMode;
@@ -73,7 +73,7 @@ fn main() -> ! {
     // Create a new timer with a fixed frequency using TCA0
     //let tca = FTimer::<_, 312500>::new(dp.TCA0, clocks).unwrap();
     //let tca0_clk = tca.use_as_clock_source();
-    let t = Timer::new(dp.tca0, clocks);
+    let t = Timer::new(dp.TCA0, clocks);
 
     let pwm_pins = (
         b.pb0.into_stateless_push_pull_output().mux(&portmux),
@@ -101,7 +101,7 @@ fn main() -> ! {
     //let (pin1, pin2, pin3) = pwm.split();
 
     // Timer for delay
-    let tcb = FTimer::<_, 10000000>::new(dp.tcb0, clocks.into()).unwrap();
+    let tcb = FTimer::<_, 10000000>::new(dp.TCB0, clocks.into()).unwrap();
     let mut d = tcb.delay();
     // hz2.start(100.millis()).unwrap();
 

@@ -15,14 +15,14 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain a few peripherals into our HAL types
-    let clkctrl = dp.clkctrl.constrain();
-    let portmux = dp.portmux.constrain();
+    let clkctrl = dp.CLKCTRL.constrain();
+    let portmux = dp.PORTMUX.constrain();
 
     // Configure our clocks
     let _clocks = clkctrl.freeze();
 
     // Split the PORTA/B/C peripheral into their pins
-    let (a, b, c) = (dp.porta.split(), dp.portb.split(), dp.portc.split());
+    let (a, b, c) = (dp.PORTA.split(), dp.PORTB.split(), dp.PORTC.split());
 
     // Grab AINN0 & AINP0
     let ainn0 = a.pa6.into_analog_input();
@@ -41,7 +41,7 @@ fn main() -> ! {
     let evout2 = pc2.mux(&portmux);
 
     // Create a comparator
-    let mut ac = dp.ac0.comparator(
+    let mut ac = dp.AC0.comparator(
         ainp0,
         ainn0,
         Config {
@@ -51,7 +51,7 @@ fn main() -> ! {
     );
 
     // Grab the event system channels
-    let evsys = dp.evsys.split();
+    let evsys = dp.EVSYS.split();
 
     // AC event -> EVOUT0 (PA2)
     let async_ch0 = evsys.channel_async0;

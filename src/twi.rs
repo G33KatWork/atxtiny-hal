@@ -332,7 +332,7 @@ where
         }
     }
 
-    /// Get an [`EnumSet`] of all fired interrupt events.
+    /// Get an [`enumset::EnumSet`] of all fired interrupt events.
     ///
     /// # Examples
     ///
@@ -554,7 +554,7 @@ macro_rules! twi {
 use crate::gpio::Peripheral;
 
 twi!({
-    instance: Twi0,
+    instance: TWI0,
     pins: [
         {
             scl: (B/b, 0),

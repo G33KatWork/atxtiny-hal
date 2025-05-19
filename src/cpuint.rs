@@ -1,8 +1,6 @@
 //! # CPU Interrupt Controller
 
-use enumset::{EnumSet, EnumSetType};
-
-use crate::pac::{cpuint::*, Cpuint};
+use crate::pac::{cpuint::*, CPUINT};
 use avr_device::ccp::ProtectedWritable;
 
 /// Status Flags.
@@ -10,7 +8,7 @@ use avr_device::ccp::ProtectedWritable;
 /// Depending on what kind of interrupts fired, one or more of these flags are set in
 /// the interrupt controller.
 #[derive(ufmt::derive::uDebug, Debug)]
-#[cfg_attr(feature = "enumset", derive(EnumSetType))]
+#[cfg_attr(feature = "enumset", derive(enumset::EnumSetType))]
 #[cfg_attr(not(feature = "enumset"), derive(Copy, Clone, PartialEq, Eq))]
 pub enum InterruptControllerStatus {
     /// Non-Maskable Interrupt Executing Flag
@@ -38,15 +36,15 @@ pub enum InterruptControllerStatus {
     LVL0,
 }
 
-impl crate::private::Sealed for Cpuint {}
+impl crate::private::Sealed for CPUINT {}
 
 pub trait CpuintExt: crate::private::Sealed {
-    /// Constrains the [`pac::Cpuint`] peripheral.
+    /// Constrains the [`pac::CPUINT`] peripheral.
     ///
-    /// Consumes the [`pac::Cpuint`] peripheral and converts it to a [`HAL`] internal type
+    /// Consumes the [`pac::CPUINT`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::Cpuint`]: `crate::pac::Cpuint`
+    /// [`pac::CPUINT`]: `crate::pac::CPUINT`
     /// [`HAL`]: `crate`
     fn constrain(self) -> CpuInt;
 }
@@ -57,28 +55,28 @@ pub enum InterruptVectorSelect {
     StartOfBootSection,
 }
 
-fn into_ivsel(ivsel: InterruptVectorSelect) -> ctrla::Ivsel {
+fn into_ivsel(ivsel: InterruptVectorSelect) -> ctrla::IVSEL_A {
     match ivsel {
-        InterruptVectorSelect::AfterBootSection => ctrla::Ivsel::Afterboot,
-        InterruptVectorSelect::StartOfBootSection => ctrla::Ivsel::Inboot,
+        InterruptVectorSelect::AfterBootSection => ctrla::IVSEL_A::AFTERBOOT,
+        InterruptVectorSelect::StartOfBootSection => ctrla::IVSEL_A::INBOOT,
     }
 }
 
-fn into_cvt(cvt: bool) -> ctrla::Cvt {
+fn into_cvt(cvt: bool) -> ctrla::CVT_A {
     match cvt {
-        false => ctrla::Cvt::Normal,
-        true => ctrla::Cvt::Compact,
+        false => ctrla::CVT_A::NORMAL,
+        true => ctrla::CVT_A::COMPACT,
     }
 }
 
-fn into_lvl0rr(lvl0rr: bool) -> ctrla::Lvl0rr {
+fn into_lvl0rr(lvl0rr: bool) -> ctrla::LVL0RR_A {
     match lvl0rr {
-        false => ctrla::Lvl0rr::Fixed,
-        true => ctrla::Lvl0rr::Roundrobin,
+        false => ctrla::LVL0RR_A::FIXED,
+        true => ctrla::LVL0RR_A::ROUNDROBIN,
     }
 }
 
-impl CpuintExt for Cpuint {
+impl CpuintExt for CPUINT {
     fn constrain(self) -> CpuInt {
         CpuInt {
             cpuint: self,
@@ -90,14 +88,14 @@ impl CpuintExt for Cpuint {
 }
 
 pub struct CpuInt {
-    cpuint: Cpuint,
+    cpuint: CPUINT,
     ivsel: InterruptVectorSelect,
     cvt: bool,
     lvl0rr: bool,
 }
 
 pub struct CpuIntConfigured {
-    cpuint: Cpuint,
+    cpuint: CPUINT,
 }
 
 impl CpuInt {
@@ -171,10 +169,10 @@ impl CpuIntConfigured {
     #[cfg(feature = "enumset")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enumset")))]
     #[inline]
-    pub fn status(&mut self) -> EnumSet<InterruptControllerStatus> {
-        let mut status_set = EnumSet::new();
+    pub fn status(&mut self) -> enumset::EnumSet<InterruptControllerStatus> {
+        let mut status_set = enumset::EnumSet::new();
 
-        for status in EnumSet::<InterruptControllerStatus>::all().iter() {
+        for status in enumset::EnumSet::<InterruptControllerStatus>::all().iter() {
             if self.is_status(status) {
                 status_set |= status;
             }

@@ -3,7 +3,7 @@
 use core::marker::PhantomData;
 
 use crate::gpio::Peripheral;
-use crate::pac::Evsys as EVSYS;
+use crate::pac::EVSYS;
 
 /// Event output channel 0 (EVOUT0)
 pub const EVOUT0: u8 = 0;

@@ -139,7 +139,7 @@ macro_rules! evsys {
                 type Reg = crate::pac::evsys::RegisterBlock;
 
                 fn ptr(&self) -> *const Self::Reg {
-                    crate::pac::Evsys::ptr()
+                    crate::pac::EVSYS::ptr()
                 }
             }
 
@@ -182,7 +182,7 @@ macro_rules! evsys {
                 )+
             }
 
-            impl EvsysExt for crate::pac::Evsys {
+            impl EvsysExt for crate::pac::EVSYS {
                 type Parts = Parts;
 
                 fn split(self) -> Self::Parts {

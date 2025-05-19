@@ -17,24 +17,24 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain a few peripherals into our HAL types
-    let clkctrl = dp.clkctrl.constrain();
+    let clkctrl = dp.CLKCTRL.constrain();
 
     // Configure our clocks
     let clocks = clkctrl.freeze();
 
     // Split the PORTA and PORTB peripheral into its pins
-    let a = dp.porta.split();
-    let b = dp.portb.split();
+    let a = dp.PORTA.split();
+    let b = dp.PORTB.split();
 
     // Blinky things
     let mut led = b.pb6.into_push_pull_output();
 
     // Setup VREF for DAC to 2.5V
-    let mut vref = dp.vref.constrain();
+    let mut vref = dp.VREF.constrain();
     let dacref = vref.dac0(ReferenceVoltage::_2V50);
 
     // Setup the DAC
-    let mut dac = dp.dac0.constrain(dacref);
+    let mut dac = dp.DAC0.constrain(dacref);
     dac.dac_set_value(0);
     let dac = dac.enable();
 
@@ -54,7 +54,7 @@ fn main() -> ! {
     acout.internal_pull_up(Toggle::Off);
 
     // Create a comparator
-    let ac = dp.ac0.comparator(
+    let ac = dp.AC0.comparator(
         ainp0,
         ainn0,
         Config {
@@ -66,7 +66,7 @@ fn main() -> ! {
     let _ac = ac.enable();
 
     // Create a delay timer
-    let t = FTimer::<_, 312500>::new(dp.tca0, clocks).unwrap();
+    let t = FTimer::<_, 312500>::new(dp.TCA0, clocks).unwrap();
     let mut d = t.delay();
 
     let mut i: u8 = 0;

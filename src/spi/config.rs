@@ -1,7 +1,7 @@
 use core::fmt;
 
 use crate::embedded_hal::spi::{self, Mode};
-use crate::pac::spi0::ctrla::Dord;
+use crate::pac::spi0::ctrla::DORD_A;
 use crate::time::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -22,20 +22,20 @@ pub enum DataOrder {
     LsbFirst,
 }
 
-impl From<DataOrder> for Dord {
+impl From<DataOrder> for DORD_A {
     fn from(order: DataOrder) -> Self {
         match order {
-            DataOrder::MsbFirst => Dord::MsbFirst,
-            DataOrder::LsbFirst => Dord::LsbFirst,
+            DataOrder::MsbFirst => DORD_A::MSB_FIRST,
+            DataOrder::LsbFirst => DORD_A::LSB_FIRST,
         }
     }
 }
 
-impl From<Dord> for DataOrder {
-    fn from(order: Dord) -> Self {
+impl From<DORD_A> for DataOrder {
+    fn from(order: DORD_A) -> Self {
         match order {
-            Dord::MsbFirst => DataOrder::MsbFirst,
-            Dord::LsbFirst => DataOrder::LsbFirst,
+            DORD_A::MSB_FIRST => DataOrder::MsbFirst,
+            DORD_A::LSB_FIRST => DataOrder::LsbFirst,
         }
     }
 }

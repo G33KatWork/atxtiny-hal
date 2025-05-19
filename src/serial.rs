@@ -22,7 +22,7 @@ use core::{fmt, marker::PhantomData, ops::Deref};
 
 use crate::embedded_hal_nb::serial::{ErrorType as NbErrorType, Read as NbRead, Write as NbWrite};
 use crate::embedded_io::{ErrorType as IoErrorType, Read as IoRead, Write as IoWrite};
-use crate::pac::usart0::{ctrlb::Rxmode, RegisterBlock};
+use crate::pac::usart0::{ctrlb::RXMODE_A, RegisterBlock};
 
 use crate::{clkctrl::Clocks, time::*, Toggle};
 
@@ -373,9 +373,9 @@ where
         let f_per = Usart::clock(&clocks).raw();
 
         let (rxmode, brr) = if baudrate > (f_per / 16) {
-            (Rxmode::Clk2x, (4 * f_per) / (baudrate / 2))
+            (RXMODE_A::CLK2X, (4 * f_per) / (baudrate / 2))
         } else {
-            (Rxmode::Normal, (4 * f_per) / baudrate)
+            (RXMODE_A::NORMAL, (4 * f_per) / baudrate)
         };
 
         // FIXME: return error
@@ -613,7 +613,7 @@ where
         }
     }
 
-    /// Get an [`EnumSet`] of all fired interrupt events.
+    /// Get an [`enumset::EnumSet`] of all fired interrupt events.
     ///
     /// # Examples
     ///
@@ -1048,7 +1048,7 @@ macro_rules! usart {
         paste::paste! {
             mod [<usart $X>] {
                 use super::*;
-                use crate::pac::[<Usart $X>] as USART;
+                use crate::pac::[<USART $X>] as USART;
 
                 impl Instance for USART {
                     fn clock(clocks: &Clocks) -> Hertz {
@@ -1081,8 +1081,8 @@ macro_rules! usart {
                         // in the type system.
                         let (rx, tx) = unsafe {
                             (
-                                crate::pac::Peripherals::steal().[<usart $X>],
-                                crate::pac::Peripherals::steal().[<usart $X>],
+                                crate::pac::Peripherals::steal().[<USART $X>],
+                                crate::pac::Peripherals::steal().[<USART $X>],
                             )
                         };
                         (split::Rx::new(rx, self.pinset.rx), split::Tx::new(tx, self.pinset.tx))

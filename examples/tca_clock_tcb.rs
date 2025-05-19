@@ -12,13 +12,13 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain a few peripherals into our HAL types
-    let clkctrl = dp.clkctrl.constrain();
+    let clkctrl = dp.CLKCTRL.constrain();
 
     // Configure our clocks
     let clocks = clkctrl.freeze();
 
     // Split the PORTB peripheral into its pins
-    let b = dp.portb.split();
+    let b = dp.PORTB.split();
 
     // Grab a pin for an LED
     let mut led = b.pb6.into_push_pull_output();
@@ -28,7 +28,7 @@ fn main() -> ! {
     // If the frequency cannot be met given the constrained prescalers of the
     // passed counter in conjunction with the clock supplying the timer peripheral
     // an error is returned.
-    let t = FTimer::<_, 312500>::new(dp.tca0, clocks).unwrap();
+    let t = FTimer::<_, 312500>::new(dp.TCA0, clocks).unwrap();
 
     // Get the 312.5KHz clock out of the TCA timer
     let tca0_clk = t.use_as_clock_source();
@@ -41,7 +41,7 @@ fn main() -> ! {
     // generated clock in TCA0 to clock TCB0
     // TCB0 has this feature because it itself only has prescalers of 1 and 2 for
     // the peripheral clock. To have more flexibility, you can clock TCB0 from TCA0
-    let tcb = FTimer::<_, 312500>::new(dp.tcb0, tca0_clk).unwrap();
+    let tcb = FTimer::<_, 312500>::new(dp.TCB0, tca0_clk).unwrap();
     let mut c2 = tcb.counter();
     c2.start(50.millis()).unwrap();
 

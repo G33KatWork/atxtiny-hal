@@ -645,7 +645,7 @@ macro_rules! gpio {
             $(
                 gpio!({
                     port: [<port $x>],
-                    Port: [<Port $x>],
+                    Port: [<PORT $X>],
                     port_index: $port_index,
                     port_mapped: $porty,
                     partially_erased_pin: [<P $X x>],
@@ -683,7 +683,7 @@ use crate::evsys::{Channel, ChannelConfigurator, EventGenerator, GeneratorAssign
 // Generator for PortA
 // only routable to ASYNCCH0
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
-    for Pin<Porta, U<X>, Input>
+    for Pin<PORTA, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 0>,
@@ -702,7 +702,7 @@ where
 
 // only routable to SYNCCH0
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index>
-    for Pin<Porta, U<X>, Input>
+    for Pin<PORTA, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 0>,
@@ -722,7 +722,7 @@ where
 // Generator for PortB
 // only routable to ASYNCCH1
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
-    for Pin<Portb, U<X>, Input>
+    for Pin<PORTB, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 1>,
@@ -741,7 +741,7 @@ where
 
 // only routable to SYNCCH1
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index>
-    for Pin<Portb, U<X>, Input>
+    for Pin<PORTB, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 1>,
@@ -761,7 +761,7 @@ where
 // Generator for PortC
 // only routable to ASYNCCH2
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
-    for Pin<Portc, U<X>, Input>
+    for Pin<PORTC, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 2>,
@@ -780,7 +780,7 @@ where
 
 // only routable to SYNCCH0
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index>
-    for Pin<Portc, U<X>, Input>
+    for Pin<PORTC, U<X>, Input>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index<X = 0>,

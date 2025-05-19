@@ -1,8 +1,8 @@
 //! # Watchdog
 
 use crate::pac::{
-    wdt::ctrla::{Period, Window},
-    Wdt as WDT,
+    wdt::ctrla::{PERIOD_A, WINDOW_A},
+    WDT,
 };
 use core::fmt;
 
@@ -28,40 +28,40 @@ pub enum WatchdogTimeout {
     S8,
 }
 
-impl Into<Period> for WatchdogTimeout {
-    fn into(self) -> Period {
+impl Into<PERIOD_A> for WatchdogTimeout {
+    fn into(self) -> PERIOD_A {
         match self {
-            Self::Disabled => Period::Off,
-            Self::Ms8 => Period::_8clk,
-            Self::Ms16 => Period::_16clk,
-            Self::Ms31 => Period::_32clk,
-            Self::Ms63 => Period::_64clk,
-            Self::Ms125 => Period::_128clk,
-            Self::Ms250 => Period::_256clk,
-            Self::Ms500 => Period::_512clk,
-            Self::S1 => Period::_1kclk,
-            Self::S2 => Period::_2kclk,
-            Self::S4 => Period::_4kclk,
-            Self::S8 => Period::_8kclk,
+            Self::Disabled => PERIOD_A::OFF,
+            Self::Ms8 => PERIOD_A::_8CLK,
+            Self::Ms16 => PERIOD_A::_16CLK,
+            Self::Ms31 => PERIOD_A::_32CLK,
+            Self::Ms63 => PERIOD_A::_64CLK,
+            Self::Ms125 => PERIOD_A::_128CLK,
+            Self::Ms250 => PERIOD_A::_256CLK,
+            Self::Ms500 => PERIOD_A::_512CLK,
+            Self::S1 => PERIOD_A::_1KCLK,
+            Self::S2 => PERIOD_A::_2KCLK,
+            Self::S4 => PERIOD_A::_4KCLK,
+            Self::S8 => PERIOD_A::_8KCLK,
         }
     }
 }
 
-impl Into<Window> for WatchdogTimeout {
-    fn into(self) -> Window {
+impl Into<WINDOW_A> for WatchdogTimeout {
+    fn into(self) -> WINDOW_A {
         match self {
-            Self::Disabled => Window::Off,
-            Self::Ms8 => Window::_8clk,
-            Self::Ms16 => Window::_16clk,
-            Self::Ms31 => Window::_32clk,
-            Self::Ms63 => Window::_64clk,
-            Self::Ms125 => Window::_128clk,
-            Self::Ms250 => Window::_256clk,
-            Self::Ms500 => Window::_512clk,
-            Self::S1 => Window::_1kclk,
-            Self::S2 => Window::_2kclk,
-            Self::S4 => Window::_4kclk,
-            Self::S8 => Window::_8kclk,
+            Self::Disabled => WINDOW_A::OFF,
+            Self::Ms8 => WINDOW_A::_8CLK,
+            Self::Ms16 => WINDOW_A::_16CLK,
+            Self::Ms31 => WINDOW_A::_32CLK,
+            Self::Ms63 => WINDOW_A::_64CLK,
+            Self::Ms125 => WINDOW_A::_128CLK,
+            Self::Ms250 => WINDOW_A::_256CLK,
+            Self::Ms500 => WINDOW_A::_512CLK,
+            Self::S1 => WINDOW_A::_1KCLK,
+            Self::S2 => WINDOW_A::_2KCLK,
+            Self::S4 => WINDOW_A::_4KCLK,
+            Self::S8 => WINDOW_A::_8KCLK,
         }
     }
 }

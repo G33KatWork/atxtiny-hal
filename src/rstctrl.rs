@@ -1,13 +1,11 @@
 //! # Reset Controller
 
-use enumset::{EnumSet, EnumSetType};
-
 /// Reset Flags.
 ///
 /// Depending on how the system was reset, one or more of these flags are set in
 /// the reset controller.
 #[derive(ufmt::derive::uDebug, Debug)]
-#[cfg_attr(feature = "enumset", derive(EnumSetType))]
+#[cfg_attr(feature = "enumset", derive(enumset::EnumSetType))]
 #[cfg_attr(not(feature = "enumset"), derive(Copy, Clone, PartialEq, Eq))]
 pub enum ResetReason {
     /// UPDI Reset Flag
@@ -75,10 +73,10 @@ pub trait RstctrlExt {
 /// let rstctrl = dp.RSTCTRL.constrain();
 /// ```
 pub struct Rstctrl {
-    rstctrl: crate::pac::Rstctrl,
+    rstctrl: crate::pac::RSTCTRL,
 }
 
-impl RstctrlExt for crate::pac::Rstctrl {
+impl RstctrlExt for crate::pac::RSTCTRL {
     fn constrain(self) -> Rstctrl {
         Rstctrl { rstctrl: self }
     }
@@ -109,10 +107,10 @@ impl Rstctrl {
     #[cfg(feature = "enumset")]
     #[cfg_attr(docsrs, doc(cfg(feature = "enumset")))]
     #[inline]
-    pub fn reset_reasons(&mut self) -> EnumSet<ResetReason> {
-        let mut reasons = EnumSet::new();
+    pub fn reset_reasons(&mut self) -> enumset::EnumSet<ResetReason> {
+        let mut reasons = enumset::EnumSet::new();
 
-        for reason in EnumSet::<ResetReason>::all().iter() {
+        for reason in enumset::EnumSet::<ResetReason>::all().iter() {
             if self.is_reset_reason(reason) {
                 reasons |= reason;
             }

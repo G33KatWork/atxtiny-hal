@@ -4,6 +4,18 @@
 #![feature(associated_const_equality)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
+#[cfg(not(feature = "device-selected"))]
+compile_error!(
+    "This crate requires you to specify your target chip as a feature.
+
+    Please select one of the following:
+    * attiny417
+    * attiny817
+    * attiny1617
+    * attiny3217
+    "
+);
+
 pub use embedded_hal;
 pub use embedded_hal_bus;
 pub use embedded_hal_nb;
