@@ -53,6 +53,7 @@ pub mod traits;
 pub mod twi;
 pub mod vref;
 pub mod watchdog;
+pub mod fuses;
 
 /// Toggle something on or off.
 ///
