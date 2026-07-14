@@ -158,7 +158,7 @@ where
             MODE_3 => MODE_A::_3,
         };
 
-        let (clk2x, div) = Self::compute_baud_rate(clocks, config.frequency);
+        let (clk2x, div) = Self::compute_baud_rate(&clocks, config.frequency);
 
         // Disable the peripheral
         spi.ctrla().modify(|_, w| w.enable().clear_bit());
@@ -250,8 +250,8 @@ where
     MOSI: MosiPin<SPI>,
     MODE: ED,
 {
-    fn compute_baud_rate(clocks: Clocks, freq: Hertz) -> (bool, PRESC_A) {
-        match SPI::clock(&clocks).raw() / freq.raw() {
+    fn compute_baud_rate(clocks: &Clocks, freq: Hertz) -> (bool, PRESC_A) {
+        match SPI::clock(clocks).raw() / freq.raw() {
             0 => unreachable!(),
             1..=2 => (true, PRESC_A::CLK_PER_4_2),     // DIV_2
             3..=5 => (false, PRESC_A::CLK_PER_4_2),    // DIV_4
