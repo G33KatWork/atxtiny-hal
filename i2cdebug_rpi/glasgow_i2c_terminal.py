@@ -13,16 +13,16 @@ class _PrintI2CTargetInterface(I2CTargetInterface):
         super().__init__(*args, **kwargs)
 
     async def on_start(self):
-        sys.stdout.write("[START]")
+        #sys.stdout.write("[START]")
         sys.stdout.flush()
         pass
 
     async def on_stop(self):
-        sys.stdout.write("[STOP]\n")
+        #sys.stdout.write("[STOP]\n")
         sys.stdout.flush()
 
     async def on_restart(self):
-        sys.stdout.write("[RESTART]")
+        #sys.stdout.write("[RESTART]")
         sys.stdout.flush()
         pass
 
