@@ -86,7 +86,7 @@ impl Rstctrl {
     /// Perform a software reset of the system
     #[inline]
     pub fn software_reset(&mut self) {
-        self.rstctrl.swrr().modify(|_, w| w.swre().set_bit());
+        self.rstctrl.swrr().modify_protected(|_, w| w.swre().set_bit());
     }
 
     /// Check for a reset reason.
