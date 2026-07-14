@@ -22,7 +22,7 @@ void = { default-features = false, version = "1.0" }
 enumset = { version = "1.1", optional = true}
 
 [features]
-default = ["attiny817", "rt"]
+default = ["rt"]
 device-selected = []
 rt = ["avr-device/rt"]
 fullpanic = []
