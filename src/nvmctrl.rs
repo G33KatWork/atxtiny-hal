@@ -3,7 +3,7 @@
 use core::ptr;
 
 use cfg_if::cfg_if;
-use avr_device::ccp::ProtectedWritable;
+use avr_device::generic::ProtectedWritable;
 
 use crate::pac::{nvmctrl::ctrla::CMD_A, NVMCTRL};
 

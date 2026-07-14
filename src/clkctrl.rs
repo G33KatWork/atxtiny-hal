@@ -6,7 +6,7 @@ use crate::pac::{
 };
 use crate::time::*;
 
-use avr_device::ccp::ProtectedWritable;
+use avr_device::generic::ProtectedWritable;
 
 impl crate::private::Sealed for CLKCTRL {}
 

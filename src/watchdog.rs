@@ -6,7 +6,7 @@ use crate::pac::{
 };
 use core::fmt;
 
-use avr_device::ccp::ProtectedWritable;
+use avr_device::generic::ProtectedWritable;
 
 /// The timeout how long it should take for the watchdog take to expire when
 /// it's not fed by calling [`feed`]

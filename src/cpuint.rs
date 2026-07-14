@@ -1,7 +1,7 @@
 //! # CPU Interrupt Controller
 
 use crate::pac::{cpuint::*, CPUINT};
-use avr_device::ccp::ProtectedWritable;
+use avr_device::generic::ProtectedWritable;
 
 /// Status Flags.
 ///
