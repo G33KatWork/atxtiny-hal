@@ -118,7 +118,7 @@ impl super::PeriodicMode for TCB8Bit {
 
     #[inline(always)]
     unsafe fn set_period_unchecked(&mut self, period: Self::CounterValue) {
-        self.tim.ccmpl().write(|w| w.bits(period));
+        unsafe { self.tim.ccmpl().write(|w| w.bits(period)) };
     }
 
     #[inline(always)]

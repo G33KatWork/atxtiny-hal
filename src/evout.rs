@@ -6,13 +6,13 @@ use crate::gpio::Peripheral;
 use crate::pac::EVSYS;
 
 /// Event output channel 0 (EVOUT0)
-pub const EVOUT0: u8 = 0;
+pub type const EVOUT0: u8 = 0;
 
 /// Event output channel 1 (EVOUT1)
-pub const EVOUT1: u8 = 1;
+pub type const EVOUT1: u8 = 1;
 
 /// Event output channel 2 (EVOUT2)
-pub const EVOUT2: u8 = 2;
+pub type const EVOUT2: u8 = 2;
 
 /// A pin can be marked with this when it can be used as an event output pin
 pub trait EventOutputPin<EVSYS, const EVOUT: u8> {}

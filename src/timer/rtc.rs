@@ -179,7 +179,7 @@ impl PeriodicMode for RTC {
     #[inline(always)]
     unsafe fn set_period_unchecked(&mut self, period: Self::CounterValue) {
         while self.status().read().perbusy().bit_is_set() {}
-        self.per().write(|w| w.bits(period));
+        unsafe { self.per().write(|w| w.bits(period)) };
     }
 
     #[inline(always)]

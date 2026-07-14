@@ -192,7 +192,7 @@ impl super::PeriodicMode for TCA0 {
 
     #[inline(always)]
     unsafe fn set_period_unchecked(&mut self, period: u16) {
-        self.single_perbuf().write(|w| w.bits(period));
+       unsafe { self.single_perbuf().write(|w| w.bits(period)) };
     }
 
     #[inline(always)]

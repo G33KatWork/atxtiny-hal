@@ -2,7 +2,7 @@
 name = "atxtiny-hal"
 version = "0.1.0"
 authors = ["Andreas Galauner <andreas@galauner.de>"]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 cfg-if = "1.0"
@@ -14,8 +14,8 @@ embedded-hal = "1.0"
 embedded-io = "0.6"
 embedded-hal-bus = "0.3"
 embedded-hal-nb = "1.0"
-avr-device = { version = "0.7" }
-critical-section = "1.1.1"
+avr-device = { version = "0.8" }
+critical-section = "1.2"
 fugit = "0.3"
 fugit-timer = "0.1"
 void = { default-features = false, version = "1.0" }

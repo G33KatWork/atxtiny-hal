@@ -1,7 +1,6 @@
 #![no_std]
 #![feature(asm_experimental_arch)]
-#![feature(associated_type_defaults)]
-#![feature(associated_const_equality)]
+#![feature(min_generic_const_args)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
 #[cfg(not(feature = "device-selected"))]

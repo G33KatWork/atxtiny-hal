@@ -204,7 +204,7 @@ impl super::PeriodicMode for TCB0 {
 
     #[inline(always)]
     unsafe fn set_period_unchecked(&mut self, period: Self::CounterValue) {
-        self.ccmp().write(|w| w.bits(period));
+        unsafe { self.ccmp().write(|w| w.bits(period)) };
     }
 
     #[inline(always)]

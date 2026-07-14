@@ -45,8 +45,8 @@ pub mod marker {
 
     /// Marker trait for channel indexes
     pub trait Index {
-        const X: u8;
-        const UX: u8;
+        type const X: u8;
+        type const UX: u8;
 
         #[doc(hidden)]
         fn index(&self) -> u8;
@@ -58,8 +58,8 @@ pub mod marker {
 pub struct U<const X: u8, const UX: u8>;
 
 impl<const X: u8, const UX: u8> marker::Index for U<X, UX> {
-    const X: u8 = X;
-    const UX: u8 = UX;
+    type const X: u8 = X;
+    type const UX: u8 = UX;
 
     #[inline(always)]
     fn index(&self) -> u8 {

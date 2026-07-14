@@ -21,9 +21,9 @@ pub enum Channel {
 }
 
 pub struct Ch<const C: u8>;
-pub const C1: u8 = 0;
-pub const C2: u8 = 1;
-pub const C3: u8 = 2;
+pub type const C1: u8 = 0;
+pub type const C2: u8 = 1;
+pub type const C3: u8 = 2;
 
 pub trait Pins<TIM, P> {
     const C1: bool = false;
