@@ -24,9 +24,11 @@ fn main() -> ! {
     // for more info
     f.program(0x2000 - 3, &[0x12, 0x23, 0x34]).unwrap();
 
-    // Read flash
+    // Read back the 0x100 bytes ending at flash offset 0x2000; the slice is
+    // indexed relative to the read's start offset, so the three bytes
+    // written above sit at its very end.
     let data: &[u8] = f.read(0x1F00, 0x100).unwrap();
-    assert!(&data[0x2000 - 3..0x2000] == &[0x12, 0x23, 0x34]);
+    assert!(&data[0xFD..0x100] == &[0x12, 0x23, 0x34]);
 
     // Grab EEPROM access
     let mut e = dp.NVMCTRL.eeprom();
