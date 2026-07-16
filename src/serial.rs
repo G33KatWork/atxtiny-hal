@@ -21,7 +21,9 @@
 use core::{fmt, marker::PhantomData, ops::Deref};
 
 use crate::embedded_hal_nb::serial::{ErrorType as NbErrorType, Read as NbRead, Write as NbWrite};
-use crate::embedded_io::{ErrorType as IoErrorType, Read as IoRead, Write as IoWrite};
+use crate::embedded_io::{
+    ErrorType as IoErrorType, Read as IoRead, ReadReady, Write as IoWrite, WriteReady,
+};
 use crate::pac::usart0::{ctrlb::RXMODE_A, RegisterBlock};
 
 use crate::{clkctrl::Clocks, time::*, Toggle};
@@ -164,7 +166,9 @@ pub enum Interrupt {
 
 /// Serial error
 ///
-/// As these are status events, they can be converted to [`Event`]s, via [`Into`].
+/// These conditions are reported per received byte through the RXDATAH
+/// error flags (they are not [`Event`]s from the STATUS register) and are
+/// surfaced by the read implementations.
 #[derive(ufmt::derive::uDebug, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Error {
     /// Framing error
@@ -194,9 +198,12 @@ impl crate::embedded_io::Error for Error {
     fn kind(&self) -> crate::embedded_io::ErrorKind {
         use crate::embedded_io::ErrorKind;
         match *self {
-            Error::Framing => ErrorKind::Other,
+            // Corrupted-on-the-wire conditions map to InvalidData so
+            // generic embedded-io consumers can react; embedded-io has no
+            // kind for data loss, so Overrun stays Other.
+            Error::Framing => ErrorKind::InvalidData,
             Error::Overrun => ErrorKind::Other,
-            Error::Parity => ErrorKind::Other,
+            Error::Parity => ErrorKind::InvalidData,
         }
     }
 }
@@ -205,9 +212,9 @@ impl crate::embedded_hal_nb::serial::Error for Error {
     fn kind(&self) -> embedded_hal_nb::serial::ErrorKind {
         use crate::embedded_hal_nb::serial::ErrorKind;
         match *self {
-            Error::Framing => ErrorKind::Other,
-            Error::Overrun => ErrorKind::Other,
-            Error::Parity => ErrorKind::Other,
+            Error::Framing => ErrorKind::FrameFormat,
+            Error::Overrun => ErrorKind::Overrun,
+            Error::Parity => ErrorKind::Parity,
         }
     }
 }
@@ -470,11 +477,11 @@ where
     /// ```
     /// let dp = pac::Peripherals::take().unwrap();
     ///
-    /// (tx, rx) = Serial::new(dp.USART1, ...).split();
+    /// let (rx, tx) = Serial::new(dp.USART0, ...).split();
     ///
-    /// // Do something with tx and rx
+    /// // Do something with rx and tx
     ///
-    /// serial = Serial::join(tx, rx);
+    /// let serial = Serial::join(rx, tx);
     /// ```
     pub fn join(rx: split::Rx<Usart, RX>, tx: split::Tx<Usart, TX>) -> Self
     where
@@ -807,6 +814,30 @@ where
     }
 }
 
+impl<Usart, RX, TX> ReadReady for Serial<Usart, UartPinset<Usart, RX, TX>>
+where
+    Usart: Instance,
+    RX: RxPin<Usart>,
+    TX: TxPin<Usart>,
+{
+    fn read_ready(&mut self) -> Result<bool, Self::Error> {
+        // NOTE: reading RXDATAH has no side effects (only RXDATAL pops the
+        // receive FIFO).
+        Ok(self.usart.rxdatah().read().rxcif().bit_is_set())
+    }
+}
+
+impl<Usart, RX, TX> WriteReady for Serial<Usart, UartPinset<Usart, RX, TX>>
+where
+    Usart: Instance,
+    RX: RxPin<Usart>,
+    TX: TxPin<Usart>,
+{
+    fn write_ready(&mut self) -> Result<bool, Self::Error> {
+        Ok(self.usart.status().read().dreif().bit_is_set())
+    }
+}
+
 impl<Usart, RX, TX> NbErrorType for Serial<Usart, UartPinset<Usart, RX, TX>>
 where
     Usart: Instance,
@@ -846,6 +877,22 @@ where
     Pin: RxPin<Usart>,
 {
     type Error = Error;
+}
+
+impl<Usart, Pin> ReadReady for Rx<Usart, Pin>
+where
+    Usart: Instance,
+    Pin: RxPin<Usart>,
+{
+    fn read_ready(&mut self) -> Result<bool, Self::Error> {
+        // NOTE: reading RXDATAH has no side effects (only RXDATAL pops the
+        // receive FIFO), so this stays within Rx's register ownership.
+        Ok(unsafe { self.usart_mut() }
+            .rxdatah()
+            .read()
+            .rxcif()
+            .bit_is_set())
+    }
 }
 
 impl<Usart, Pin> IoRead for Rx<Usart, Pin>
@@ -1006,6 +1053,16 @@ where
     Pin: TxPin<Usart>,
 {
     type Error = Error;
+}
+
+impl<Usart, Pin> WriteReady for Tx<Usart, Pin>
+where
+    Usart: Instance,
+    Pin: TxPin<Usart>,
+{
+    fn write_ready(&mut self) -> Result<bool, Self::Error> {
+        Ok(unsafe { self.usart() }.status().read().dreif().bit_is_set())
+    }
 }
 
 impl<Usart, Pin> IoWrite for Tx<Usart, Pin>
