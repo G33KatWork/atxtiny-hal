@@ -267,7 +267,17 @@ pub struct FlashAccess<'a> {
     nvmctrl: &'a NVMCTRL,
 }
 
-impl FlashAccess<'_> {
+// Mutating operations take `&mut self` even though the accessors hold no
+// data themselves: `read` hands out `&[u8]` slices that alias the memory a
+// subsequent `program`/`erase_page` volatile-writes through, and the shared/
+// exclusive borrow rules are what keep such a slice from being read (and its
+// non-volatile reads from being cached or reordered) across the mutation.
+//
+// TODO: Two accessors obtained from the same `&NVMCTRL` can still be used to
+// alias (hold a slice from one, program through the other). Closing that hole
+// means handing out accessors by `&mut NVMCTRL`/ownership — a larger API
+// break, also affecting concurrent Flash/EEPROM accessor use.
+impl<'a> FlashAccess<'a> {
     /// Erase and write flash.
     ///
     /// When calling this method, the flash is erased page-wise starting from
@@ -278,7 +288,7 @@ impl FlashAccess<'_> {
     /// Returns an [`Error::OutOfBounds`] in case `offset` plus the data
     /// length exceeds the flash size ([`FLASH_SIZE`]).
     /// In case of a hardware write error [`Error::Write`] is returned.
-    pub fn program(&self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
+    pub fn program(&mut self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
         check_bounds(offset, bytes.len(), FLASH_SIZE)?;
 
         let mut ptr = ((FLASH_MAP_START + offset) & !(FLASH_PAGE_SIZE - 1)) as *mut u8;
@@ -336,7 +346,7 @@ impl FlashAccess<'_> {
     ///
     /// Returns an [`Error::OutOfBounds`] in case `offset` lies outside the
     /// flash ([`FLASH_SIZE`]).
-    pub fn erase_page(&self, offset: usize) -> Result<(), Error> {
+    pub fn erase_page(&mut self, offset: usize) -> Result<(), Error> {
         check_bounds(offset, 1, FLASH_SIZE)?;
 
         // The ER command erases the page addressed by the last page-buffer
@@ -373,7 +383,7 @@ impl FlashAccess<'_> {
     ///
     /// This allows writing data in chunks without erasing/writing on every call.
     /// Pages are only committed when full or when explicitly flushed.
-    pub fn writer(&self) -> FlashWriter<'_> {
+    pub fn writer<'w>(&'w mut self) -> FlashWriter<'w, 'a> {
         FlashWriter {
             flash: self,
             current_page_start: None,
@@ -383,13 +393,16 @@ impl FlashAccess<'_> {
 }
 
 /// State tracker for incremental flash writing
-pub struct FlashWriter<'a> {
-    flash: &'a FlashAccess<'a>,
+///
+/// Borrows the [`FlashAccess`] exclusively for its lifetime, so no flash
+/// reads can observe the pages it is mutating.
+pub struct FlashWriter<'w, 'a> {
+    flash: &'w mut FlashAccess<'a>,
     current_page_start: Option<usize>,
     next_write_addr: usize,
 }
 
-impl FlashWriter<'_> {
+impl FlashWriter<'_, '_> {
     /// Write a chunk of data to flash
     ///
     /// Data accumulates in the NVM page buffer and is committed (erased and
@@ -535,7 +548,7 @@ impl EepromAccess<'_> {
     /// Returns an [`Error::OutOfBounds`] in case `offset` plus the data
     /// length exceeds the EEPROM size ([`EEPROM_SIZE`]).
     /// In case of a hardware write error [`Error::Write`] is returned.
-    pub fn program(&self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
+    pub fn program(&mut self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
         check_bounds(offset, bytes.len(), EEPROM_SIZE)?;
 
         let mut ptr = (EEPROM_MAP_START + offset) as *mut u8;
@@ -596,7 +609,7 @@ impl UserrowAccess<'_> {
     ///
     /// Returns an [`Error::OutOfBounds`] in case data outside of the USERROW
     /// region is accessed. In case of a hardware write error [`Error::Write`] is returned.
-    pub fn program(&self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
+    pub fn program(&mut self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
         check_bounds(offset, bytes.len(), USERROW_SIZE)?;
 
         let mut ptr = (USERROW_START + offset) as *mut u8;
@@ -622,7 +635,7 @@ impl UserrowAccess<'_> {
     ///
     /// This is a convenience function for single-byte writes to save program space.
     /// For multiple bytes, use [`program`] for better efficiency.
-    pub fn write_byte(&self, offset: usize, byte: u8) -> Result<(), Error> {
+    pub fn write_byte(&mut self, offset: usize, byte: u8) -> Result<(), Error> {
         check_bounds(offset, 1, USERROW_SIZE)?;
 
         let ptr = (USERROW_START + offset) as *mut u8;
@@ -689,7 +702,7 @@ impl UserrowAccess<'_> {
     /// Write the entire USERROW from an array.
     ///
     /// This is a convenience function to write all USERROW data at once.
-    pub fn program_all(&self, data: &[u8; 0 + USERROW_SIZE]) -> Result<(), Error> {
+    pub fn program_all(&mut self, data: &[u8; 0 + USERROW_SIZE]) -> Result<(), Error> {
         self.program(0, data)
     }
 

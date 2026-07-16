@@ -17,7 +17,7 @@ fn main() -> ! {
     let _clocks = clkctrl.freeze().expect("valid clock config");
 
     // Grab flash access
-    let f = dp.NVMCTRL.flash();
+    let mut f = dp.NVMCTRL.flash();
 
     // Writing to flash doesn't always work. It depends how the fuse bits are
     // configured and from where this code is executed. Refer to the chip manual
@@ -29,7 +29,7 @@ fn main() -> ! {
     assert!(&data[0x2000 - 3..0x2000] == &[0x12, 0x23, 0x34]);
 
     // Grab EEPROM access
-    let e = dp.NVMCTRL.eeprom();
+    let mut e = dp.NVMCTRL.eeprom();
 
     // Write to EEPROM
     e.program(0, &[0x12, 0x23, 0x34]).unwrap();
