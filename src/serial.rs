@@ -675,7 +675,9 @@ where
     /// Set the baud rate generator mode to automatic baud rate generation
     #[inline]
     pub fn enable_autobaud(&mut self) {
-        self.usart.ctrlb().write(|w| w.rxmode().genauto());
+        // NOTE(modify): CTRLB also holds RXEN/TXEN - a write() from the
+        // reset value would silently disable the receiver and transmitter.
+        self.usart.ctrlb().modify(|_, w| w.rxmode().genauto());
     }
 
     /// Enable or disable the interrupt for the break field detection.
@@ -702,7 +704,10 @@ where
         let enable: Toggle = enable.into();
         let enable: bool = enable.into();
 
-        self.usart.ctrlb().write(|w| w.mpcm().bit(enable));
+        // NOTE(modify): CTRLB also holds RXEN/TXEN and RXMODE - a write()
+        // from the reset value would disable the UART and reset the
+        // baud generator mode.
+        self.usart.ctrlb().modify(|_, w| w.mpcm().bit(enable));
     }
 }
 
