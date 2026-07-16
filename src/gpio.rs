@@ -311,7 +311,8 @@ where
     ///
     /// This is the same as a regular output, but with a disabled input buffer
     /// which means that the current value cannot be read back. Toggling still
-    /// works because the hardware itself has support for this.
+    /// works — see [`toggle`](Self::toggle) — because the OUTTGL strobe flips
+    /// the latch in hardware.
     ///
     /// Note: like every mode transition, this rewrites the pin's ISC field,
     /// so a previously configured pin-change interrupt is silently disabled
@@ -390,6 +391,7 @@ impl<Gpio, Index, Mode> Pin<Gpio, Index, Mode>
 where
     Gpio: marker::GpioStatic,
     Index: marker::Index,
+    Mode: marker::Active,
 {
     /// Set pin inversion for inputs or outputs
     pub fn invert_polarity(&mut self, invert: Toggle) {
@@ -397,6 +399,23 @@ where
             Toggle::On => unsafe { (*self.gpio.ptr()).inverted(self.index.index()) },
             Toggle::Off => unsafe { (*self.gpio.ptr()).normal(self.index.index()) },
         }
+    }
+}
+
+impl<Gpio, Index, Otype> Pin<Gpio, Index, Output<Otype>>
+where
+    Gpio: marker::Gpio,
+    Index: marker::Index,
+{
+    /// Toggle the output level via the hardware OUTTGL strobe
+    ///
+    /// Available for *stateless* outputs too: OUTTGL flips the OUT latch in
+    /// hardware, so no readable input buffer is required. (For stateful
+    /// outputs the [`StatefulOutputPin`] trait method does the same thing;
+    /// this inherent method shadows it with identical behavior.)
+    pub fn toggle(&mut self) -> Result<(), Infallible> {
+        unsafe { (*self.gpio.ptr()).toggle(self.index.index()) }
+        Ok(())
     }
 }
 
