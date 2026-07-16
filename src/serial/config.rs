@@ -1,7 +1,114 @@
 //! Types for configuring a serial interface.
 
+use crate::clkctrl::Clocks;
 use crate::pac::usart0::ctrlc::{CHSIZE_A, PMODE_A, SBMODE_A};
 use crate::time::*;
+
+/// The requested baud rate is not reachable at the given peripheral clock.
+#[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvalidBaudRate;
+
+/// A precomputed BAUD register value plus receiver mode selection.
+///
+/// The baud rate arithmetic is 32-bit division, which costs both flash
+/// (libgcc helpers) and cycles on an AVR. Because the peripheral clock and
+/// the baud rate are compile-time constants in virtually every firmware,
+/// this type moves that arithmetic into `const` evaluation: assign the
+/// result of [`BaudRate::new`] to a `const` and the binary only ever
+/// contains the finished register value. An unreachable rate then fails the
+/// *build* instead of the device.
+///
+/// ```
+/// use atxtiny_hal::serial::BaudRate;
+///
+/// // Evaluated by the compiler; a bad combination is a compile error.
+/// const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
+/// ```
+///
+/// For rates only known at runtime use [`BaudRate::from_clocks`], which
+/// returns an error instead of panicking - and pulls the 32-bit division
+/// into flash, which is exactly why it is not the default path.
+#[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BaudRate {
+    pub(crate) reg: u16,
+    pub(crate) clk2x: bool,
+}
+
+impl BaudRate {
+    /// Compute the BAUD register value for a peripheral clock and baud rate.
+    ///
+    /// Returns [`InvalidBaudRate`] when the rate is not reachable: faster
+    /// than `f_per / 8`, slower than the 16-bit register can divide to,
+    /// zero, or a peripheral clock outside the hardware's 20MHz limit.
+    pub const fn try_new(f_per: u32, baudrate: u32) -> Result<Self, InvalidBaudRate> {
+        // The tinyAVR 0/1-series tops out at 20MHz CLK_PER. Rejecting
+        // higher inputs up front keeps every multiplication below safely
+        // inside u32.
+        if f_per == 0 || f_per > 20_000_000 || baudrate == 0 {
+            return Err(InvalidBaudRate);
+        }
+
+        // The fractional baud generator requires a register value of at
+        // least 64. The fastest reachable rate is therefore f_per/8, in
+        // CLK2X mode: 8*f/b >= 64 <=> b <= f/8.
+        if baudrate > f_per / 8 {
+            return Err(InvalidBaudRate);
+        }
+
+        // BAUD = 64*f_per / (S*f_baud), rounded to nearest. S=16 in normal
+        // mode (reg = 4f/b), S=8 with the CLK2X doubler (reg = 8f/b).
+        // Prefer normal mode - it samples 16x per bit and is more tolerant
+        // of clock error - and fall back to CLK2X only when the divisor
+        // would drop below the hardware minimum of 64.
+        let reg = (4 * f_per + baudrate / 2) / baudrate;
+        if reg >= 64 {
+            if reg > 0xFFFF {
+                // Slower than the 16-bit register can divide down to.
+                return Err(InvalidBaudRate);
+            }
+            Ok(BaudRate {
+                reg: reg as u16,
+                clk2x: false,
+            })
+        } else {
+            // In range 64..=127 by construction: baudrate <= f_per/8 was
+            // checked above (lower bound) and the normal-mode value was
+            // below 64 (upper bound).
+            let reg = (8 * f_per + baudrate / 2) / baudrate;
+            Ok(BaudRate {
+                reg: reg as u16,
+                clk2x: true,
+            })
+        }
+    }
+
+    /// Like [`BaudRate::try_new`], but panics on an unreachable rate.
+    ///
+    /// Intended for `const` contexts, where the panic is a *compile error*:
+    ///
+    /// ```
+    /// # use atxtiny_hal::serial::BaudRate;
+    /// const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
+    /// ```
+    ///
+    /// Calling this with runtime values panics at runtime instead - use
+    /// [`BaudRate::try_new`] or [`BaudRate::from_clocks`] there.
+    pub const fn new(f_per: u32, baudrate: u32) -> Self {
+        match Self::try_new(f_per, baudrate) {
+            Ok(b) => b,
+            Err(_) => panic!("baud rate not reachable at this peripheral clock"),
+        }
+    }
+
+    /// Compute the BAUD register value from the configured [`Clocks`].
+    ///
+    /// Runtime fallback for rates that are not compile-time constants. This
+    /// pulls 32-bit division helpers into flash; prefer a
+    /// `const` [`BaudRate::new`] whenever the rate is known at build time.
+    pub fn from_clocks(clocks: &Clocks, baudrate: Bps) -> Result<Self, InvalidBaudRate> {
+        Self::try_new(clocks.per().raw(), baudrate.0)
+    }
+}
 
 /// Stop Bit configuration parameter for serial.
 ///
@@ -102,26 +209,22 @@ impl From<CHSIZE_A> for CharacterSize {
     }
 }
 
-/// Configuration struct for [`Serial`](super::Serial) providing all
-/// communication-related / parameters. [`Serial`](super::Serial) always uses eight data
-/// bits plus the parity bit - if selected.
+/// Frame format configuration for [`Serial`](super::Serial): character
+/// size, parity and stop bits. The baud rate is passed to
+/// [`Serial::new`](super::Serial::new) separately as a precomputed
+/// [`BaudRate`].
 ///
-/// Create a configuration by using `default` in combination with the
-/// builder methods. The following snippet shows creating a configuration
-/// for 19,200 Baud, 8N1 by deriving it from the default value:
+/// Create a configuration by using `default` (8N1) in combination with the
+/// builder methods:
 /// ```
-/// # use crate::serial::config::*;
-/// # use crate::time::Bps;
-/// let config = Config::default().baudrate(19_200.bps());
+/// # use atxtiny_hal::serial::config::*;
+/// let config = Config::default().parity(Parity::Even);
 ///
-/// assert!(config.baudrate == 19_200.bps());
-/// assert!(config.parity == Parity::None);
-/// assert!(config.stopbits == StopBits::STOP1);
+/// assert!(config.parity == Parity::Even);
+/// assert!(config.stopbits == StopBits::Stop1);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Config {
-    /// Serial interface baud rate
-    pub baudrate: Bps,
     /// The number of data bits in a frame
     pub character_size: CharacterSize,
     /// Whether and how to generate/check a parity bit
@@ -131,12 +234,6 @@ pub struct Config {
 }
 
 impl Config {
-    /// Sets the given baudrate.
-    pub fn baudrate(mut self, baudrate: Bps) -> Self {
-        self.baudrate = baudrate;
-        self
-    }
-
     /// Sets the given character size.
     pub fn character_size(mut self, character_size: CharacterSize) -> Self {
         self.character_size = character_size;
@@ -157,23 +254,12 @@ impl Config {
 }
 
 impl Default for Config {
-    /// Creates a new configuration with typically used parameters: 115,200
-    /// Baud 8N1.
+    /// Creates a new configuration with the typically used 8N1 frame format.
     fn default() -> Config {
         Config {
-            baudrate: 115_200u32.bps(),
             character_size: CharacterSize::Size8,
             parity: Parity::None,
             stopbits: StopBits::Stop1,
-        }
-    }
-}
-
-impl From<Bps> for Config {
-    fn from(b: Bps) -> Config {
-        Config {
-            baudrate: b,
-            ..Default::default()
         }
     }
 }

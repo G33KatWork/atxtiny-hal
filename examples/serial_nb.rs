@@ -6,7 +6,7 @@ use panic_halt as _;
 use atxtiny_hal::embedded_hal_nb::serial::{Read, Write};
 use atxtiny_hal::pac;
 use atxtiny_hal::prelude::*;
-use atxtiny_hal::serial::Serial;
+use atxtiny_hal::serial::{BaudRate, Config, Serial};
 
 use atxtiny_hal::embedded_hal_nb::nb::block;
 
@@ -19,7 +19,7 @@ fn main() -> ! {
     let portmux = dp.PORTMUX.constrain();
 
     // Configure our clocks
-    let clocks = clkctrl.freeze().expect("valid clock config");
+    let _clocks = clkctrl.freeze().expect("valid clock config");
 
     // Split the PORTA peripheral into its pins
     let a = dp.PORTA.split();
@@ -35,7 +35,8 @@ fn main() -> ! {
     let usart_pair = usart_pair.mux(&portmux);
 
     // Create a serial port abstraction
-    let mut s = Serial::new(dp.USART0, usart_pair, 115200u32.bps(), clocks);
+    const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
+    let mut s = Serial::new(dp.USART0, usart_pair, BAUD, Config::default());
 
     // Say Hello
     for b in b"Hello World\r\n" {

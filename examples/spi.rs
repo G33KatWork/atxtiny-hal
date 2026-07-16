@@ -5,7 +5,7 @@ use panic_halt as _;
 
 use atxtiny_hal::pac;
 use atxtiny_hal::prelude::*;
-use atxtiny_hal::serial::Serial;
+use atxtiny_hal::serial::{BaudRate, Config, Serial};
 use atxtiny_hal::spi::Spi;
 
 use atxtiny_hal::embedded_hal::spi::SpiDevice;
@@ -31,7 +31,8 @@ fn main() -> ! {
         a.pa1.into_peripheral::<pac::USART0>(),
     )
         .mux(&portmux);
-    let mut s = Serial::new(dp.USART0, usart_pair, 115200u32.bps(), clocks);
+    const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
+    let mut s = Serial::new(dp.USART0, usart_pair, BAUD, Config::default());
 
     // Grab the SPI pins
     let sckpin = c.pc0.into_peripheral();

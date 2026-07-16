@@ -10,7 +10,7 @@ use avr_device::{interrupt, interrupt::Mutex};
 use atxtiny_hal::gpio::{Input, Output, Pin, PORTA, Stateless, U};
 use atxtiny_hal::pac::{self, USART0};
 use atxtiny_hal::prelude::*;
-use atxtiny_hal::serial::{Serial, UartPinset};
+use atxtiny_hal::serial::{BaudRate, Config, Serial, UartPinset};
 
 static USART: Mutex<
     RefCell<
@@ -44,7 +44,7 @@ fn main() -> ! {
     let portmux = dp.PORTMUX.constrain();
 
     // Configure our clocks
-    let clocks = clkctrl.freeze().expect("valid clock config");
+    let _clocks = clkctrl.freeze().expect("valid clock config");
 
     // Split the PORTA/B peripheral into its pins
     let a = dp.PORTA.split();
@@ -54,7 +54,8 @@ fn main() -> ! {
         a.pa1.into_peripheral::<USART0>(),
     )
         .mux(&portmux);
-    let s = Serial::new(dp.USART0, usart_pair, 115200u32.bps(), clocks);
+    const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
+    let s = Serial::new(dp.USART0, usart_pair, BAUD, Config::default());
 
     // Initialize global USART variable
     interrupt::free(|cs| {

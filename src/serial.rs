@@ -31,6 +31,8 @@ use enumset::{EnumSet, EnumSetType};
 
 pub mod config;
 
+pub use config::{BaudRate, Config, InvalidBaudRate};
+
 /// TX pin
 pub trait TxPin<Usart>: crate::private::Sealed {}
 
@@ -359,37 +361,29 @@ where
     TX: TxPin<Usart>,
 {
     /// Configures a USART peripheral to provide serial communication
-    pub fn new<Config>(
+    ///
+    /// The baud rate arrives as a precomputed [`config::BaudRate`], ideally
+    /// built in a `const` context so no divider arithmetic ends up in flash
+    /// and invalid rates fail the build. See [`config::BaudRate`].
+    pub fn new(
         usart: Usart,
         pinset: UartPinset<Usart, RX, TX>,
-        config: Config,
-        clocks: Clocks,
-    ) -> Self
-    where
-        Config: Into<config::Config>,
-    {
-        let config = config.into();
-
+        baudrate: config::BaudRate,
+        config: config::Config,
+    ) -> Self {
         // Disable the transmitter and receiver
         usart
             .ctrlb()
             .modify(|_, w| w.rxen().clear_bit().txen().clear_bit());
 
-        // Calculate and set the baud rate
-        let baudrate = config.baudrate.0;
-        let f_per = Usart::clock(&clocks).raw();
-
-        let (rxmode, brr) = if baudrate > (f_per / 16) {
-            (RXMODE_A::CLK2X, (4 * f_per) / (baudrate / 2))
+        let rxmode = if baudrate.clk2x {
+            RXMODE_A::CLK2X
         } else {
-            (RXMODE_A::NORMAL, (4 * f_per) / baudrate)
+            RXMODE_A::NORMAL
         };
 
-        // FIXME: return error
-        assert!(brr >= 64, "impossible baud rate");
-
-        // FIXME: does the 16 bit write work correctly on the AVR mega cores?
-        usart.baud().write(|w| w.set(brr as u16));
+        // NOTE: the 16-bit write is safe here because RXEN/TXEN are disabled.
+        usart.baud().write(|w| w.set(baudrate.reg));
 
         // Asynchronous mode, Parity, Stopbits and character size according to config
         usart.ctrlc().write(|w| {
@@ -419,8 +413,8 @@ where
                     .abeie()
                     .clear_bit() // Auto-Baud Error Interrupt Enable
                     .rs485()
-                    .off()
-            }, // RS-485 Mode
+                    .off()  // RS-485 Mode
+            },
         );
 
         usart.ctrlb().write(
@@ -434,8 +428,8 @@ where
                     .odme()
                     .clear_bit() // Disable open-drain mode
                     .rxmode()
-                    .variant(rxmode)
-            }, // Set the baudrate generator mode
+                    .variant(rxmode) // Set the baudrate generator mode
+            },
         );
 
         Self {

@@ -7,7 +7,7 @@ use core::fmt::Write;
 use atxtiny_hal::gpio::{Input, Output, Stateless};
 use atxtiny_hal::pac;
 use atxtiny_hal::prelude::*;
-use atxtiny_hal::serial::{Serial, UartPinset};
+use atxtiny_hal::serial::{BaudRate, Config, Serial, UartPinset};
 
 atxtiny_hal::impl_panic_handler!(
     Serial<
@@ -29,7 +29,7 @@ fn main() -> ! {
     let portmux = dp.PORTMUX.constrain();
 
     // Configure our clocks
-    let clocks = clkctrl.freeze().expect("valid clock config");
+    let _clocks = clkctrl.freeze().expect("valid clock config");
 
     // Split the porta peripheral into its pins
     let a = dp.PORTA.split();
@@ -45,7 +45,8 @@ fn main() -> ! {
     let usart_pair = usart_pair.mux(&portmux);
 
     // Create a serial port abstraction
-    let s = Serial::new(dp.USART0, usart_pair, 115200u32.bps(), clocks);
+    const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
+    let s = Serial::new(dp.USART0, usart_pair, BAUD, Config::default());
     let s = share_serial_port_with_panic(s);
     s.write_str("Hello World\r\n".into()).unwrap();
 

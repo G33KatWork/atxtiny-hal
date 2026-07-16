@@ -15,7 +15,7 @@ use atxtiny_hal::pac;
 use atxtiny_hal::prelude::*;
 
 use atxtiny_hal::gpio::{Input, Output, Stateless};
-use atxtiny_hal::serial::Serial;
+use atxtiny_hal::serial::{BaudRate, Config, Serial};
 use atxtiny_hal::traits::PwmTimer;
 use atxtiny_hal::watchdog::{WatchdogTimeout, WdtExt};
 
@@ -54,7 +54,8 @@ fn main() -> ! {
     let usart_pair = (rxpin, txpin);
     let usart_pair = usart_pair.mux(&portmux);
 
-    let s = Serial::new(dp.USART0, usart_pair, 115200u32.bps(), clocks);
+    const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
+    let s = Serial::new(dp.USART0, usart_pair, BAUD, Config::default());
     let s = share_serial_port_with_panic(s);
     s.write_str("Hello\r\n".into()).unwrap();
 
