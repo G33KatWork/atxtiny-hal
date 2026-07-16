@@ -222,6 +222,11 @@ pub struct uWriteError;
 pub struct Serial<Usart, Pinset> {
     usart: Usart,
     pinset: Pinset,
+    // Whether any byte was ever handed to the transmitter. TXCIF resets to 0
+    // and software can only clear it, never set it, so hardware alone cannot
+    // distinguish "never transmitted" from "transmission in flight" - without
+    // this flag a flush() before the first write would spin forever.
+    wrote: bool,
 }
 
 mod split {
@@ -239,6 +244,8 @@ mod split {
     pub struct Tx<Usart, Pin> {
         usart: Usart,
         pub(crate) pin: Pin,
+        // See `Serial::wrote` - carried across split()/join().
+        pub(crate) wrote: bool,
     }
 
     impl<Usart, Pin> Tx<Usart, Pin>
@@ -246,8 +253,8 @@ mod split {
         Usart: Instance,
         Pin: super::TxPin<Usart>,
     {
-        pub(crate) fn new(usart: Usart, pin: Pin) -> Self {
-            Tx { usart, pin }
+        pub(crate) fn new(usart: Usart, pin: Pin, wrote: bool) -> Self {
+            Tx { usart, pin, wrote }
         }
 
         /// Destruct [`Tx`] to regain access to underlying USART and pin.
@@ -431,7 +438,11 @@ where
             }, // Set the baudrate generator mode
         );
 
-        Self { usart, pinset }
+        Self {
+            usart,
+            pinset,
+            wrote: false,
+        }
     }
 
     /// Get access to the underlying register block.
@@ -476,11 +487,13 @@ where
         RX: RxPin<Usart>,
         TX: TxPin<Usart>,
     {
+        let wrote = tx.wrote;
         let (usart, tx_pin) = tx.free();
         let rx_pin = rx.free();
         Self {
             usart,
             pinset: UartPinset::new(rx_pin, tx_pin),
+            wrote,
         }
     }
 }
@@ -666,6 +679,13 @@ where
     }
 
     /// Enable or disable the interrupt for the break field detection.
+    ///
+    /// # Interaction with transmission
+    ///
+    /// WFB lives in the STATUS register, which the transmit path also writes
+    /// (re-arming TXCIF after every enqueued byte). Those writes set WFB to 0,
+    /// so an armed break wait may be cancelled by any concurrent `write()` or
+    /// by a `flush()`. Only arm the break wait while the transmitter is idle.
     #[inline]
     pub fn set_wait_for_break(&mut self, enable: impl Into<Toggle>) {
         // Do a round way trip to be convert Into<Toggle> -> bool
@@ -860,17 +880,41 @@ where
     TX: TxPin<Usart>,
 {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
         for b in buf {
             while self.usart.status().read().dreif().bit_is_clear() {}
             self.usart.txdatal().write(|w| w.set(*b));
         }
 
+        // Re-arm the transmit-complete flag so flush() only observes the
+        // completion of the bytes queued above, not a stale completion of an
+        // earlier frame. This must happen *after* the last TXDATAL write:
+        // clearing first races a previous frame completing into an empty
+        // buffer, setting TXCIF again before our data is even loaded. After
+        // the load the race is gone - a frame that completes while the
+        // buffer holds data does not set TXCIF at all.
+        //
+        // NOTE(write): W1C flag; writing 0 to the other STATUS flags leaves
+        // them untouched, but WFB is also written 0, see set_wait_for_break.
+        self.usart.status().write(|w| w.txcif().set_bit());
+        self.wrote = true;
+
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
+        // Nothing was ever transmitted: TXCIF is still at its reset value of
+        // 0 and no completion will ever come - waiting would spin forever.
+        if !self.wrote {
+            return Ok(());
+        }
+
+        // Deliberately do not clear TXCIF here: repeated flushes must keep
+        // returning immediately. The next write() re-arms the flag.
         while self.usart.status().read().txcif().bit_is_clear() {}
-        self.usart.status().write(|w| w.txcif().clear_bit());
         Ok(())
     }
 }
@@ -884,6 +928,10 @@ where
     fn write(&mut self, word: u8) -> embedded_hal_nb::nb::Result<(), Self::Error> {
         if self.usart.status().read().dreif().bit_is_set() {
             self.usart.txdatal().write(|w| w.set(word));
+            // Re-arm TXCIF after the load; see the embedded-io write impl
+            // for the race analysis.
+            self.usart.status().write(|w| w.txcif().set_bit());
+            self.wrote = true;
             Ok(())
         } else {
             Err(nb::Error::WouldBlock)
@@ -891,8 +939,9 @@ where
     }
 
     fn flush(&mut self) -> embedded_hal_nb::nb::Result<(), Self::Error> {
-        if self.usart.status().read().txcif().bit_is_set() {
-            self.usart.status().write(|w| w.txcif().set_bit());
+        // See the embedded-io flush impl for why the never-wrote case
+        // returns immediately and why TXCIF is not consumed on success.
+        if !self.wrote || self.usart.status().read().txcif().bit_is_set() {
             Ok(())
         } else {
             Err(nb::Error::WouldBlock)
@@ -954,6 +1003,10 @@ where
     Pin: TxPin<Usart>,
 {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
         for b in buf {
             unsafe {
                 while self.usart().status().read().dreif().bit_is_clear() {}
@@ -961,13 +1014,23 @@ where
             }
         }
 
+        // Re-arm TXCIF after the last load; see the analysis in the
+        // `Serial` embedded-io write impl.
+        unsafe { self.usart().status().write(|w| w.txcif().set_bit()) };
+        self.wrote = true;
+
         Ok(buf.len())
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
+        // See the `Serial` embedded-io flush impl: bail if nothing was ever
+        // transmitted, and leave TXCIF set for repeated flushes.
+        if !self.wrote {
+            return Ok(());
+        }
+
         unsafe {
             while self.usart().status().read().txcif().bit_is_clear() {}
-            self.usart().status().write(|w| w.txcif().clear_bit());
         }
         Ok(())
     }
@@ -982,7 +1045,12 @@ where
         let status = unsafe { self.usart().status().read() };
 
         if status.dreif().bit_is_set() {
-            unsafe { self.usart().txdatal().write(|w| w.bits(word)) };
+            unsafe {
+                self.usart().txdatal().write(|w| w.bits(word));
+                // Re-arm TXCIF after the load; see the `Serial` impls.
+                self.usart().status().write(|w| w.txcif().set_bit());
+            }
+            self.wrote = true;
             Ok(())
         } else {
             Err(nb::Error::WouldBlock)
@@ -990,10 +1058,15 @@ where
     }
 
     fn flush(&mut self) -> embedded_hal_nb::nb::Result<(), Self::Error> {
+        // See the `Serial` impls: bail if nothing was ever transmitted, and
+        // leave TXCIF set for repeated flushes.
+        if !self.wrote {
+            return Ok(());
+        }
+
         let status = unsafe { self.usart().status().read() };
 
         if status.txcif().bit_is_set() {
-            unsafe { self.usart().status().write(|w| w.txcif().set_bit()) };
             Ok(())
         } else {
             Err(nb::Error::WouldBlock)
@@ -1076,16 +1149,19 @@ macro_rules! usart {
                         // they must guarantee to only do atomic operations on the peripheral
                         // registers to avoid data races.
                         //
-                        // Tx and Rx won't access the same registers anyways,
-                        // as they have independent responsibilities, which are NOT represented
-                        // in the type system.
+                        // Register ownership after the split (NOT represented in the
+                        // type system):
+                        // - Rx only touches RXDATAL/RXDATAH (reads, no STATUS writes).
+                        // - Tx owns TXDATAL and all writes to STATUS (the TXCIF re-arm
+                        //   in the write path and the WFB side effect documented on
+                        //   `set_wait_for_break`).
                         let (rx, tx) = unsafe {
                             (
                                 crate::pac::Peripherals::steal().[<USART $X>],
                                 crate::pac::Peripherals::steal().[<USART $X>],
                             )
                         };
-                        (split::Rx::new(rx, self.pinset.rx), split::Tx::new(tx, self.pinset.tx))
+                        (split::Rx::new(rx, self.pinset.rx), split::Tx::new(tx, self.pinset.tx, self.wrote))
                     }
                 }
 
