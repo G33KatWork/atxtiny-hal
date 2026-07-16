@@ -12,31 +12,21 @@ use crate::embedded_hal::spi::{ErrorType, SpiBus, MODE_0, MODE_1, MODE_2, MODE_3
 
 use crate::{
     clkctrl::Clocks,
-    pac::spi0::{ctrla::PRESC_A, ctrlb::MODE_A, RegisterBlock},
+    pac::spi0::{ctrlb::MODE_A, RegisterBlock},
     time::*,
 };
 
 pub mod config;
 use self::config::DataOrder;
 
-/// SPI error
-#[derive(ufmt::derive::uDebug, Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Error {
-    // NOTE: only in buffered mode
-    // /// Overrun occurred
-    // Overrun,
-    /// Write collision occurred
-    WriteCollision,
-}
+pub use config::{Config, InvalidSpiClock, SpiClock};
 
-impl crate::embedded_hal::spi::Error for Error {
-    fn kind(&self) -> crate::embedded_hal::spi::ErrorKind {
-        use crate::embedded_hal::spi::ErrorKind;
-        match *self {
-            Error::WriteCollision => ErrorKind::Other,
-        }
-    }
-}
+// There is intentionally no SPI error type: in unbuffered master mode every
+// transfer writes DATA only after the previous byte's IF has been observed,
+// so a write collision (WRCOL) cannot occur, and no other error condition
+// exists. The trait impls use `Infallible`, which also keeps every Result
+// zero-sized. Buffered mode, once implemented, will need a real error type
+// (overrun).
 
 /// SCK pin
 pub trait SckPin<SPI>: crate::private::Sealed {}
@@ -140,25 +130,22 @@ where
     MOSI: MosiPin<SPI>,
 {
     /// Configures the SPI peripheral to work in unbuffered master mode
-    pub fn new_unbuffered<Config>(
+    ///
+    /// The bus clock arrives as a precomputed [`config::SpiClock`], ideally
+    /// built in a `const` context so no divider arithmetic ends up in flash
+    /// and unreachable rates fail the build. See [`config::SpiClock`].
+    pub fn new_unbuffered(
         spi: SPI,
         pinset: SpiPinset<SPI, SCK, MISO, MOSI>,
-        config: Config,
-        clocks: Clocks,
-    ) -> Self
-    where
-        Config: Into<config::Config>,
-    {
-        let config = config.into();
-
+        clock: config::SpiClock,
+        config: config::Config,
+    ) -> Self {
         let mode = match config.mode {
             MODE_0 => MODE_A::_0,
             MODE_1 => MODE_A::_1,
             MODE_2 => MODE_A::_2,
             MODE_3 => MODE_A::_3,
         };
-
-        let (clk2x, div) = Self::compute_baud_rate(&clocks, config.frequency);
 
         // Disable the peripheral
         spi.ctrla().modify(|_, w| w.enable().clear_bit());
@@ -183,9 +170,9 @@ where
                 .master()
                 .set_bit() // SPI Master
                 .clk2x()
-                .bit(clk2x) // Clock double speed
+                .bit(clock.clk2x) // Clock double speed
                 .presc()
-                .variant(div) // Clock prescaler
+                .variant(clock.presc) // Clock prescaler
         });
 
         spi.intctrl().reset();
@@ -250,20 +237,6 @@ where
     MOSI: MosiPin<SPI>,
     MODE: ED,
 {
-    fn compute_baud_rate(clocks: &Clocks, freq: Hertz) -> (bool, PRESC_A) {
-        match SPI::clock(clocks).raw() / freq.raw() {
-            0 => unreachable!(),
-            1..=2 => (true, PRESC_A::CLK_PER_4_2),     // DIV_2
-            3..=5 => (false, PRESC_A::CLK_PER_4_2),    // DIV_4
-            6..=11 => (true, PRESC_A::CLK_PER_16_8),   // DIV_8
-            12..=23 => (false, PRESC_A::CLK_PER_16_8), // DIV_16
-            24..=39 => (true, PRESC_A::CLK_PER_64_32),  // DIV_32
-            40..=95 => (false, PRESC_A::CLK_PER_64_32), // DIV_64
-            //96..=191 => (false, PRESC_A::Div128),   // DIV_128
-            _ => (false, PRESC_A::CLK_PER_64_32),
-        }
-    }
-
     /// Get access to the underlying register block.
     ///
     /// # Safety
@@ -282,10 +255,10 @@ where
         (self.spi, self.pinset)
     }
 
-    fn transfer_byte(&mut self, tx: u8) -> Result<u8, Error> {
+    fn transfer_byte(&mut self, tx: u8) -> u8 {
         self.spi.data().write(|w| w.set(tx));
         while self.spi.intflags().read().if_().bit_is_clear() {}
-        Ok(self.spi.data().read().bits())
+        self.spi.data().read().bits()
     }
 }
 
@@ -297,7 +270,7 @@ where
     MOSI: MosiPin<SPI>,
     MODE: ED,
 {
-    type Error = Error;
+    type Error = core::convert::Infallible;
 }
 
 impl<SPI, MODE, SCK, MISO, MOSI> SpiBus for Spi<SPI, MODE, SpiPinset<SPI, SCK, MISO, MOSI>>
@@ -310,7 +283,7 @@ where
 {
     fn read(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
         for w in words.iter_mut() {
-            *w = self.transfer_byte(0xff)?;
+            *w = self.transfer_byte(0xff);
         }
 
         Ok(())
@@ -318,7 +291,7 @@ where
 
     fn write(&mut self, words: &[u8]) -> Result<(), Self::Error> {
         for w in words.iter() {
-            self.transfer_byte(*w)?;
+            self.transfer_byte(*w);
         }
 
         Ok(())
@@ -327,7 +300,7 @@ where
     fn transfer(&mut self, read: &mut [u8], write: &[u8]) -> Result<(), Self::Error> {
         for i in 0..max(read.len(), write.len()) {
             let tx_byte = if i < write.len() { write[i] } else { 0xff };
-            let rx_byte = self.transfer_byte(tx_byte)?;
+            let rx_byte = self.transfer_byte(tx_byte);
             if i < read.len() {
                 read[i] = rx_byte
             };
@@ -338,16 +311,17 @@ where
 
     fn transfer_in_place(&mut self, words: &mut [u8]) -> Result<(), Self::Error> {
         for w in words.iter_mut() {
-            let d = self.transfer_byte(*w)?;
-            *w = d;
+            *w = self.transfer_byte(*w);
         }
 
         Ok(())
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
-        //while self.spi.intflags().read().if_().bit_is_clear() {}
-        //let _ = self.spi.data().read().bits();
+        // Intentionally a no-op: every transfer_byte() blocks until the
+        // byte has fully shifted out (IF set) before returning, so there is
+        // never an in-flight operation left to wait for. This satisfies the
+        // SpiBus flush contract trivially.
         Ok(())
     }
 }

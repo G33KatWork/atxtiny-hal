@@ -6,7 +6,7 @@ use panic_halt as _;
 use atxtiny_hal::pac;
 use atxtiny_hal::prelude::*;
 use atxtiny_hal::serial::{BaudRate, Config, Serial};
-use atxtiny_hal::spi::Spi;
+use atxtiny_hal::spi::{Spi, SpiClock};
 
 use atxtiny_hal::embedded_hal::spi::SpiDevice;
 use atxtiny_hal::embedded_hal_bus::spi::{ExclusiveDevice, NoDelay};
@@ -20,7 +20,7 @@ fn main() -> ! {
     let portmux = dp.PORTMUX.constrain();
 
     // Configure our clocks
-    let clocks = clkctrl.freeze().expect("valid clock config");
+    let _clocks = clkctrl.freeze().expect("valid clock config");
 
     // Split the porta and portc peripheral into its pins
     let (a, c) = (dp.PORTA.split(), dp.PORTC.split());
@@ -50,7 +50,8 @@ fn main() -> ! {
     let spi_pair = spi_pair.mux(&portmux);
 
     // Create an SPI abstraction
-    let spi = Spi::new_unbuffered(dp.SPI0, spi_pair, 625_000.Hz(), clocks);
+    const SPI_CLK: SpiClock = SpiClock::new(20_000_000, 625_000);
+    let spi = Spi::new_unbuffered(dp.SPI0, spi_pair, SPI_CLK, Default::default());
 
     // Create an SpiDevice for the MS5611
     let mut ms5611 = ExclusiveDevice::new(spi, cs_ms, NoDelay)
