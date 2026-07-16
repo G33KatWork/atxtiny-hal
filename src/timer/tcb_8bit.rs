@@ -95,6 +95,25 @@ impl super::General for TCB8Bit {
     }
 }
 
+// ============================================================================
+// CCMP access discipline
+// ============================================================================
+//
+// In PWM8 mode CCMPL holds the period and CCMPH the duty cycle, but byte
+// accesses to the two halves still go through the peripheral's ONE shared
+// TEMP register — PWM8 mode does not exempt CCMP from the 16-bit access
+// mechanism. Hardware-validated on an ATtiny1617 (2026-07-17) with a
+// throwaway register probe; raw results in this change's commit message:
+//
+// * reading CCMPL latches CCMPH into TEMP; a later lone CCMPH write commits
+//   TEMP into CCMPL — the period gets replaced by a stale duty value,
+// * TEMP is shared with CNT, so a 16-bit CNT read between duty updates
+//   poisons the period the same way,
+// * a lone CCMPH read returns TEMP content, not the register.
+//
+// Therefore CCMP is only ever accessed as one 16-bit operation here (the
+// compiler emits the low-then-high sequence that drives TEMP correctly);
+// updating one half is a 16-bit read-modify-write preserving the other.
 impl super::PeriodicMode for TCB8Bit {
     #[inline(always)]
     fn set_periodic_mode(&mut self) {
@@ -108,7 +127,7 @@ impl super::PeriodicMode for TCB8Bit {
         //        When the split pwm channels get a ref to the timer, we can
         //        get rid of this again
         let tim = unsafe { &*TCB0::ptr() };
-        tim.ccmpl().read().bits()
+        (tim.ccmp().read().bits() & 0x00FF) as u8
     }
 
     #[inline(always)]
@@ -118,7 +137,11 @@ impl super::PeriodicMode for TCB8Bit {
 
     #[inline(always)]
     unsafe fn set_period_unchecked(&mut self, period: Self::CounterValue) {
-        unsafe { self.tim.ccmpl().write(|w| w.bits(period)) };
+        // The old lone CCMPL write did not even take effect on its own: the
+        // low-byte write only loads TEMP, and the value was committed by
+        // whichever high-byte write happened next.
+        let duty = self.tim.ccmp().read().bits() & 0xFF00;
+        unsafe { self.tim.ccmp().write(|w| w.bits(duty | period as u16)) };
     }
 
     #[inline(always)]
@@ -160,7 +183,11 @@ impl super::WithPwm for TCB8Bit {
     fn set_compare_value(channel: u8, value: Self::CompareValue) {
         let tim = unsafe { &*TCB0::ptr() };
         match channel {
-            0 => _ = tim.ccmph().write(|w| unsafe { w.bits(value) }),
+            0 => {
+                let period = tim.ccmp().read().bits() & 0x00FF;
+                tim.ccmp()
+                    .write(|w| unsafe { w.bits(((value as u16) << 8) | period) });
+            }
             _ => panic!("invalid channel number"),
         }
     }
@@ -168,7 +195,7 @@ impl super::WithPwm for TCB8Bit {
     fn read_compare_value(channel: u8) -> Self::CompareValue {
         let tim = unsafe { &*TCB0::ptr() };
         match channel {
-            0 => tim.ccmph().read().bits(),
+            0 => (tim.ccmp().read().bits() >> 8) as u8,
             _ => panic!("invalid channel number"),
         }
     }
