@@ -73,6 +73,8 @@ macro_rules! mux_tokens {
                     unsafe { &*crate::pac::PORTMUX::ptr() }
                 }
             }
+
+            impl crate::private::Sealed for $Token {}
         )+
 
         impl PortmuxExt for crate::pac::PORTMUX {
@@ -455,40 +457,70 @@ impl IntoMuxedPinset<TCB0> for crate::gpio::portc::PC0<Output<Stateless>> {
     }
 }
 
+/// Routing control for the event output pins
+///
+/// Implemented by [`Evout0Mux`]/[`Evout1Mux`]/[`Evout2Mux`] so the EVOUT
+/// pinset can switch the pin routing off again when it is freed.
+pub trait EvoutRouting: crate::private::Sealed {
+    /// Enable or disable this event output's pin routing.
+    ///
+    /// Internal — driven by the mux/free lifecycle; calling it while an
+    /// [`EventOutputPinset`](crate::evout::EventOutputPinset) is live would
+    /// desynchronize the type state from the hardware.
+    #[doc(hidden)]
+    fn set_routing(&self, enable: bool);
+}
+
+macro_rules! evout_routing {
+    ($($Token:ident => $bit:ident,)+) => {$(
+        impl EvoutRouting for $Token {
+            fn set_routing(&self, enable: bool) {
+                self.regs().ctrla().modify(|_r, w| w.$bit().bit(enable));
+            }
+        }
+    )+};
+}
+
+evout_routing! {
+    Evout0Mux => evout0,
+    Evout1Mux => evout1,
+    Evout2Mux => evout2,
+}
+
 // EVOUT
 use crate::evout::EventOutputPinset;
 use crate::evout::{EVOUT0, EVOUT1, EVOUT2};
 use crate::pac::EVSYS;
 
 impl IntoMuxedPinset<EVSYS> for crate::gpio::porta::PA2<Peripheral<EVSYS>> {
-    type Pinset = EventOutputPinset<EVSYS, crate::gpio::porta::PA2<Peripheral<EVSYS>>, EVOUT0>;
+    type Pinset = EventOutputPinset<EVSYS, crate::gpio::porta::PA2<Peripheral<EVSYS>>, Evout0Mux, EVOUT0>;
 
     type Token = Evout0Mux;
 
     fn mux(self, token: Evout0Mux) -> Self::Pinset {
-        token.regs().ctrla().modify(|_r, w| w.evout0().set_bit());
-        EventOutputPinset::new(self)
+        token.set_routing(true);
+        EventOutputPinset::new(self, token)
     }
 }
 
 impl IntoMuxedPinset<EVSYS> for crate::gpio::portb::PB2<Peripheral<EVSYS>> {
-    type Pinset = EventOutputPinset<EVSYS, crate::gpio::portb::PB2<Peripheral<EVSYS>>, EVOUT1>;
+    type Pinset = EventOutputPinset<EVSYS, crate::gpio::portb::PB2<Peripheral<EVSYS>>, Evout1Mux, EVOUT1>;
 
     type Token = Evout1Mux;
 
     fn mux(self, token: Evout1Mux) -> Self::Pinset {
-        token.regs().ctrla().modify(|_r, w| w.evout1().set_bit());
-        EventOutputPinset::new(self)
+        token.set_routing(true);
+        EventOutputPinset::new(self, token)
     }
 }
 
 impl IntoMuxedPinset<EVSYS> for crate::gpio::portc::PC2<Peripheral<EVSYS>> {
-    type Pinset = EventOutputPinset<EVSYS, crate::gpio::portc::PC2<Peripheral<EVSYS>>, EVOUT2>;
+    type Pinset = EventOutputPinset<EVSYS, crate::gpio::portc::PC2<Peripheral<EVSYS>>, Evout2Mux, EVOUT2>;
 
     type Token = Evout2Mux;
 
     fn mux(self, token: Evout2Mux) -> Self::Pinset {
-        token.regs().ctrla().modify(|_r, w| w.evout2().set_bit());
-        EventOutputPinset::new(self)
+        token.set_routing(true);
+        EventOutputPinset::new(self, token)
     }
 }

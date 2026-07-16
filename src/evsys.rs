@@ -17,8 +17,12 @@ mod private {
         fn set_async_generator(&self, channel_idx: u8, generator: u8);
         fn set_sync_generator(&self, channel_idx: u8, generator: u8);
 
-        fn set_async_user(&self, user_idx: u8, multiplexer_select: u8);
-        fn set_sync_user(&self, user_idx: u8, multiplexer_select: u8);
+        // `user_reg_index` selects the ASYNCUSERn/SYNCUSERn register,
+        // `channel_select` is the value written into it. The old parameter
+        // names had these two roles swapped, which directly produced the
+        // free_user corruption.
+        fn set_async_user(&self, user_reg_index: u8, channel_select: u8);
+        fn set_sync_user(&self, user_reg_index: u8, channel_select: u8);
 
         //FIXME: add strobes
     }
@@ -84,31 +88,45 @@ pub struct Unconfigured;
 pub struct GeneratorAssigned;
 
 /// Fully configured channel where generator and user is assigned (type state)
-#[derive(ufmt::derive::uDebug, Debug)]
-pub struct Configured;
+///
+/// Holds the connected user's token, which is what lets
+/// [`free_user`](Channel::free_user) clear the user register that was
+/// actually connected and hand the token back for reuse.
+pub struct Configured<User> {
+    user: User,
+}
+
+// Manual impl instead of derive to avoid a needless `User: Debug` bound.
+impl<User> core::fmt::Debug for Configured<User> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("Configured")
+    }
+}
 
 impl marker::ChannelFlavor for Async {}
 impl marker::ChannelFlavor for Sync {}
 
 impl marker::ChannelState for Unconfigured {}
 impl marker::ChannelState for GeneratorAssigned {}
-impl marker::ChannelState for Configured {}
+impl<User> marker::ChannelState for Configured<User> {}
 
 /// Generic event channel
 #[derive(Debug)]
 pub struct Channel<Evsys, Flavor, Index, State> {
     pub(crate) evsys: Evsys,
     pub(crate) index: Index,
-    pub(crate) _phantom: PhantomData<(Flavor, State)>,
+    pub(crate) state: State,
+    pub(crate) _phantom: PhantomData<Flavor>,
 }
 
 impl<Evsys, Flavor, Index, State> crate::private::Sealed for Channel<Evsys, Flavor, Index, State> {}
 
 impl<Evsys, Flavor, Index, State> Channel<Evsys, Flavor, Index, State> {
-    pub(crate) fn into_state<NewState>(self) -> Channel<Evsys, Flavor, Index, NewState> {
+    pub(crate) fn with_state<NewState>(self, state: NewState) -> Channel<Evsys, Flavor, Index, NewState> {
         Channel {
             evsys: self.evsys,
             index: self.index,
+            state,
             _phantom: PhantomData,
         }
     }
@@ -119,7 +137,6 @@ macro_rules! evsys {
         channels: [$(
             {
                 channel: $index:literal,
-                register: $register:ident,
                 userindex: $userindex:literal,
                 flavor: $flavor:ty,
                 // generators: {
@@ -152,12 +169,12 @@ macro_rules! evsys {
                     self.syncch(channel_idx as usize).write(|f| unsafe { f.bits(generator) });
                 }
 
-                fn set_async_user(&self, user_idx: u8, multiplexer_select: u8) {
-                    self.asyncuser(multiplexer_select as usize).write(|f| unsafe { f.bits(user_idx) });
+                fn set_async_user(&self, user_reg_index: u8, channel_select: u8) {
+                    self.asyncuser(user_reg_index as usize).write(|f| unsafe { f.bits(channel_select) });
                 }
 
-                fn set_sync_user(&self, user_idx: u8, multiplexer_select: u8) {
-                    self.syncuser(multiplexer_select as usize).write(|f| unsafe { f.bits(user_idx) });
+                fn set_sync_user(&self, user_reg_index: u8, channel_select: u8) {
+                    self.syncuser(user_reg_index as usize).write(|f| unsafe { f.bits(channel_select) });
                 }
             }
 
@@ -180,6 +197,12 @@ macro_rules! evsys {
                 $(
                     pub [<channel_ $flavor:lower $index>]: [<Channel $flavor $index>],
                 )+
+
+                /// Event user token for the TCA0 event input (SYNCUSER0)
+                pub user_tca0: UserTca0,
+
+                /// Event user token for the USART0 IrDA event input (SYNCUSER1)
+                pub user_usart0: UserUsart0,
             }
 
             impl EvsysExt for crate::pac::EVSYS {
@@ -191,9 +214,12 @@ macro_rules! evsys {
                             [<channel_ $flavor:lower $index>]: [<Channel $flavor $index>] {
                                 evsys: Evsys,
                                 index: U::<$index, $userindex>::default(),
+                                state: Unconfigured,
                                 _phantom: PhantomData::default(),
                             },
                         )+
+                        user_tca0: UserTca0 { _private: () },
+                        user_usart0: UserUsart0 { _private: () },
                     }
                 }
             }
@@ -201,74 +227,121 @@ macro_rules! evsys {
     };
 }
 
-pub trait EventUser<Evsys, Flavor>
+/// The register file an event user's [`MULTIPLEXER_INDEX`] points into
+///
+/// The EVSYS has two independent user-register files, ASYNCUSERn and
+/// SYNCUSERn. Sync channels are selectable from *both* files (select
+/// values 1/2 = SYNCCH0/1 in either encoding); async channels only from
+/// the async file.
+///
+/// [`MULTIPLEXER_INDEX`]: EventUser::MULTIPLEXER_INDEX
+#[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserRegisterFile {
+    /// The user register is one of ASYNCUSERn
+    Async,
+    /// The user register is one of SYNCUSERn
+    Sync,
+}
+
+/// An event user reachable from channels of the given `Flavor`
+///
+/// Users living in the async register file can be driven by async *and*
+/// sync channels (they implement this trait for both flavors); users in
+/// the sync file only by sync channels.
+///
+/// Sealed: a foreign impl with an out-of-range `MULTIPLEXER_INDEX` would
+/// panic on the user-register array access.
+pub trait EventUser<Evsys, Flavor>: crate::private::Sealed
 where
     Evsys: marker::Evsys,
     Flavor: marker::ChannelFlavor,
 {
+    /// Index of this user's register within [`Self::FILE`]
     const MULTIPLEXER_INDEX: u8;
+
+    /// The user-register file [`Self::MULTIPLEXER_INDEX`] refers to
+    const FILE: UserRegisterFile;
 }
 
-impl<Evsys, Index> Channel<Evsys, Async, Index, GeneratorAssigned>
+impl<Evsys, Flavor, Index, State> Channel<Evsys, Flavor, Index, State>
 where
     Evsys: marker::Evsys,
+{
+    fn write_user(&mut self, file: UserRegisterFile, user_reg_index: u8, channel_select: u8) {
+        match file {
+            UserRegisterFile::Async => unsafe {
+                (*self.evsys.ptr()).set_async_user(user_reg_index, channel_select)
+            },
+            UserRegisterFile::Sync => unsafe {
+                (*self.evsys.ptr()).set_sync_user(user_reg_index, channel_select)
+            },
+        }
+    }
+}
+
+impl<Evsys, Flavor, Index> Channel<Evsys, Flavor, Index, GeneratorAssigned>
+where
+    Evsys: marker::Evsys,
+    Flavor: marker::ChannelFlavor,
     Index: marker::Index,
 {
-    pub fn connect_event_user<U: EventUser<Evsys, Async>>(
+    /// Connect this channel to an event user, consuming the user's token
+    ///
+    /// Consuming the token makes a second, conflicting connection of the
+    /// same user unrepresentable; [`free_user`](Channel::free_user) hands
+    /// the token back.
+    pub fn connect_event_user<U: EventUser<Evsys, Flavor>>(
         mut self,
-        _user: &U,
-    ) -> Channel<Evsys, Async, Index, Configured> {
-        self.set_multiplexer(U::MULTIPLEXER_INDEX);
-        self.into_state()
+        user: U,
+    ) -> Channel<Evsys, Flavor, Index, Configured<U>> {
+        self.write_user(U::FILE, U::MULTIPLEXER_INDEX, Index::UX);
+        self.with_state(Configured { user })
     }
 }
 
-impl<Evsys, Index> Channel<Evsys, Async, Index, Configured>
+impl<Evsys, Flavor, Index, User> Channel<Evsys, Flavor, Index, Configured<User>>
 where
     Evsys: marker::Evsys,
+    Flavor: marker::ChannelFlavor,
     Index: marker::Index,
+    User: EventUser<Evsys, Flavor>,
 {
-    pub fn free_user(mut self) -> Channel<Evsys, Async, Index, GeneratorAssigned> {
-        self.set_multiplexer(0);
-        self.into_state()
+    /// Disconnect the connected event user and hand its token back
+    pub fn free_user(mut self) -> (Channel<Evsys, Flavor, Index, GeneratorAssigned>, User) {
+        // Clear the user register that was actually connected. (The old
+        // code wrote the channel-select value into user register *0* —
+        // ASYNCUSER0/SYNCUSER0, i.e. TCB0/TCA0 — silently routing this
+        // channel into an unrelated peripheral while the real user stayed
+        // connected.)
+        self.write_user(User::FILE, User::MULTIPLEXER_INDEX, 0);
+
+        let Channel { evsys, index, state, .. } = self;
+        (
+            Channel {
+                evsys,
+                index,
+                state: GeneratorAssigned,
+                _phantom: PhantomData,
+            },
+            state.user,
+        )
     }
 }
 
-impl<Evsys, Index> Channel<Evsys, Async, Index, GeneratorAssigned>
+impl<Evsys, Flavor, Index> Channel<Evsys, Flavor, Index, GeneratorAssigned>
 where
     Evsys: marker::Evsys,
+    Flavor: marker::ChannelFlavor,
     Index: marker::Index,
+    Self: ChannelConfigurator<Flavor>,
 {
-    pub fn free_generator(mut self) -> Channel<Evsys, Async, Index, Unconfigured> {
+    pub fn free_generator(mut self) -> Channel<Evsys, Flavor, Index, Unconfigured> {
         self.set_generator(0);
-        self.into_state()
-    }
-}
-
-impl<Evsys, Index> Channel<Evsys, Sync, Index, Configured>
-where
-    Evsys: marker::Evsys,
-    Index: marker::Index,
-{
-    pub fn free_user(mut self) -> Channel<Evsys, Sync, Index, GeneratorAssigned> {
-        self.set_multiplexer(0);
-        self.into_state()
-    }
-}
-
-impl<Evsys, Index> Channel<Evsys, Sync, Index, GeneratorAssigned>
-where
-    Evsys: marker::Evsys,
-    Index: marker::Index,
-{
-    pub fn free_generator(mut self) -> Channel<Evsys, Sync, Index, Unconfigured> {
-        self.set_generator(0);
-        self.into_state()
+        self.with_state(Unconfigured)
     }
 }
 
 pub trait ChannelConfigurator<F> {
-    fn set_multiplexer(&mut self, multiplexer: u8);
     fn set_generator(&mut self, generator: u8);
 }
 
@@ -278,10 +351,6 @@ where
     Index: marker::Index,
     State: marker::ChannelState,
 {
-    fn set_multiplexer(&mut self, multiplexer: u8) {
-        unsafe { (*self.evsys.ptr()).set_async_user(Index::UX, multiplexer) }
-    }
-
     fn set_generator(&mut self, generator: u8) {
         unsafe { (*self.evsys.ptr()).set_async_generator(self.index.index(), generator) }
     }
@@ -293,14 +362,44 @@ where
     Index: marker::Index,
     State: marker::ChannelState,
 {
-    fn set_multiplexer(&mut self, multiplexer: u8) {
-        unsafe { (*self.evsys.ptr()).set_sync_user(Index::UX, multiplexer) }
-    }
-
     fn set_generator(&mut self, generator: u8) {
         unsafe { (*self.evsys.ptr()).set_sync_generator(self.index.index(), generator) }
     }
 }
+
+/// Event user token for the TCA0 event input (SYNCUSER0)
+///
+/// Handed out once by [`EvsysExt::split`]; consumed by
+/// [`Channel::connect_event_user`] on a sync channel.
+pub struct UserTca0 {
+    _private: (),
+}
+
+/// Event user token for the USART0 IrDA event input (SYNCUSER1)
+///
+/// Handed out once by [`EvsysExt::split`]; consumed by
+/// [`Channel::connect_event_user`] on a sync channel.
+pub struct UserUsart0 {
+    _private: (),
+}
+
+impl crate::private::Sealed for UserTca0 {}
+impl crate::private::Sealed for UserUsart0 {}
+
+impl EventUser<Evsys, Sync> for UserTca0 {
+    const MULTIPLEXER_INDEX: u8 = 0;
+    const FILE: UserRegisterFile = UserRegisterFile::Sync;
+}
+
+impl EventUser<Evsys, Sync> for UserUsart0 {
+    const MULTIPLEXER_INDEX: u8 = 1;
+    const FILE: UserRegisterFile = UserRegisterFile::Sync;
+}
+
+// TODO: Tokens for the remaining async-file users (ASYNCUSER0..7: TCB0,
+//       ADC0, the four CCL LUT event inputs, TCD0 EV0/EV1). They need a
+//       story for who owns the token — the peripheral driver or the EVSYS
+//       Parts — and are not required by anything in-tree yet.
 
 pub trait EventGenerator<Evsys, Flavor, Index>
 where
@@ -321,7 +420,6 @@ evsys!({
     channels: [
         {
             channel: 0,
-            register: ASYNCCH0,
             userindex: 3,
             flavor: Async,
             // generators: {
@@ -348,7 +446,6 @@ evsys!({
         },
         {
             channel: 1,
-            register: ASYNCCH1,
             userindex: 4,
             flavor: Async,
             // generators: {
@@ -374,7 +471,6 @@ evsys!({
         },
         {
             channel: 2,
-            register: ASYNCCH2,
             userindex: 5,
             flavor: Async,
             // generators: {
@@ -398,7 +494,6 @@ evsys!({
         },
         {
             channel: 3,
-            register: ASYNCCH3,
             userindex: 6,
             flavor: Async,
             // generators: {
@@ -424,7 +519,6 @@ evsys!({
         },
         {
             channel: 0,
-            register: SYNCCH0,
             userindex: 1,
             flavor: Sync,
             // generators: {
@@ -453,7 +547,6 @@ evsys!({
         },
         {
             channel: 1,
-            register: SYNCCH1,
             userindex: 2,
             flavor: Sync,
             // generators: {

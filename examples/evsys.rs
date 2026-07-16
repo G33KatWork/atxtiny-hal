@@ -54,21 +54,19 @@ fn main() -> ! {
     let evsys = dp.EVSYS.split();
 
     // AC event -> EVOUT0 (PA2)
+    //
+    // `connect_event_user` consumes the user token; one channel drives one
+    // user in this API. To fan one generator out to several users, assign
+    // a second channel to the same generator (hardware allows it), or poke
+    // the user registers directly.
     let async_ch0 = evsys.channel_async0;
     let async_ch0 = ac.connect_event_generator(async_ch0, ());
-    let _async_ch0_evout0 = async_ch0.connect_event_user(&evout0);
-    // FIXME: This should work somehow
-    //        Problem is, we somehow need to track which users we
-    //        assigned the channel to to free them later. This requires macro magic
-    //        Right now one channel can only have one user an event is delivered to
-    //        A possible workaround is to poke the registers directly (ugh, I know)
-    //        or assign a second channel to the generator and the user.
-    //let _async_ch0_evout1 = async_ch0.connect_event_user(&evout1);
+    let _async_ch0_evout0 = async_ch0.connect_event_user(evout0);
 
     // AC event -> EVOUT1 (PB2)
     let async_ch2 = evsys.channel_async2;
     let async_ch2 = ac.connect_event_generator(async_ch2, ());
-    let _async_ch2 = async_ch2.connect_event_user(&evout1);
+    let _async_ch2 = async_ch2.connect_event_user(evout1);
 
     let _ac = ac.enable();
 
@@ -76,7 +74,7 @@ fn main() -> ! {
     let mut b0 = b.pb0.into_pull_up_input();
     let async_ch1 = evsys.channel_async1;
     let async_ch1 = b0.connect_event_generator(async_ch1, ());
-    let _async_ch1 = async_ch1.connect_event_user(&evout2);
+    let _async_ch1 = async_ch1.connect_event_user(evout2);
 
     loop {}
 }

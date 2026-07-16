@@ -623,6 +623,6 @@ where
         _source: (),
     ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
         channel.set_generator(0x01 + X);
-        channel.into_state()
+        channel.with_state(GeneratorAssigned)
     }
 }

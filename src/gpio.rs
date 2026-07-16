@@ -797,6 +797,19 @@ gpio!({
 
 use crate::evsys::{Channel, ChannelConfigurator, EventGenerator, GeneratorAssigned, Unconfigured};
 
+// EVSYS pin-generator base values, audited against the ATDF value-groups
+// in vendor/attiny817.atdf (see also the commented per-channel tables in
+// evsys.rs). A pin's generator value is `base + pin_number` on the one
+// channel its port is routable to.
+const PORTA_ASYNCCH0_PIN_BASE: u8 = 0x0A;
+const PORTA_SYNCCH0_PIN_BASE: u8 = 0x0D;
+const PORTB_ASYNCCH1_PIN_BASE: u8 = 0x0A;
+// The gap relative to PORTA's sync base is real: SYNCCH1 has no
+// PORTC entries, so PORTB starts at 0x08.
+const PORTB_SYNCCH1_PIN_BASE: u8 = 0x08;
+const PORTC_ASYNCCH2_PIN_BASE: u8 = 0x0A;
+const PORTC_SYNCCH0_PIN_BASE: u8 = 0x07;
+
 // Generator for PortA
 // only routable to ASYNCCH0
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
@@ -812,8 +825,8 @@ where
         mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>,
         _source: Self::EventSource,
     ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
-        channel.set_generator(0x0A + X);
-        channel.into_state()
+        channel.set_generator(PORTA_ASYNCCH0_PIN_BASE + X);
+        channel.with_state(GeneratorAssigned)
     }
 }
 
@@ -831,8 +844,8 @@ where
         mut channel: Channel<Evsys, crate::evsys::Sync, Index, Unconfigured>,
         _source: Self::EventSource,
     ) -> Channel<Evsys, crate::evsys::Sync, Index, GeneratorAssigned> {
-        channel.set_generator(0x0D + X);
-        channel.into_state()
+        channel.set_generator(PORTA_SYNCCH0_PIN_BASE + X);
+        channel.with_state(GeneratorAssigned)
     }
 }
 
@@ -851,8 +864,8 @@ where
         mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>,
         _source: Self::EventSource,
     ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
-        channel.set_generator(0x0A + X);
-        channel.into_state()
+        channel.set_generator(PORTB_ASYNCCH1_PIN_BASE + X);
+        channel.with_state(GeneratorAssigned)
     }
 }
 
@@ -870,8 +883,8 @@ where
         mut channel: Channel<Evsys, crate::evsys::Sync, Index, Unconfigured>,
         _source: Self::EventSource,
     ) -> Channel<Evsys, crate::evsys::Sync, Index, GeneratorAssigned> {
-        channel.set_generator(0x08 + X);
-        channel.into_state()
+        channel.set_generator(PORTB_SYNCCH1_PIN_BASE + X);
+        channel.with_state(GeneratorAssigned)
     }
 }
 
@@ -890,8 +903,8 @@ where
         mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>,
         _source: Self::EventSource,
     ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
-        channel.set_generator(0x0A + X);
-        channel.into_state()
+        channel.set_generator(PORTC_ASYNCCH2_PIN_BASE + X);
+        channel.with_state(GeneratorAssigned)
     }
 }
 
@@ -909,7 +922,7 @@ where
         mut channel: Channel<Evsys, crate::evsys::Sync, Index, Unconfigured>,
         _source: Self::EventSource,
     ) -> Channel<Evsys, crate::evsys::Sync, Index, GeneratorAssigned> {
-        channel.set_generator(0x07 + X);
-        channel.into_state()
+        channel.set_generator(PORTC_SYNCCH0_PIN_BASE + X);
+        channel.with_state(GeneratorAssigned)
     }
 }
