@@ -4,7 +4,7 @@
 //! // Import common extension traits.
 //! //
 //! // This includes internal extension crates,
-//! // but also reexportet traits from embeded-hal or embedded time.
+//! // but also reexported traits from embedded-hal or embedded time.
 //! use atxtiny_hal::prelude::*;
 //! ```
 

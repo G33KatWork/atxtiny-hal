@@ -54,7 +54,7 @@ impl PortmuxExt for crate::pac::PORTMUX {
 /// let usart_pair = usart_pair.mux(&portmux);
 /// ```
 pub trait IntoMuxedPinset<Peripheral> {
-    /// The resulting pinset that is returned when the mux is configure to
+    /// The resulting pinset that is returned when the mux is configured to
     /// enable it.
     type Pinset;
 
@@ -87,7 +87,7 @@ impl IntoMuxedPinset<USART0>
         portmux.mux.ctrlb().modify(|_r, w| w.usart0().clear_bit());
         let mut tx = self.1.into_stateless_push_pull_output();
 
-        // Set the TX pin high to turn switch it to idle level
+        // Set the TX pin high to switch it to the idle level
         // Otherwise receivers might mistake the low level as a start bit and if
         // not enough time passes between init and the first data to be sent, the
         // receiver becomes confused because it's not in sync with the transmitter
@@ -114,7 +114,7 @@ impl IntoMuxedPinset<USART0>
         portmux.mux.ctrlb().modify(|_r, w| w.usart0().set_bit());
         let mut tx = self.1.into_stateless_push_pull_output();
 
-        // Set the TX pin high to turn switch it to idle level
+        // Set the TX pin high to switch it to the idle level
         // Otherwise receivers might mistake the low level as a start bit and if
         // not enough time passes between init and the first data to be sent, the
         // receiver becomes confused because it's not in sync with the transmitter
