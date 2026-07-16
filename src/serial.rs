@@ -791,9 +791,16 @@ where
     /// ...
     // -> According to this API it should be skipped.
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        // The embedded-io contract requires an empty buffer to return
+        // Ok(0) immediately; `first_mut` also keeps the bounds-check panic
+        // machinery out of flash.
+        let Some(first) = buf.first_mut() else {
+            return Ok(0);
+        };
+
         loop {
             if let Some(b) = eh_read(&mut self.usart)? {
-                buf[0] = b;
+                *first = b;
                 return Ok(1);
             }
         }
@@ -848,9 +855,14 @@ where
 {
     /// This implementation shares the same effects as the [`Serial`]s [`embedded_io::Read`] implemenation.
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        // See the `Serial` impl: Ok(0) for empty buffers, no indexing.
+        let Some(first) = buf.first_mut() else {
+            return Ok(0);
+        };
+
         loop {
             if let Some(b) = eh_read(unsafe { self.usart_mut() })? {
-                buf[0] = b;
+                *first = b;
                 return Ok(1);
             }
         }
