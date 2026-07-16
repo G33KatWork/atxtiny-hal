@@ -269,6 +269,11 @@ where
 {
     /// Convenience method to configure the pin to operate as an input pin
     /// and set the internal resistor floating
+    ///
+    /// Note: like every mode transition, this rewrites the pin's ISC field,
+    /// so a previously configured pin-change interrupt is silently disabled
+    /// — call [`configure_interrupt`](Self::configure_interrupt) again
+    /// afterwards if the interrupt should survive the transition.
     pub fn into_floating_input(self) -> Pin<Gpio, Index, Input> {
         unsafe { (*self.gpio.ptr()).enable_input_buffer(self.index.index()) }
         unsafe { (*self.gpio.ptr()).input(self.index.index()) }
@@ -278,6 +283,11 @@ where
 
     /// Convenience method to configure the pin to operate as an input pin
     /// and set the internal resistor pull-up
+    ///
+    /// Note: like every mode transition, this rewrites the pin's ISC field,
+    /// so a previously configured pin-change interrupt is silently disabled
+    /// — call [`configure_interrupt`](Self::configure_interrupt) again
+    /// afterwards if the interrupt should survive the transition.
     pub fn into_pull_up_input(self) -> Pin<Gpio, Index, Input> {
         unsafe { (*self.gpio.ptr()).enable_input_buffer(self.index.index()) }
         unsafe { (*self.gpio.ptr()).input(self.index.index()) }
@@ -286,6 +296,11 @@ where
     }
 
     /// Configures the pin to operate as a stateful push-pull output pin
+    ///
+    /// Note: like every mode transition, this rewrites the pin's ISC field,
+    /// so a previously configured pin-change interrupt is silently disabled
+    /// — call [`configure_interrupt`](Self::configure_interrupt) again
+    /// afterwards if the interrupt should survive the transition.
     pub fn into_push_pull_output(self) -> Pin<Gpio, Index, Output<Stateful>> {
         unsafe { (*self.gpio.ptr()).enable_input_buffer(self.index.index()) }
         unsafe { (*self.gpio.ptr()).output(self.index.index()) }
@@ -297,6 +312,11 @@ where
     /// This is the same as a regular output, but with a disabled input buffer
     /// which means that the current value cannot be read back. Toggling still
     /// works because the hardware itself has support for this.
+    ///
+    /// Note: like every mode transition, this rewrites the pin's ISC field,
+    /// so a previously configured pin-change interrupt is silently disabled
+    /// — call [`configure_interrupt`](Self::configure_interrupt) again
+    /// afterwards if the interrupt should survive the transition.
     pub fn into_stateless_push_pull_output(self) -> Pin<Gpio, Index, Output<Stateless>> {
         unsafe { (*self.gpio.ptr()).disable_input_buffer(self.index.index()) }
         unsafe { (*self.gpio.ptr()).output(self.index.index()) }
@@ -328,6 +348,11 @@ where
     ///
     /// It is not strictly necessary to configure a pin into an analog mode,
     /// but the datasheet recommends to disable the input and output driver.
+    ///
+    /// Note: like every mode transition, this rewrites the pin's ISC field,
+    /// so a previously configured pin-change interrupt is silently disabled
+    /// — call [`configure_interrupt`](Self::configure_interrupt) again
+    /// afterwards if the interrupt should survive the transition.
     pub fn into_analog_input(self) -> Pin<Gpio, Index, Analog> {
         unsafe { (*self.gpio.ptr()).disable_input_buffer(self.index.index()) }
         unsafe { (*self.gpio.ptr()).input(self.index.index()) }
@@ -348,6 +373,11 @@ where
     /// afterwards in contrast to the analog mode.
     ///
     /// [`IntoMuxedPinset`]: crate::portmux::IntoMuxedPinset
+    ///
+    /// Note: like every mode transition, this rewrites the pin's ISC field,
+    /// so a previously configured pin-change interrupt is silently disabled
+    /// — call [`configure_interrupt`](Self::configure_interrupt) again
+    /// afterwards if the interrupt should survive the transition.
     pub fn into_peripheral<PER>(self) -> Pin<Gpio, Index, Peripheral<PER>> {
         unsafe { (*self.gpio.ptr()).disable_input_buffer(self.index.index()) }
         unsafe { (*self.gpio.ptr()).input(self.index.index()) }
