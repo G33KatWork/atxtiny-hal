@@ -175,10 +175,10 @@ impl super::General for TCA0 {
     #[inline(always)]
     fn clear_event(&mut self, event: Self::Event) {
         match event {
-            Event::Overflow => self.single_intflags().modify(|_, w| w.ovf().set_bit()),
-            Event::CompareChannel0 => self.single_intflags().modify(|_, w| w.cmp0().set_bit()),
-            Event::CompareChannel1 => self.single_intflags().modify(|_, w| w.cmp1().set_bit()),
-            Event::CompareChannel2 => self.single_intflags().modify(|_, w| w.cmp2().set_bit()),
+            Event::Overflow => self.single_intflags().write(|w| w.ovf().set_bit()),
+            Event::CompareChannel0 => self.single_intflags().write(|w| w.cmp0().set_bit()),
+            Event::CompareChannel1 => self.single_intflags().write(|w| w.cmp1().set_bit()),
+            Event::CompareChannel2 => self.single_intflags().write(|w| w.cmp2().set_bit()),
         };
     }
 }
@@ -213,7 +213,7 @@ impl super::PeriodicMode for TCA0 {
 
     #[inline(always)]
     fn clear_overflow(&mut self) {
-        self.single_intflags().modify(|_, w| w.ovf().set_bit());
+        self.single_intflags().write(|w| w.ovf().set_bit());
     }
 
     #[inline(always)]
@@ -268,9 +268,9 @@ impl super::WithPwm for TCA0 {
     fn clear_compare_match(channel: u8) {
         let tim = unsafe { &*TCA0::ptr() };
         match channel {
-            0 => tim.single_intflags().modify(|_, w| w.cmp0().set_bit()),
-            1 => tim.single_intflags().modify(|_, w| w.cmp1().set_bit()),
-            2 => tim.single_intflags().modify(|_, w| w.cmp2().set_bit()),
+            0 => tim.single_intflags().write(|w| w.cmp0().set_bit()),
+            1 => tim.single_intflags().write(|w| w.cmp1().set_bit()),
+            2 => tim.single_intflags().write(|w| w.cmp2().set_bit()),
             _ => panic!("invalid channel number"),
         };
     }

@@ -128,7 +128,7 @@ impl super::PeriodicMode for TCB8Bit {
 
     #[inline(always)]
     fn clear_overflow(&mut self) {
-        self.tim.intflags().modify(|_, w| w.capt().set_bit());
+        self.tim.intflags().write(|w| w.capt().set_bit());
     }
 
     #[inline(always)]
@@ -177,7 +177,7 @@ impl super::WithPwm for TCB8Bit {
     fn clear_compare_match(channel: u8) {
         let tim = unsafe { &*TCB0::ptr() };
         match channel {
-            0 => _ = tim.intflags().modify(|_, w| w.capt().set_bit()),
+            0 => _ = tim.intflags().write(|w| w.capt().set_bit()),
             _ => panic!("invalid channel number"),
         }
     }

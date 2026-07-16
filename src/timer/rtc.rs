@@ -151,8 +151,8 @@ impl General for RTC {
     #[inline(always)]
     fn clear_event(&mut self, event: Self::Event) {
         match event {
-            Event::CompareMatch => self.intflags().modify(|_, w| w.cmp().set_bit()),
-            Event::Overflow => self.intflags().modify(|_, w| w.ovf().set_bit()),
+            Event::CompareMatch => self.intflags().write(|w| w.cmp().set_bit()),
+            Event::Overflow => self.intflags().write(|w| w.ovf().set_bit()),
         };
     }
 }
@@ -189,7 +189,7 @@ impl PeriodicMode for RTC {
 
     #[inline(always)]
     fn clear_overflow(&mut self) {
-        self.intflags().modify(|_, w| w.ovf().set_bit());
+        self.intflags().write(|w| w.ovf().set_bit());
     }
 
     #[inline(always)]

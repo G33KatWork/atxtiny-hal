@@ -176,7 +176,7 @@ impl super::General for TCB0 {
     #[inline(always)]
     fn clear_event(&mut self, event: Self::Event) {
         match event {
-            Event::CaptureCompare => _ = self.intflags().modify(|_, w| w.capt().set_bit()),
+            Event::CaptureCompare => _ = self.intflags().write(|w| w.capt().set_bit()),
         }
     }
 }
@@ -214,7 +214,7 @@ impl super::PeriodicMode for TCB0 {
 
     #[inline(always)]
     fn clear_overflow(&mut self) {
-        self.intflags().modify(|_, w| w.capt().set_bit());
+        self.intflags().write(|w| w.capt().set_bit());
     }
 
     #[inline(always)]
