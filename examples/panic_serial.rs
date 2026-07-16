@@ -29,7 +29,7 @@ fn main() -> ! {
     let portmux = dp.PORTMUX.constrain();
 
     // Configure our clocks
-    let clocks = clkctrl.freeze();
+    let clocks = clkctrl.freeze().expect("valid clock config");
 
     // Split the porta peripheral into its pins
     let a = dp.PORTA.split();

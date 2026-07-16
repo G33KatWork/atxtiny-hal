@@ -14,7 +14,7 @@ fn main() -> ! {
     let clkctrl = dp.CLKCTRL.constrain();
 
     // Configure our clocks
-    let _clocks = clkctrl.freeze();
+    let _clocks = clkctrl.freeze().expect("valid clock config");
 
     // Grab flash access
     let f = dp.NVMCTRL.flash();

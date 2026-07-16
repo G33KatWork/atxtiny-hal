@@ -11,7 +11,7 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
     let clkctrl = dp.CLKCTRL.constrain();
 
-    let _clocks = clkctrl.freeze();
+    let _clocks = clkctrl.freeze().expect("valid clock config");
 
     // Constrain the Watchdog
     let mut wd = dp.WDT.constrain();

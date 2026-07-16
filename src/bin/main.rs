@@ -34,7 +34,7 @@ fn main() -> ! {
     let clkctrl = dp.CLKCTRL.constrain();
     let portmux = dp.PORTMUX.constrain();
 
-    let clocks = clkctrl.freeze();
+    let clocks = clkctrl.freeze().expect("valid clock config");
 
     let a = dp.PORTA.split();
     let b = dp.PORTB.split();

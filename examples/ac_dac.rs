@@ -20,7 +20,7 @@ fn main() -> ! {
     let clkctrl = dp.CLKCTRL.constrain();
 
     // Configure our clocks
-    let clocks = clkctrl.freeze();
+    let clocks = clkctrl.freeze().expect("valid clock config");
 
     // Split the PORTA and PORTB peripheral into its pins
     let a = dp.PORTA.split();

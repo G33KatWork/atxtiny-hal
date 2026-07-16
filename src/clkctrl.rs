@@ -69,6 +69,19 @@ fn into_pdiv(div: u32) -> Option<mclkctrlb::PDIV_A> {
     }
 }
 
+/// Errors returned by [`ClkCtrl::freeze`]
+#[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Error {
+    /// The main oscillator frequency is above the supported 20MHz
+    MainClockTooFast,
+    /// The requested peripheral clock is zero or above the main clock
+    ImpossiblePerClock,
+    /// The ratio of main clock to peripheral clock is not an integer or not
+    /// one of the prescaler values supported by the hardware
+    /// (1, 2, 4, 6, 8, 10, 12, 16, 24, 32, 48, 64)
+    ImpossibleDivider,
+}
+
 /// Clock controller abstraction
 ///
 /// This is an abstraction of the CLKCTRL peripheral used to configure the
@@ -145,12 +158,40 @@ impl ClkCtrl {
         self
     }
 
-    // FIXME: return Error for impossible dividers and clock rates?
     /// Configure the clock controller as desired.
     ///
     /// The returned [`Clocks`] struct contains the resulting clock frequencies.
-    pub fn freeze(self) -> Clocks {
-        assert!(self.main_osc <= 20_000_000);
+    ///
+    /// Returns an [`Error`] for configurations the hardware cannot produce
+    /// (main clock above 20MHz, peripheral clock of zero or above the main
+    /// clock, or a main-to-peripheral ratio that is not a supported
+    /// prescaler). No hardware state is touched in the error case.
+    pub fn freeze(self) -> Result<Clocks, Error> {
+        if self.main_osc > 20_000_000 {
+            return Err(Error::MainClockTooFast);
+        }
+
+        // Validate the peripheral clock divider up front, before any
+        // hardware state is touched. The requested rate must divide the main
+        // clock evenly - silently running at a truncated "nearest" rate
+        // would defeat the point of asking for a specific frequency.
+        let desired_per_clk = self.per_clk.unwrap_or(self.main_osc);
+
+        if desired_per_clk == 0 || desired_per_clk > self.main_osc {
+            return Err(Error::ImpossiblePerClock);
+        }
+
+        if self.main_osc % desired_per_clk != 0 {
+            return Err(Error::ImpossibleDivider);
+        }
+
+        let divider = self.main_osc / desired_per_clk;
+
+        let pdiv = if divider > 1 {
+            Some(into_pdiv(divider).ok_or(Error::ImpossibleDivider)?)
+        } else {
+            None
+        };
 
         let clkctrl = unsafe { &*CLKCTRL::ptr() };
         let clksel = into_clksel(self.main_clk_src);
@@ -193,12 +234,7 @@ impl ClkCtrl {
         };
 
         // Set per_clk divider
-        let desired_per_clk = self.per_clk.unwrap_or(self.main_osc);
-        assert!(desired_per_clk <= 20_000_000);
-        let divider = self.main_osc / desired_per_clk;
-
-        if divider > 1 {
-            let pdiv = into_pdiv(divider).expect("Impossible clock divider");
+        if let Some(pdiv) = pdiv {
             clkctrl
                 .mclkctrlb()
                 .write_protected(|w| w.pdiv().variant(pdiv).pen().set_bit());
@@ -209,12 +245,12 @@ impl ClkCtrl {
         // Wait for the clock change to the new source
         while clkctrl.mclkstatus().read().sosc().bit_is_set() {}
 
-        Clocks {
+        Ok(Clocks {
             main: Hertz::from_raw(self.main_osc),
-            per: Hertz::from_raw(self.main_osc / divider),
+            per: Hertz::from_raw(desired_per_clk),
             main_prescaler: divider as u8,
             bod_wdt: (32768u32 / 1024).Hz(),
-        }
+        })
     }
 }
 
