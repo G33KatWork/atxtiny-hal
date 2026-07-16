@@ -987,9 +987,9 @@ where
             .map_err(|_| uWriteError)
     }
 
-    fn write_char(&mut self, c: char) -> Result<(), Self::Error> {
-        self.write(&[c as u8]).map(|_x| ()).map_err(|_| uWriteError)
-    }
+    // `write_char` is intentionally NOT overridden: the ufmt default
+    // UTF-8-encodes via write_str, while forwarding `c as u8` would emit a
+    // wrong byte for any char above U+00FF.
 }
 
 impl<Usart, Pin> IoErrorType for Tx<Usart, Pin>
@@ -1108,9 +1108,9 @@ where
             .map_err(|_| uWriteError)
     }
 
-    fn write_char(&mut self, c: char) -> Result<(), Self::Error> {
-        self.write(&[c as u8]).map(|_x| ()).map_err(|_| uWriteError)
-    }
+    // `write_char` is intentionally NOT overridden: the ufmt default
+    // UTF-8-encodes via write_str, while forwarding `c as u8` would emit a
+    // wrong byte for any char above U+00FF.
 }
 
 /// UART instance
