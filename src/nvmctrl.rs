@@ -354,82 +354,132 @@ pub struct FlashWriter<'a> {
 impl FlashWriter<'_> {
     /// Write a chunk of data to flash
     ///
-    /// This method accumulates data in the page buffer and only commits to flash
-    /// when a page boundary is crossed. Call `flush()` at the end to ensure
-    /// the last partial page is written.
+    /// Data accumulates in the NVM page buffer and is committed (erased and
+    /// written) whenever a page fills up; a single chunk may span any number
+    /// of pages. Call [`flush`](Self::flush) at the end to commit the last
+    /// partial page.
+    ///
+    /// Chunks must be contiguous: each call continues at the address where
+    /// the previous one ended. A chunk starting elsewhere is accepted when
+    /// no partial page is open, or when it starts outside the open page (the
+    /// open page is flushed first, preserving its unwritten tail). A
+    /// non-sequential write into the *currently open* page returns
+    /// [`Error::OutOfBounds`].
+    ///
+    /// Returns `true` when this call committed at least one page to flash.
     pub fn write_chunk(&mut self, offset: usize, bytes: &[u8]) -> Result<bool, Error> {
         check_bounds(offset, bytes.len(), FLASH_SIZE)?;
 
+        if bytes.is_empty() {
+            return Ok(false);
+        }
+
         let write_addr = FLASH_MAP_START + offset;
-        let page_start = write_addr & !(FLASH_PAGE_SIZE - 1);
-        let mut page_committed = false;
+        let mut committed = false;
 
-        // Check if we're starting a new page
-        if self.current_page_start != Some(page_start) {
-            // Flush previous page if it exists and has data
-            if let Some(prev_page) = self.current_page_start {
-                if self.next_write_addr > prev_page {
-                    self.flush_current_page()?;
-                    page_committed = true;
+        // Establish where this chunk starts relative to the writer state.
+        match self.current_page_start {
+            Some(page_start) => {
+                if write_addr != self.next_write_addr {
+                    if (write_addr & !(FLASH_PAGE_SIZE - 1)) == page_start {
+                        // Rewriting within the open page would AND the new
+                        // bytes into already-written buffer locations.
+                        return Err(Error::OutOfBounds);
+                    }
+
+                    // Jump to a different page: commit the open partial page
+                    // (tail preserved by flush) and restart there.
+                    self.flush()?;
+                    committed = true;
+                    self.next_write_addr = write_addr;
                 }
             }
 
-            // Initialize new page
-            self.current_page_start = Some(page_start);
-            self.next_write_addr = write_addr;
-
-            // Clear page buffer and load existing data
-            self.flash.nvmctrl_cmd(CMD_A::PBC)?;
-
-            // Fill page buffer with existing flash content
-            let page_end = page_start + FLASH_PAGE_SIZE;
-            for addr in page_start..page_end {
-                unsafe {
-                    let existing_data = ptr::read_volatile(addr as *const u8);
-                    ptr::write_volatile(addr as *mut u8, existing_data);
-                }
-            }
+            // No page open — the chunk may start anywhere.
+            None => self.next_write_addr = write_addr,
         }
 
-        // Verify we're writing sequentially within the current page
-        if write_addr != self.next_write_addr {
-            return Err(Error::OutOfBounds); // Non-sequential writes not supported
-        }
-
-        // Write data to page buffer
-        let mut ptr = write_addr as *mut u8;
         for &byte in bytes {
-            unsafe {
-                ptr::write_volatile(ptr, byte);
-                ptr = ptr.add(1);
+            // Lazily open the page containing the next write address. Pages
+            // are opened with only their *prefix* preserved; see open_page.
+            if self.current_page_start.is_none() {
+                self.open_page(self.next_write_addr)?;
             }
-            self.next_write_addr += 1;
 
-            // Check if we've filled the current page
+            unsafe { ptr::write_volatile(self.next_write_addr as *mut u8, byte) };
+
+            // `wrapping_add`: the attiny3217 flash map ends at 0xFFFF, so
+            // stepping past its last byte wraps to 0 — which the modulo
+            // check below correctly reads as "page complete".
+            self.next_write_addr = self.next_write_addr.wrapping_add(1);
+
             if self.next_write_addr % FLASH_PAGE_SIZE == 0 {
                 self.flash.nvmctrl_cmd(CMD_A::ERWP)?;
-                page_committed = true;
-                self.current_page_start = None; // Page is complete
-                break;
+                committed = true;
+                self.current_page_start = None;
             }
         }
 
-        Ok(page_committed)
+        Ok(committed)
     }
 
-    /// Flush any remaining data in the page buffer to flash
+    /// Commit the current partial page to flash
+    ///
+    /// The flash content after the last written byte is preserved by copying
+    /// it into the page buffer before committing. Does nothing when no page
+    /// is open.
     pub fn flush(&mut self) -> Result<(), Error> {
-        if let Some(page_start) = self.current_page_start {
-            if self.next_write_addr > page_start {
-                self.flush_current_page()?;
-                self.current_page_start = None;
+        if let Some(page_start) = self.current_page_start.take() {
+            if self.next_write_addr == page_start {
+                // Page was opened but nothing written — buffer is clean,
+                // committing would needlessly erase the page.
+                return Ok(());
             }
+
+            // Preserve the tail: fill the rest of the page buffer with the
+            // existing flash content (each location written exactly once,
+            // avoiding the AND-combining hazard). `wrapping_add` for the
+            // 0xFFFF-ending last page of the attiny3217.
+            let mut addr = self.next_write_addr;
+            while addr % FLASH_PAGE_SIZE != 0 {
+                unsafe {
+                    let existing = ptr::read_volatile(addr as *const u8);
+                    ptr::write_volatile(addr as *mut u8, existing);
+                }
+                addr = addr.wrapping_add(1);
+            }
+
+            self.flash.nvmctrl_cmd(CMD_A::ERWP)?;
         }
         Ok(())
     }
 
-    fn flush_current_page(&self) -> Result<(), Error> {
-        self.flash.nvmctrl_cmd(CMD_A::ERWP)
+    // Open the page containing `write_addr`: clear the page buffer and copy
+    // the existing flash content *in front of* the write position into it.
+    //
+    // Only the prefix is copied. Prefilling the whole page and then writing
+    // the new data over it — as this writer used to do — corrupts the data:
+    // per AN1983, writing a page-buffer location that was already written
+    // since the last PBC/commit combines the values with bitwise AND. Every
+    // location is therefore written at most once between commits; the tail
+    // after the last data byte is preserved lazily by `flush`.
+    fn open_page(&mut self, write_addr: usize) -> Result<(), Error> {
+        let page_start = write_addr & !(FLASH_PAGE_SIZE - 1);
+
+        // The page buffer auto-clears after every completed NVM command, but
+        // an abandoned writer may have left stale bytes behind — clear it
+        // defensively before reuse.
+        self.flash.nvmctrl_cmd(CMD_A::PBC)?;
+
+        for addr in page_start..write_addr {
+            unsafe {
+                let existing = ptr::read_volatile(addr as *const u8);
+                ptr::write_volatile(addr as *mut u8, existing);
+            }
+        }
+
+        self.current_page_start = Some(page_start);
+        Ok(())
     }
 }
 
