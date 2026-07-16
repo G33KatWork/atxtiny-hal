@@ -27,7 +27,19 @@ pub trait ClkctrlExt: crate::private::Sealed {
 
 impl ClkctrlExt for CLKCTRL {
     fn constrain(self) -> ClkCtrl {
-        ClkCtrl::default()
+        // Reset configuration: 20MHz internal oscillator, undivided.
+        //
+        // Intentionally not a public `Default` impl: `freeze()` writes
+        // CLKCTRL registers through a raw pointer, so being able to conjure
+        // a `ClkCtrl` out of thin air would bypass ownership of the PAC
+        // peripheral. Constructing one must go through `constrain(self)`,
+        // which consumes it.
+        ClkCtrl {
+            main_osc: Hertz::from_raw(20_000_000).raw(),
+            main_clk_src: MainClkSrc::Osc20M,
+            enable_clkout: false,
+            per_clk: None,
+        }
     }
 }
 
@@ -91,17 +103,6 @@ pub struct ClkCtrl {
     main_clk_src: MainClkSrc,
     enable_clkout: bool,
     per_clk: Option<u32>,
-}
-
-impl Default for ClkCtrl {
-    fn default() -> Self {
-        Self {
-            main_osc: Hertz::from_raw(20_000_000).raw(),
-            main_clk_src: MainClkSrc::Osc20M,
-            enable_clkout: false,
-            per_clk: None,
-        }
-    }
 }
 
 impl ClkCtrl {
