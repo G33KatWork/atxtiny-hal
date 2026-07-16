@@ -1,4 +1,18 @@
 //! # Non-Volatile Memory Controller
+//!
+//! ## Concurrency and timing caveats
+//!
+//! - Flash page erase/write commands **halt the CPU** while they execute
+//!   (code runs from the same flash), typically a few milliseconds per
+//!   page. EEPROM programming runs in the background, but the APIs here
+//!   block until completion anyway so that write errors can be reported.
+//! - The NVMCTRL command interface and its page buffer are shared,
+//!   unguarded hardware state. An interrupt handler that performs NVM
+//!   operations can corrupt a page-buffer fill in progress in the main
+//!   context (and vice versa). If ISRs touch the NVM, wrap each multi-step
+//!   sequence — buffer fill plus command — in a critical section.
+//! - The busy-wait loops have no timeout: NVM commands complete in bounded
+//!   hardware time, unlike external-bus peripherals.
 
 use core::ptr;
 
@@ -206,6 +220,37 @@ fn check_bounds(offset: usize, len: usize, region_size: usize) -> Result<(), Err
     }
 }
 
+// Issue an NVM command and wait for it to complete.
+//
+// Flash and EEPROM commands go through the same CTRLA register but signal
+// completion on separate busy flags (FBUSY/EEBUSY), so *both* flags are
+// awaited on both sides of the command: before, in case a background EEPROM
+// write from an earlier call (or an ISR) is still running, and after, so the
+// result can be reported. WRERROR is only valid for the last operation, which
+// also requires waiting for completion before reading it.
+//
+// The CCP-protected command write itself is interrupt-safe (hardware ignores
+// interrupts during the 4-cycle unlock window), but multi-step sequences —
+// page-buffer fill plus command — are not; see the module docs.
+fn nvmctrl_cmd(nvmctrl: &NVMCTRL, cmd: CMD_A) -> Result<(), Error> {
+    let busy = || {
+        let status = nvmctrl.status().read();
+        status.fbusy().bit_is_set() || status.eebusy().bit_is_set()
+    };
+
+    while busy() {}
+
+    nvmctrl.ctrla().write_protected(|w| w.cmd().variant(cmd));
+
+    while busy() {}
+
+    if nvmctrl.status().read().wrerror().bit_is_set() {
+        return Err(Error::Write);
+    }
+
+    Ok(())
+}
+
 /// Errors that can occur when reading or writing to Flash or EEPROM
 #[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
@@ -230,8 +275,8 @@ impl FlashAccess<'_> {
     ///
     /// Non-page-aligned write accesses are handled automatically.
     ///
-    /// Returns an [`Error::OutOfBounds`] in case data outside of the flash
-    /// region defined by [`FLASH_MAP_START`] and [`FLASH_MAP_END`] is accessed.
+    /// Returns an [`Error::OutOfBounds`] in case `offset` plus the data
+    /// length exceeds the flash size ([`FLASH_SIZE`]).
     /// In case of a hardware write error [`Error::Write`] is returned.
     pub fn program(&self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
         check_bounds(offset, bytes.len(), FLASH_SIZE)?;
@@ -239,7 +284,7 @@ impl FlashAccess<'_> {
         let mut ptr = ((FLASH_MAP_START + offset) & !(FLASH_PAGE_SIZE - 1)) as *mut u8;
 
         // Clear the page buffer
-        self.nvmctrl_cmd(CMD_A::PBC)?;
+        nvmctrl_cmd(self.nvmctrl, CMD_A::PBC)?;
 
         // Fill the page buffer with original data that should not be overwritten
         let start_offset = offset % FLASH_PAGE_SIZE;
@@ -263,7 +308,7 @@ impl FlashAccess<'_> {
                 ptr = ptr.wrapping_add(1);
 
                 if ptr as usize % FLASH_PAGE_SIZE == 0 {
-                    self.nvmctrl_cmd(CMD_A::ERWP)?;
+                    nvmctrl_cmd(self.nvmctrl, CMD_A::ERWP)?;
                 }
             };
         }
@@ -277,7 +322,7 @@ impl FlashAccess<'_> {
                 }
             }
 
-            self.nvmctrl_cmd(CMD_A::ERWP)?;
+            nvmctrl_cmd(self.nvmctrl, CMD_A::ERWP)?;
         }
 
         Ok(())
@@ -300,12 +345,12 @@ impl FlashAccess<'_> {
         // command, but stale bytes from an abandoned fill (e.g. a dropped
         // FlashWriter) would both AND into the dummy write and, worse,
         // could address a different page than the one requested here.
-        self.nvmctrl_cmd(CMD_A::PBC)?;
+        nvmctrl_cmd(self.nvmctrl, CMD_A::PBC)?;
 
         let ptr = ((FLASH_MAP_START + offset) & !(FLASH_PAGE_SIZE - 1)) as *mut u8;
         unsafe { ptr::write_volatile(ptr, 0xFF) };
 
-        self.nvmctrl_cmd(CMD_A::ER)?;
+        nvmctrl_cmd(self.nvmctrl, CMD_A::ER)?;
 
         Ok(())
     }
@@ -315,27 +360,13 @@ impl FlashAccess<'_> {
     /// Returns a slice that gives raw access to the data stored in flash
     /// starting from `offset` with length `len`.
     ///
-    /// Returns an [`Error::OutOfBounds`] in case data outside of the flash
-    /// region defined by [`FLASH_MAP_START`] and [`FLASH_MAP_END`] is accessed.
+    /// Returns an [`Error::OutOfBounds`] in case `offset` plus the data
+    /// length exceeds the flash size ([`FLASH_SIZE`]).
     pub fn read(&self, offset: usize, len: usize) -> Result<&[u8], Error> {
         check_bounds(offset, len, FLASH_SIZE)?;
 
         let ptr = (FLASH_MAP_START + offset) as *mut u8;
         Ok(unsafe { core::slice::from_raw_parts(ptr, len) })
-    }
-
-    fn nvmctrl_cmd(&self, cmd: CMD_A) -> Result<(), Error> {
-        self.nvmctrl
-            .ctrla()
-            .write_protected(|w| w.cmd().variant(cmd));
-
-        while self.nvmctrl.status().read().fbusy().bit_is_set() {}
-
-        if self.nvmctrl.status().read().wrerror().bit_is_set() {
-            return Err(Error::Write);
-        }
-
-        Ok(())
     }
 
     /// Create a writer for incremental flash programming
@@ -421,7 +452,7 @@ impl FlashWriter<'_> {
             self.next_write_addr = self.next_write_addr.wrapping_add(1);
 
             if self.next_write_addr % FLASH_PAGE_SIZE == 0 {
-                self.flash.nvmctrl_cmd(CMD_A::ERWP)?;
+                nvmctrl_cmd(self.flash.nvmctrl, CMD_A::ERWP)?;
                 committed = true;
                 self.current_page_start = None;
             }
@@ -456,7 +487,7 @@ impl FlashWriter<'_> {
                 addr = addr.wrapping_add(1);
             }
 
-            self.flash.nvmctrl_cmd(CMD_A::ERWP)?;
+            nvmctrl_cmd(self.flash.nvmctrl, CMD_A::ERWP)?;
         }
         Ok(())
     }
@@ -476,7 +507,7 @@ impl FlashWriter<'_> {
         // The page buffer auto-clears after every completed NVM command, but
         // an abandoned writer may have left stale bytes behind — clear it
         // defensively before reuse.
-        self.flash.nvmctrl_cmd(CMD_A::PBC)?;
+        nvmctrl_cmd(self.flash.nvmctrl, CMD_A::PBC)?;
 
         for addr in page_start..write_addr {
             unsafe {
@@ -501,8 +532,8 @@ impl EepromAccess<'_> {
     /// When calling this method, the EEPROM is erased byte-wise starting from
     /// `offset` and the data in the `bytes` slice is written to it afterwards.
     ///
-    /// Returns an [`Error::OutOfBounds`] in case data outside of the flash
-    /// region defined by [`FLASH_MAP_START`] and [`FLASH_MAP_END`] is accessed.
+    /// Returns an [`Error::OutOfBounds`] in case `offset` plus the data
+    /// length exceeds the EEPROM size ([`EEPROM_SIZE`]).
     /// In case of a hardware write error [`Error::Write`] is returned.
     pub fn program(&self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
         check_bounds(offset, bytes.len(), EEPROM_SIZE)?;
@@ -510,7 +541,7 @@ impl EepromAccess<'_> {
         let mut ptr = (EEPROM_MAP_START + offset) as *mut u8;
 
         // Clear the page buffer
-        self.nvmctrl_cmd(CMD_A::PBC)?;
+        nvmctrl_cmd(self.nvmctrl, CMD_A::PBC)?;
 
         // Write the new data into the page buffer and flush it
         // to the EEPROM when reaching a page boundary
@@ -520,7 +551,7 @@ impl EepromAccess<'_> {
                 ptr = ptr.add(1);
 
                 if ptr as usize % EEPROM_PAGE_SIZE == 0 {
-                    self.nvmctrl_cmd(CMD_A::ERWP)?;
+                    nvmctrl_cmd(self.nvmctrl, CMD_A::ERWP)?;
                 }
             };
         }
@@ -528,7 +559,7 @@ impl EepromAccess<'_> {
         // Commit the remaining bytes — exactly "the loop above did not just
         // flush at a page boundary".
         if (ptr as usize) % EEPROM_PAGE_SIZE > 0 {
-            self.nvmctrl_cmd(CMD_A::ERWP)?;
+            nvmctrl_cmd(self.nvmctrl, CMD_A::ERWP)?;
         }
 
         Ok(())
@@ -539,8 +570,8 @@ impl EepromAccess<'_> {
     /// Returns a slice that gives raw access to the data stored in EEPROM
     /// starting from `offset` with length `len`.
     ///
-    /// Returns an [`Error::OutOfBounds`] in case data outside of the flash
-    /// region defined by [`FLASH_MAP_START`] and [`FLASH_MAP_END`] is accessed.
+    /// Returns an [`Error::OutOfBounds`] in case `offset` plus the data
+    /// length exceeds the EEPROM size ([`EEPROM_SIZE`]).
     pub fn read(&self, offset: usize, len: usize) -> Result<&[u8], Error> {
         check_bounds(offset, len, EEPROM_SIZE)?;
 
@@ -548,19 +579,6 @@ impl EepromAccess<'_> {
         Ok(unsafe { core::slice::from_raw_parts(ptr, len) })
     }
 
-    fn nvmctrl_cmd(&self, cmd: CMD_A) -> Result<(), Error> {
-        self.nvmctrl
-            .ctrla()
-            .write_protected(|w| w.cmd().variant(cmd));
-
-        while self.nvmctrl.status().read().eebusy().bit_is_set() {}
-
-        if self.nvmctrl.status().read().wrerror().bit_is_set() {
-            return Err(Error::Write);
-        }
-
-        Ok(())
-    }
 }
 
 /// The USERROW access module which allows reading from and writing to USERROW
@@ -584,7 +602,7 @@ impl UserrowAccess<'_> {
         let mut ptr = (USERROW_START + offset) as *mut u8;
 
         // Clear the page buffer
-        self.nvmctrl_cmd(CMD_A::PBC)?;
+        nvmctrl_cmd(self.nvmctrl, CMD_A::PBC)?;
 
         // Write the new data into the page buffer
         for b in bytes.iter() {
@@ -595,7 +613,7 @@ impl UserrowAccess<'_> {
         }
 
         // Flush the page buffer to USERROW
-        self.nvmctrl_cmd(CMD_A::ERWP)?;
+        nvmctrl_cmd(self.nvmctrl, CMD_A::ERWP)?;
 
         Ok(())
     }
@@ -610,7 +628,7 @@ impl UserrowAccess<'_> {
         let ptr = (USERROW_START + offset) as *mut u8;
 
         // Clear the page buffer
-        self.nvmctrl_cmd(CMD_A::PBC)?;
+        nvmctrl_cmd(self.nvmctrl, CMD_A::PBC)?;
 
         // Write the single byte
         unsafe {
@@ -618,7 +636,7 @@ impl UserrowAccess<'_> {
         }
 
         // Flush to USERROW
-        self.nvmctrl_cmd(CMD_A::ERWP)?;
+        nvmctrl_cmd(self.nvmctrl, CMD_A::ERWP)?;
 
         Ok(())
     }
@@ -675,17 +693,4 @@ impl UserrowAccess<'_> {
         self.program(0, data)
     }
 
-    fn nvmctrl_cmd(&self, cmd: CMD_A) -> Result<(), Error> {
-        self.nvmctrl
-            .ctrla()
-            .write_protected(|w| w.cmd().variant(cmd));
-
-        while self.nvmctrl.status().read().eebusy().bit_is_set() {}
-
-        if self.nvmctrl.status().read().wrerror().bit_is_set() {
-            return Err(Error::Write);
-        }
-
-        Ok(())
-    }
 }
