@@ -152,6 +152,18 @@ pub struct Input;
 #[derive(Debug)]
 pub struct Output<Statefulness>(PhantomData<Statefulness>);
 
+// ufmt provides no uDebug impl for PhantomData, so unlike the other type
+// states these two can't derive it; hand-written impls without bounds on
+// the (phantom) parameter.
+impl<Statefulness> ufmt::uDebug for Output<Statefulness> {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        f.write_str("Output")
+    }
+}
+
 /// Analog mode with disabled input buffer (type state)
 #[derive(ufmt::derive::uDebug, Debug)]
 pub struct Analog;
@@ -166,6 +178,23 @@ pub struct Analog;
 /// [`IntoMuxedPinset`]: crate::portmux::IntoMuxedPinset
 pub struct Peripheral<PER> {
     _peripheral: PhantomData<PER>,
+}
+
+impl<PER> ufmt::uDebug for Peripheral<PER> {
+    fn fmt<W>(&self, f: &mut ufmt::Formatter<'_, W>) -> Result<(), W::Error>
+    where
+        W: ufmt::uWrite + ?Sized,
+    {
+        f.write_str("Peripheral")
+    }
+}
+
+// Manual impl instead of derive to avoid the needless `PER: Debug` bound a
+// derive would place on the phantom parameter.
+impl<PER> core::fmt::Debug for Peripheral<PER> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("Peripheral")
+    }
 }
 
 /// Stateful output (type state)
@@ -215,6 +244,15 @@ impl<Gpio, Index, Mode> crate::private::Sealed for Pin<Gpio, Index, Mode> {}
 /// This moves the pin type information to be known
 /// at runtime, and erases the specific compile time type of the GPIO.
 /// The only compile time information of the GPIO pin is it's Mode.
+///
+/// # Code-size cost
+///
+/// Full erasure stores the port as a `*const dyn GpioRegExt`: every pin
+/// operation becomes an indirect call, and each port referenced this way
+/// contributes a 15-entry vtable to flash. On opt-z budgets prefer concrete
+/// pins or the per-port partially erased types (e.g. `PBx<Mode>`, pin number
+/// erased but port static) unless heterogeneous-port collections are really
+/// needed.
 pub type PXx<Mode> = Pin<Gpiox, Ux, Mode>;
 
 impl<Gpio, Mode, const X: u8> Pin<Gpio, U<X>, Mode> {
