@@ -152,7 +152,7 @@ fn main() -> ! {
     sdapin.internal_pull_up(Toggle::On);
 
     // Multiplex the TWI pins
-    let twi_pair = (sclpin, sdapin).mux(&portmux);
+    let twi_pair = (sclpin, sdapin).mux(portmux.twi0);
 
     // Create a TWI abstraction: 100 kHz, computed at compile time
     const TWI_CLK: TwiClock = TwiClock::new(20_000_000, 100_000);

@@ -52,7 +52,7 @@ fn main() -> ! {
     // let txpin = b.pb2.into_peripheral();
 
     let usart_pair = (rxpin, txpin);
-    let usart_pair = usart_pair.mux(&portmux);
+    let usart_pair = usart_pair.mux(portmux.usart0);
 
     const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
     let s = Serial::new(dp.USART0, usart_pair, BAUD, Config::default());
@@ -77,9 +77,9 @@ fn main() -> ! {
     let t = Timer::new(dp.TCA0, clocks);
 
     let pwm_pins = (
-        b.pb0.into_stateless_push_pull_output().mux(&portmux),
-        b.pb1.into_stateless_push_pull_output().mux(&portmux),
-        b.pb2.into_stateless_push_pull_output().mux(&portmux),
+        b.pb0.into_stateless_push_pull_output().mux(portmux.tca0_wo0),
+        b.pb1.into_stateless_push_pull_output().mux(portmux.tca0_wo1),
+        b.pb2.into_stateless_push_pull_output().mux(portmux.tca0_wo2),
     );
 
     //let mut pwm = tca.pwm(pwm_pins, 10.millis(), WaveformGenerationMode::SingleSlope).unwrap();

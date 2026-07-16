@@ -31,9 +31,9 @@ fn main() -> ! {
 
     // Build a set of PWM pins and multiplex them accordingly
     let pwm_pins = (
-        b.pb0.into_stateless_push_pull_output().mux(&portmux),
-        b.pb1.into_stateless_push_pull_output().mux(&portmux),
-        b.pb2.into_stateless_push_pull_output().mux(&portmux),
+        b.pb0.into_stateless_push_pull_output().mux(portmux.tca0_wo0),
+        b.pb1.into_stateless_push_pull_output().mux(portmux.tca0_wo1),
+        b.pb2.into_stateless_push_pull_output().mux(portmux.tca0_wo2),
     );
 
     // Use the now configured fixed frequency timer to create a PWM abstraction

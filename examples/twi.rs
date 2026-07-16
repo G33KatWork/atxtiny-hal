@@ -29,7 +29,7 @@ fn main() -> ! {
 
     // Multiplex the TWI pins
     let twi_pair = (sclpin, sdapin);
-    let twi_pair = twi_pair.mux(&portmux);
+    let twi_pair = twi_pair.mux(portmux.twi0);
 
     // Create a TWI abstraction
     const TWI_CLK: TwiClock = TwiClock::new(20_000_000, 100_000);

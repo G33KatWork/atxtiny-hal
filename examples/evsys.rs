@@ -30,15 +30,15 @@ fn main() -> ! {
 
     // Grab EVOUT0 at PA2
     let pa2 = a.pa2.into_peripheral();
-    let evout0 = pa2.mux(&portmux);
+    let evout0 = pa2.mux(portmux.evout0);
 
     // Grab EVOUT1 at PB2
     let pb2 = b.pb2.into_peripheral();
-    let evout1 = pb2.mux(&portmux);
+    let evout1 = pb2.mux(portmux.evout1);
 
     // Grab EVOUT2 at PC2
     let pc2 = c.pc2.into_peripheral();
-    let evout2 = pc2.mux(&portmux);
+    let evout2 = pc2.mux(portmux.evout2);
 
     // Create a comparator
     let mut ac = dp.AC0.comparator(

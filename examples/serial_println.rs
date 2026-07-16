@@ -53,7 +53,7 @@ fn main() -> ! {
         a.pa2.into_peripheral::<USART0>(),
         a.pa1.into_peripheral::<USART0>(),
     )
-        .mux(&portmux);
+        .mux(portmux.usart0);
     const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
     let s = Serial::new(dp.USART0, usart_pair, BAUD, Config::default());
 

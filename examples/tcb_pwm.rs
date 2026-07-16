@@ -30,7 +30,7 @@ fn main() -> ! {
     let mut led = b.pb6.into_push_pull_output();
 
     // PWM output
-    let pwm_wo = a.pa5.into_stateless_push_pull_output().mux(&portmux);
+    let pwm_wo = a.pa5.into_stateless_push_pull_output().mux(portmux.tcb0);
 
     // Delay timer
     let t = FTimer::<_, 1024>::new(dp.RTC, RTCClockSource::OSCULP32K_32K).unwrap();

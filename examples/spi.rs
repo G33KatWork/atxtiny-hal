@@ -30,7 +30,7 @@ fn main() -> ! {
         a.pa2.into_peripheral::<pac::USART0>(),
         a.pa1.into_peripheral::<pac::USART0>(),
     )
-        .mux(&portmux);
+        .mux(portmux.usart0);
     const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
     let mut s = Serial::new(dp.USART0, usart_pair, BAUD, Config::default());
 
@@ -47,7 +47,7 @@ fn main() -> ! {
 
     // Multiplex the SPI pins
     let spi_pair = (sckpin, misopin, mosipin);
-    let spi_pair = spi_pair.mux(&portmux);
+    let spi_pair = spi_pair.mux(portmux.spi0);
 
     // Create an SPI abstraction
     const SPI_CLK: SpiClock = SpiClock::new(20_000_000, 625_000);

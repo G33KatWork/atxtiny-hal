@@ -32,7 +32,7 @@ fn main() -> ! {
 
     // Multiplex the serial port pins
     let usart_pair = (rxpin, txpin);
-    let usart_pair = usart_pair.mux(&portmux);
+    let usart_pair = usart_pair.mux(portmux.usart0);
 
     // Create a serial port abstraction
     const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
