@@ -46,7 +46,7 @@ cfg_if! {
         pub const USERROW_END:      usize = 0x131F;
 
         /// Total size of the USERROW in data space
-        pub type const USERROW_SIZE: usize = USERROW_END - USERROW_START + 1;
+        pub const USERROW_SIZE:    usize = USERROW_END - USERROW_START + 1;
 
     } else if #[cfg(any(
         feature = "attiny817",
@@ -81,7 +81,7 @@ cfg_if! {
         pub const USERROW_END:      usize = 0x131F;
 
         /// Total size of the USERROW in data space
-        pub type const USERROW_SIZE: usize = USERROW_END - USERROW_START + 1;
+        pub const USERROW_SIZE:    usize = USERROW_END - USERROW_START + 1;
 
     } else if #[cfg(any(
         feature = "attiny1617",
@@ -116,7 +116,7 @@ cfg_if! {
         pub const USERROW_END:      usize = 0x131F;
 
         /// Total size of the USERROW in data space
-        pub type const USERROW_SIZE: usize = USERROW_END - USERROW_START + 1;
+        pub const USERROW_SIZE:    usize = USERROW_END - USERROW_START + 1;
 
     } else if #[cfg(any(
         feature = "attiny3217",
@@ -151,7 +151,7 @@ cfg_if! {
         pub const USERROW_END:      usize = 0x131F;
 
         /// Total size of the USERROW in data space
-        pub type const USERROW_SIZE: usize = USERROW_END - USERROW_START + 1;
+        pub const USERROW_SIZE:    usize = USERROW_END - USERROW_START + 1;
     }
 }
 
@@ -580,11 +580,17 @@ impl UserrowAccess<'_> {
         Ok(unsafe { ptr::read_volatile(ptr) })
     }
 
-    /// Read the entire USERROW as a 32-byte array.
+    // The `0 +` in the array lengths below is a workaround for the
+    // `min_generic_const_args` feature (enabled crate-wide for the evsys
+    // channel-index bounds): with that feature active, a *bare* named const
+    // in type position must be declared `type const`, but a non-trivial
+    // expression still goes through the stable anonymous-const path.
+
+    /// Read the entire USERROW as an array.
     ///
     /// This is a convenience function to read all USERROW data at once.
-    pub fn read_all(&self) -> [u8; USERROW_SIZE] {
-        let mut data = [0u8; USERROW_SIZE];
+    pub fn read_all(&self) -> [u8; 0 + USERROW_SIZE] {
+        let mut data = [0u8; 0 + USERROW_SIZE];
         let ptr = USERROW_START as *const u8;
         
         for i in 0..USERROW_SIZE {
@@ -594,10 +600,10 @@ impl UserrowAccess<'_> {
         data
     }
 
-    /// Write the entire USERROW from a 32-byte array.
+    /// Write the entire USERROW from an array.
     ///
     /// This is a convenience function to write all USERROW data at once.
-    pub fn program_all(&self, data: &[u8; USERROW_SIZE]) -> Result<(), Error> {
+    pub fn program_all(&self, data: &[u8; 0 + USERROW_SIZE]) -> Result<(), Error> {
         self.program(0, data)
     }
 
