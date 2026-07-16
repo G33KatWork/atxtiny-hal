@@ -89,15 +89,24 @@ pub struct Gpiox {
 }
 
 // # SAFETY
-// As Gpiox uses `dyn GpioRegExt` pointer internally, `Send` is not auto-implemented.
-// But since GpioRegExt does only do atomic operations without side-effects we can assume
-// that it safe to `Send` this type.
+// `Send` is not auto-implemented because of the raw `dyn GpioRegExt` pointer.
+// Moving a pin to another execution context is sound because of unique
+// ownership, not atomicity: every pin exists exactly once (`split()` hands
+// each out a single time, pins are not `Clone`), so whichever context owns
+// the pin is the only one touching its per-pin state. The registers shared
+// between pins of a port (DIR/OUT/INTFLAGS) are only ever written through
+// their single-write strobe registers (OUTSET/OUTCLR/OUTTGL/DIRSET/DIRCLR,
+// W1C for INTFLAGS), which cannot lose updates from concurrent pin owners.
+// The non-atomic read-modify-writes that do exist (PINCTRL, including the
+// ISC interrupt configuration with its side effects) target the pin's *own*
+// PINCTRL register, which no other pin instance accesses.
 unsafe impl Send for Gpiox {}
 
 // # SAFETY
-// As Gpiox uses `dyn GpioRegExt` pointer internally, `Sync` is not auto-implemented.
-// But since GpioRegExt does only do atomic operations without side-effects we can assume
-// that it safe to `Send` this type.
+// `Sync` is sound because everything reachable through `&Pin` is a
+// side-effect-free read (IN via `is_low`, INTFLAGS via
+// `is_interrupt_pending`); all writes — including the non-atomic PINCTRL
+// read-modify-writes — require `&mut self` and are therefore exclusive.
 unsafe impl Sync for Gpiox {}
 
 impl private::Gpio for Gpiox {
