@@ -155,7 +155,30 @@ impl ClkCtrl {
         let clkctrl = unsafe { &*CLKCTRL::ptr() };
         let clksel = into_clksel(self.main_clk_src);
 
-        // Wait for the selected clock to stabilize
+        // The 32.768kHz crystal oscillator is the only main clock source that
+        // needs explicit enabling. OSC20M, OSCULP32K and an external clock
+        // start automatically as soon as the main clock multiplexer requests
+        // them.
+        //
+        // TODO: expose SEL (crystal vs. external clock on TOSC1), CSUT and
+        //       RUNSTDBY configuration. Both SEL and CSUT may only be changed
+        //       while the oscillator is disabled and not yet stable.
+        if self.main_clk_src == MainClkSrc::XOsc32K {
+            clkctrl
+                .xosc32kctrla()
+                .modify_protected(|_, w| w.enable().set_bit());
+        }
+
+        // Set main clock source. The hardware keeps running from the old
+        // source until the new one is stable, so switching is glitch-free.
+        clkctrl
+            .mclkctrla()
+            .write_protected(|w| w.clksel().variant(clksel).clkout().bit(self.enable_clkout));
+
+        // Wait for the newly selected oscillator to report ready. The status
+        // bits only go high once the oscillator is requested, which happens
+        // through the main clock selection above - so this wait must come
+        // after writing MCLKCTRLA, not before.
         match clksel {
             mclkctrla::CLKSEL_A::EXTCLK => while clkctrl.mclkstatus().read().exts().bit_is_clear() {},
             mclkctrla::CLKSEL_A::OSC20M => {
@@ -168,11 +191,6 @@ impl ClkCtrl {
                 while clkctrl.mclkstatus().read().xosc32ks().bit_is_clear() {}
             }
         };
-
-        // Set main clock source
-        clkctrl
-            .mclkctrla()
-            .write_protected(|w| w.clksel().variant(clksel).clkout().bit(self.enable_clkout));
 
         // Set per_clk divider
         let desired_per_clk = self.per_clk.unwrap_or(self.main_osc);
