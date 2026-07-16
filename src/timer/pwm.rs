@@ -270,9 +270,12 @@ where
     fn get_period(&self) -> Hertz {
         let clk = self.clk;
         let psc = self.tim.read_prescaler() as u32;
+        // A PER value of N gives a period of N + 1 counter ticks; +1 exactly
+        // once (the old code also added it in the divisor, reporting
+        // clk / (psc * (PER + 2))).
         let per = TIM::read_period().into() + 1;
 
-        TIM::get_input_clock_rate(clk) / (psc * (per + 1))
+        TIM::get_input_clock_rate(clk) / (psc * per)
     }
 
     fn set_period(&mut self, period: Hertz) -> Result<(), Error> {
@@ -458,6 +461,9 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
     {
         self.tim.disable_counter();
         self.tim.reset_count();
+        // Select the clock source the period math below assumes — without
+        // this a TCB configured for CLKTCA silently ran from CLK_PER.
+        self.tim.prepare_clock_source(self.clk);
         self.tim.set_pwm_mode(mode);
         self.tim.clear_overflow();
 
@@ -490,6 +496,8 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
     {
         self.tim.disable_counter();
         self.tim.reset_count();
+        // Same clock-source selection as in pwm_hz above.
+        self.tim.prepare_clock_source(self.clk);
         self.tim.set_pwm_mode(mode);
         self.tim.clear_overflow();
 
