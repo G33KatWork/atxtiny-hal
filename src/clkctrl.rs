@@ -249,7 +249,7 @@ impl ClkCtrl {
             main: Hertz::from_raw(self.main_osc),
             per: Hertz::from_raw(desired_per_clk),
             main_prescaler: divider as u8,
-            bod_wdt: (32768u32 / 1024).Hz(),
+            bod_wdt: (32768u32 / 32).Hz(),
         })
     }
 }
