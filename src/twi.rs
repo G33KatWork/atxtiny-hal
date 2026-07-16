@@ -13,6 +13,8 @@ use enumset::{EnumSet, EnumSetType};
 
 pub mod config;
 
+pub use config::{InvalidTwiClock, TwiClock};
+
 /// SCL pin
 pub trait SclPin<TWI>: crate::private::Sealed {}
 
@@ -52,9 +54,27 @@ pub enum Error {
     /// Bus error
     Bus,
     /// Bus busy
+    ///
+    /// Another master holds the bus. Retryable: the transaction was not
+    /// started. (embedded-hal has no dedicated error kind for this, so it
+    /// maps to [`ErrorKind::Other`](embedded_hal::i2c::ErrorKind::Other).)
     Busy,
     /// Not Acknowledge received
     Nack(NackSource),
+    /// A polling loop gave up waiting
+    ///
+    /// A client stretched the clock (or held SDA/SCL low) for longer than
+    /// the built-in poll budget - roughly 50-100 ms depending on the
+    /// peripheral clock, comfortably above the 35 ms the SMBus
+    /// specification allows a client to stretch. Without this bound a
+    /// glitched client would hang the firmware forever.
+    ///
+    /// The master state machine is automatically reset before this error
+    /// is returned (the abandoned transaction leaves it in an unknown,
+    /// otherwise unrecoverable state), so retrying is safe and starts from
+    /// a clean master. The *client* side may still hold the bus; if so,
+    /// retries report arbitration/bus errors until it releases.
+    Timeout,
 }
 
 /// TWI NACK error source
@@ -120,6 +140,10 @@ pub enum Event {
     /// When this flag is read as ‘1’, it indicates that the most recent
     /// Acknowledge bit from the client was NACK, and the client is not able to
     /// or does not need to receive more data.
+    ///
+    /// **This is pure status, not a latched event**: hardware updates it on
+    /// every acknowledge bit and software cannot clear it. Passing it to
+    /// [`Twi::clear_event`] does nothing.
     #[doc(alias = "RXACK")]
     ReceivedAcknowledge,
 
@@ -201,40 +225,48 @@ where
     SDA: SdaPin<TWI>,
 {
     /// Configures the TWI peripheral to work in master mode
-    pub fn new<Config>(
-        twi: TWI,
-        pinset: TwiPinset<TWI, SCL, SDA>,
-        config: Config,
-        clocks: Clocks,
-    ) -> Self
-    where
-        Config: Into<config::Config>,
-    {
-        let config = config.into();
-
-        // FIXME: What about CTRLA.FMPEN? What exactly does this do? Do we need
-        //        to set this bit for 1MHz? What about 500KHz?
-        let frequency = config.frequency.raw();
-        let rise_time = config.rise_time.ticks();
-        let f_per = TWI::clock(&clocks).raw();
-
-        let baudrate: u8 =
-            (((f_per / frequency) - ((f_per * rise_time) / 1000000000) - 10) / 2) as u8;
-
+    ///
+    /// The bus clock arrives as a precomputed [`config::TwiClock`], ideally
+    /// built in a `const` context so no divider arithmetic ends up in flash
+    /// and unreachable rates fail the build. See [`config::TwiClock`].
+    pub fn new(twi: TWI, pinset: TwiPinset<TWI, SCL, SDA>, clock: config::TwiClock) -> Self {
         twi.ctrla()
-            .modify(|_, w| w.fmpen().variant(config.fast_mode_plus));
+            .modify(|_, w| w.fmpen().variant(clock.fast_mode_plus));
 
-        // Set the baud rate divider and enable the peripheral
+        // Set the baud rate divider and enable the peripheral.
+        //
+        // Smart mode (SMEN) is deliberately NOT used: tinyAVR 0/1-series
+        // silicon errata "TWI Smart Mode Gives Extra Clock Pulse" (e.g.
+        // DS80000886A section 2.9.3, no workaround) emits a rogue SCL pulse
+        // after every NACK, which corrupts the bus-state monitor - and the
+        // state machine cannot self-heal because the bus-timeout bits are
+        // also unusable (erratum 2.9.1). Observed on an ATtiny1617 as every
+        // transaction after the first NACK failing. The read loop in
+        // `transaction` therefore issues explicit RECVTRANS commands
+        // instead, matching the reference implementations for this family.
         twi.mctrla().modify(|_, w| w.enable().clear_bit());
-        twi.mbaud().write(|w| w.set(baudrate));
+        twi.mbaud().write(|w| w.set(clock.mbaud));
         twi.mctrla().modify(|_, w| w.enable().set_bit());
 
-        // Force the state-machine into IDLE state
-        twi.mstatus().modify(|_, w| w.busstate().idle());
-
-        // Clear a bunch of status flags
-        twi.mstatus()
-            .modify(|_, w| w.rif().set_bit().wif().set_bit().buserr().set_bit());
+        // Force the state-machine into IDLE state and clear all W1C status
+        // flags in one write. Using write() (not modify()) is deliberate:
+        // a read-modify-write on the W1C MSTATUS register would write back
+        // whatever flags happen to be set and clear them as a side effect -
+        // wanted here, but only by accident; write() states the intent.
+        twi.mstatus().write(|w| {
+            w.busstate()
+                .idle()
+                .rif()
+                .set_bit()
+                .wif()
+                .set_bit()
+                .clkhold()
+                .set_bit()
+                .arblost()
+                .set_bit()
+                .buserr()
+                .set_bit()
+        });
 
         Self { twi, pinset }
     }
@@ -364,13 +396,17 @@ where
     }
 
     /// Clear the given event flag.
+    ///
+    /// [`Event::ReceivedAcknowledge`] is pure status (updated by hardware
+    /// on every acknowledge bit, not software-clearable) and is silently
+    /// ignored here.
     #[inline]
     pub fn clear_event(&mut self, event: Event) {
         self.twi.mstatus().write(|w| match event {
             Event::ReadInterrupt => w.rif().set_bit(),
             Event::WriteInterrupt => w.wif().set_bit(),
             Event::ClockHold => w.clkhold().set_bit(),
-            Event::ReceivedAcknowledge => w, // Not clearable
+            Event::ReceivedAcknowledge => w, // Not clearable, see doc comment
             Event::ArbitrationLost => w.arblost().set_bit(),
             Event::BusError => w.buserr().set_bit(),
         });
@@ -384,8 +420,55 @@ where
     }
 }
 
+/// Reset the master state machine after a polling timeout.
+///
+/// A timeout means the transaction was abandoned in an unknown state
+/// (e.g. mid-address with SCL clamped low by a fault). Left alone, the
+/// wedged master makes every subsequent transaction fail too - observed on
+/// hardware as a permanently dead bus after a transient SCL short.
+/// Toggling ENABLE resets the internal state machine, and the MSTATUS
+/// write forces the bus-state logic to IDLE (required after enabling, see
+/// erratum "TIMEOUT bits not accessible") and clears the W1C flags.
+///
+/// NOTE: forcing IDLE deliberately assumes a single-master bus - after a
+/// fault we cannot know the true bus state, and on this silicon the
+/// inactivity timeout that would normally re-synchronize the state logic
+/// is unusable (same erratum). The client side may still hold SDA; if so,
+/// the next transactions report arbitration/bus errors until the client
+/// releases (clients usually re-synchronize on the next clean START or
+/// STOP).
+fn reset_master(twi: &RegisterBlock) {
+    twi.mctrla().modify(|_, w| w.enable().clear_bit());
+    twi.mctrla().modify(|_, w| w.enable().set_bit());
+    twi.mstatus().write(|w| {
+        w.busstate()
+            .idle()
+            .rif()
+            .set_bit()
+            .wif()
+            .set_bit()
+            .clkhold()
+            .set_bit()
+            .arblost()
+            .set_bit()
+            .buserr()
+            .set_bit()
+    });
+}
+
+/// Iteration bound for the status polling loops.
+///
+/// This is a loop count, not a calibrated time: one iteration of the status
+/// poll is roughly 10 CPU cycles, so the budget comes out at ~50 ms at
+/// 20 MHz and ~100 ms at 10 MHz - comfortably above the 35 ms clock
+/// stretch the SMBus specification allows a client, and far below
+/// "firmware hangs forever" (the failure mode of an unbounded loop when a
+/// glitched client pins SCL or SDA low).
+const POLL_BUDGET: u32 = 100_000;
+
 macro_rules! busy_wait {
-    ($i2c:expr, $nacksource:expr) => {
+    ($i2c:expr, $nacksource:expr) => {{
+        let mut budget: u32 = POLL_BUDGET;
         loop {
             let mstatus = $i2c.mstatus().read();
 
@@ -404,12 +487,19 @@ macro_rules! busy_wait {
                     break;
                 }
             }
+
+            budget -= 1;
+            if budget == 0 {
+                reset_master(&$i2c);
+                return Err(Error::Timeout);
+            }
         }
-    };
+    }};
 }
 
 macro_rules! wait_ownership {
-    ($i2c:expr) => {
+    ($i2c:expr) => {{
+        let mut budget: u32 = POLL_BUDGET;
         loop {
             let mstatus = $i2c.mstatus().read();
 
@@ -417,11 +507,24 @@ macro_rules! wait_ownership {
                 return Err(Error::Arbitration);
             }
 
+            // Without this check a bus error while waiting for ownership
+            // (BUSSTATE never becomes OWNER) would spin the loop into the
+            // timeout although the failure is already known.
+            if mstatus.buserr().bit_is_set() {
+                return Err(Error::Bus);
+            }
+
             if mstatus.busstate().is_owner() {
                 break;
             }
+
+            budget -= 1;
+            if budget == 0 {
+                reset_master(&$i2c);
+                return Err(Error::Timeout);
+            }
         }
-    };
+    }};
 }
 
 impl<TWI, SCL, SDA> ErrorType for Twi<TWI, TwiPinset<TWI, SCL, SDA>>
@@ -439,64 +542,117 @@ where
     SCL: SclPin<TWI>,
     SDA: SdaPin<TWI>,
 {
+    /// Execute an I2C transaction.
+    ///
+    /// Follows the embedded-hal contract: adjacent operations of the same
+    /// direction continue without a repeated START; a direction change (or
+    /// the first operation) puts the address on the bus; a single STOP
+    /// terminates the whole transaction.
+    ///
+    /// Note on zero-length reads: the hardware automatically clocks in one
+    /// byte after an ACKed read address, so a transaction that only probes
+    /// with an empty read buffer still transfers (and discards) one byte on
+    /// the wire before the NACK+STOP. This is a property of the TWI IP and
+    /// cannot be avoided.
     fn transaction(&mut self, address: u8, operations: &mut [Operation<'_>]) -> Result<(), Error> {
-        // Detect Bus busy
-        if self.twi.mstatus().read().busstate().is_busy() {
-            return Err(Error::Busy);
-        }
+        // The shift below would silently discard the high bit of an
+        // out-of-range address; costs nothing in release builds.
+        debug_assert!(address < 0x80, "I2C addresses are 7 bit");
 
+        // An empty transaction needs no bus access at all, so it must not
+        // fail on a busy bus either - this check has to come first.
         if operations.is_empty() {
             return Ok(());
         }
 
-        for operation in operations {
-            match operation {
+        // Detect Bus busy
+        //
+        // NOTE(TOCTOU): another master can claim the bus between this check
+        // and the first MADDR write. The hardware mitigates: the START is
+        // deferred until the bus is free, and a lost arbitration afterwards
+        // is reported by the wait loops.
+        if self.twi.mstatus().read().busstate().is_busy() {
+            return Err(Error::Busy);
+        }
+
+        // The embedded-hal contract requires adjacent operations of the
+        // same direction to continue without a repeated START, so only a
+        // direction change (or the first operation) may write MADDR.
+        // `previous` tracks the direction as Some(is_read).
+        let mut previous: Option<bool> = None;
+
+        for i in 0..operations.len() {
+            // Whether another read follows decides the ACK/NACK of this
+            // operation's last byte: within a merged read chain every byte
+            // but the very last must be ACKed. (Peeked before the mutable
+            // borrow of the current operation below.)
+            let read_follows = matches!(operations.get(i + 1), Some(Operation::Read(_)));
+
+            match &mut operations[i] {
                 Operation::Read(buffer) => {
-                    // Write the address and read-bit
-                    // This kicks off a START or repeated START condition on the bus
-                    self.twi.maddr().write(|w| w.set(address << 1 | 1));
+                    if previous != Some(true) {
+                        // Write the address and read-bit
+                        // This kicks off a START or repeated START condition on the bus
+                        self.twi.maddr().write(|w| w.set(address << 1 | 1));
 
-                    // Wait for the bus state to transition into OWNED
-                    wait_ownership!(self.twi);
+                        // Wait for the bus state to transition into OWNED
+                        wait_ownership!(self.twi);
 
-                    // Wait for the address to be ACKed or NACKed
-                    busy_wait!(self.twi, NackSource::Address);
+                        // Wait for the address to be ACKed or NACKed
+                        busy_wait!(self.twi, NackSource::Address);
 
-                    // Special case for zero-length receive buffers
-                    // Just set the ACK action to NACK. The next write to MADDR or
-                    // the STOP action that is executed at the end of this function
-                    // then performs the NACK and the appropriate action like a STOP or
-                    // repeated START
-                    self.twi.mctrlb().modify(|_, w| w.ackact().set_bit());
+                        // Special case for zero-length receive buffers
+                        // Just set the ACK action to NACK. The next write to MADDR or
+                        // the STOP action that is executed at the end of this function
+                        // then performs the NACK and the appropriate action like a STOP or
+                        // repeated START
+                        self.twi.mctrlb().modify(|_, w| w.ackact().set_bit());
+
+                        previous = Some(true);
+                    }
 
                     let mut it = buffer.iter_mut().peekable();
                     while let Some(b) = it.next() {
                         // Wait for data
                         busy_wait!(self.twi, NackSource::Data);
 
-                        // Not the last byte we expect? ACK it, otherwise NACK it
-                        // The following read from MDATA triggers the RECVTRANS action automatically
-                        if it.peek().is_some() {
-                            self.twi.mctrlb().modify(|_, w| w.ackact().clear_bit());
-                        } else {
-                            self.twi.mctrlb().modify(|_, w| w.ackact().set_bit());
-                        }
-
-                        // Read data and trigger ACK/NACK
+                        // Read the byte first, then issue the acknowledge
+                        // command - the order used by the reference
+                        // implementations for this family. Smart mode would
+                        // fuse the two, but is unusable here (see `new`).
                         *b = self.twi.mdata().read().bits();
+
+                        // ACK unless this is the last byte of the whole
+                        // read chain - a following Read operation continues
+                        // it, so its bytes count too. The ACK command also
+                        // starts the reception of the next byte. For the
+                        // last byte only arm NACK (no command): the final
+                        // STOP below or a repeated START of a following
+                        // write operation executes it.
+                        if it.peek().is_some() || read_follows {
+                            self.twi
+                                .mctrlb()
+                                .write(|w| w.ackact().clear_bit().mcmd().recvtrans());
+                        } else {
+                            self.twi.mctrlb().write(|w| w.ackact().set_bit());
+                        }
                     }
                 }
 
                 Operation::Write(buffer) => {
-                    // Write the address and ~read-bit
-                    // This kicks off a START or repeated START condition on the bus
-                    self.twi.maddr().write(|w| w.set(address << 1 | 0));
+                    if previous != Some(false) {
+                        // Write the address and ~read-bit
+                        // This kicks off a START or repeated START condition on the bus
+                        self.twi.maddr().write(|w| w.set(address << 1 | 0));
 
-                    // Wait for the bus state to transition into OWNED
-                    wait_ownership!(self.twi);
+                        // Wait for the bus state to transition into OWNED
+                        wait_ownership!(self.twi);
 
-                    // Wait for the address to be ACKed or NACKed
-                    busy_wait!(self.twi, NackSource::Address);
+                        // Wait for the address to be ACKed or NACKed
+                        busy_wait!(self.twi, NackSource::Address);
+
+                        previous = Some(false);
+                    }
 
                     // Send bytes in the buffer
                     // Should the sent byte be NACKed, the busy_wait! macro will
@@ -509,7 +665,10 @@ where
             }
         }
 
-        // Send the final STOP
+        // Send the final STOP. There is deliberately no wait for the STOP
+        // to complete: a back-to-back transaction's MADDR write defers its
+        // START until the bus-state logic sees the bus free again, so the
+        // hardware serializes the sequence by itself.
         self.twi.mctrlb().modify(|_, w| w.mcmd().stop());
 
         Ok(())

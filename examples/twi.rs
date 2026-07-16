@@ -5,7 +5,7 @@ use panic_halt as _;
 
 use atxtiny_hal::pac;
 use atxtiny_hal::prelude::*;
-use atxtiny_hal::twi::{Error, NackSource, Twi};
+use atxtiny_hal::twi::{Error, NackSource, Twi, TwiClock};
 
 use atxtiny_hal::embedded_hal::i2c::I2c;
 
@@ -18,7 +18,7 @@ fn main() -> ! {
     let portmux = dp.PORTMUX.constrain();
 
     // Configure our clocks
-    let clocks = clkctrl.freeze().expect("valid clock config");
+    let _clocks = clkctrl.freeze().expect("valid clock config");
 
     // Split the PORTA/B peripheral into its pins
     let b = dp.PORTB.split();
@@ -32,7 +32,8 @@ fn main() -> ! {
     let twi_pair = twi_pair.mux(&portmux);
 
     // Create a TWI abstraction
-    let mut twi = Twi::new(dp.TWI0, twi_pair, 100000.Hz(), clocks);
+    const TWI_CLK: TwiClock = TwiClock::new(20_000_000, 100_000);
+    let mut twi = Twi::new(dp.TWI0, twi_pair, TWI_CLK);
 
     // Send a string to address 3
     twi.write(0x03, "Hello over I2C".as_bytes()).unwrap();
