@@ -518,8 +518,9 @@ impl EepromAccess<'_> {
             };
         }
 
-        // Write the remaining bytes from the page buffer into the EEPROM
-        if (ptr as usize) % FLASH_PAGE_SIZE > 0 {
+        // Commit the remaining bytes — exactly "the loop above did not just
+        // flush at a page boundary".
+        if (ptr as usize) % EEPROM_PAGE_SIZE > 0 {
             self.nvmctrl_cmd(CMD_A::ERWP)?;
         }
 
