@@ -54,7 +54,7 @@ mod private {
     }
 }
 
-use embedded_hal::digital::ErrorType;
+use embedded_hal::digital::{ErrorType, PinState};
 use private::GpioRegExt;
 
 /// Marker traits used in this module
@@ -292,6 +292,27 @@ where
         unsafe { (*self.gpio.ptr()).disable_input_buffer(self.index.index()) }
         unsafe { (*self.gpio.ptr()).output(self.index.index()) }
         self.into_mode()
+    }
+
+    /// Configures the pin to operate as a stateless push-pull output pin,
+    /// driving `state` from the very first cycle of output mode
+    ///
+    /// [`into_stateless_push_pull_output`](Self::into_stateless_push_pull_output)
+    /// enables the output driver with whatever level the OUT latch happens to
+    /// hold (after reset: low); setting the level afterwards leaves a glitch
+    /// of a few cycles at the stale level. This variant writes the OUT latch
+    /// *before* switching the direction, so the pin only ever drives `state`
+    /// — needed e.g. for a UART TX pin, where a low glitch looks like a start
+    /// bit to receivers.
+    pub fn into_stateless_push_pull_output_in_state(
+        self,
+        state: PinState,
+    ) -> Pin<Gpio, Index, Output<Stateless>> {
+        match state {
+            PinState::High => unsafe { (*self.gpio.ptr()).set_high(self.index.index()) },
+            PinState::Low => unsafe { (*self.gpio.ptr()).set_low(self.index.index()) },
+        }
+        self.into_stateless_push_pull_output()
     }
 
     /// Configures the pin to operate in an analog mode

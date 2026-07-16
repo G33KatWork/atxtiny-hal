@@ -12,7 +12,7 @@
 //! first pinset in hardware while its driver keeps "working" in the type
 //! system.
 
-use embedded_hal::digital::OutputPin;
+use embedded_hal::digital::PinState;
 
 /// Extension trait that constrains the [`crate::pac::PORTMUX`] peripheral
 pub trait PortmuxExt {
@@ -169,14 +169,12 @@ impl IntoMuxedPinset<USART0>
 
     fn mux(self, token: Usart0Mux) -> Self::Pinset {
         token.regs().ctrlb().modify(|_r, w| w.usart0().clear_bit());
-        let mut tx = self.1.into_stateless_push_pull_output();
-
-        // Set the TX pin high to switch it to the idle level
-        // Otherwise receivers might mistake the low level as a start bit and if
-        // not enough time passes between init and the first data to be sent, the
-        // receiver becomes confused because it's not in sync with the transmitter
-        // anymore
-        tx.set_high().unwrap();
+        // Drive the TX pin at the idle level (high) from the very first
+        // cycle it becomes an output. Enabling the driver before setting the
+        // level would emit a short low glitch — receivers mistake it for a
+        // start bit and stay out of sync with the transmitter if the first
+        // real data follows too quickly.
+        let tx = self.1.into_stateless_push_pull_output_in_state(PinState::High);
 
         UartPinset::new(self.0.into_floating_input(), tx)
     }
@@ -198,14 +196,12 @@ impl IntoMuxedPinset<USART0>
 
     fn mux(self, token: Usart0Mux) -> Self::Pinset {
         token.regs().ctrlb().modify(|_r, w| w.usart0().set_bit());
-        let mut tx = self.1.into_stateless_push_pull_output();
-
-        // Set the TX pin high to switch it to the idle level
-        // Otherwise receivers might mistake the low level as a start bit and if
-        // not enough time passes between init and the first data to be sent, the
-        // receiver becomes confused because it's not in sync with the transmitter
-        // anymore
-        tx.set_high().unwrap();
+        // Drive the TX pin at the idle level (high) from the very first
+        // cycle it becomes an output. Enabling the driver before setting the
+        // level would emit a short low glitch — receivers mistake it for a
+        // start bit and stay out of sync with the transmitter if the first
+        // real data follows too quickly.
+        let tx = self.1.into_stateless_push_pull_output_in_state(PinState::High);
 
         UartPinset::new(self.0.into_floating_input(), tx)
     }
