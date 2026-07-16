@@ -634,7 +634,7 @@ impl UserrowAccess<'_> {
     /// Write a single byte to USERROW.
     ///
     /// This is a convenience function for single-byte writes to save program space.
-    /// For multiple bytes, use [`program`] for better efficiency.
+    /// For multiple bytes, use [`program`](Self::program) for better efficiency.
     pub fn write_byte(&mut self, offset: usize, byte: u8) -> Result<(), Error> {
         check_bounds(offset, 1, USERROW_SIZE)?;
 
@@ -671,7 +671,7 @@ impl UserrowAccess<'_> {
     /// Read a single byte from USERROW.
     ///
     /// This is a convenience function for single-byte reads to save program space.
-    /// For multiple bytes, use [`read`] for better efficiency.
+    /// For multiple bytes, use [`read`](Self::read) for better efficiency.
     pub fn read_byte(&self, offset: usize) -> Result<u8, Error> {
         check_bounds(offset, 1, USERROW_SIZE)?;
 

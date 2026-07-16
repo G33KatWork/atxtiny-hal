@@ -510,7 +510,7 @@ where
     /// No error handling and no additional side-effects, besides the implied
     /// side-effects when reading out the RXDATAL register.
     /// Handling errors has to be done manually. This can be done, by checking
-    /// the triggered events via [`Serial::triggered_events`].
+    /// individual events via [`Serial::is_event_triggered`].
     ///
     /// Returns `None` if there is no new data available.
     ///

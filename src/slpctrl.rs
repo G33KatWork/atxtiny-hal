@@ -4,14 +4,14 @@ use core::arch::asm;
 
 use crate::pac::{slpctrl, SLPCTRL};
 
-/// Extension trait that constrains the [`crate::pac::Slpctrl`] peripheral
+/// Extension trait that constrains the [`crate::pac::SLPCTRL`] peripheral
 pub trait SlpctrlExt {
     /// Constrains the [`pac::SLPCTRL`] peripheral.
     ///
     /// Consumes the [`pac::SLPCTRL`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::SLPCTRL`]: `crate::pac::Slpctrl`
+    /// [`pac::SLPCTRL`]: `crate::pac::SLPCTRL`
     /// [`HAL`]: `crate`
     fn constrain(self) -> Slpctrl;
 }

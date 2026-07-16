@@ -51,14 +51,14 @@ pub enum ResetReason {
     PowerOn,
 }
 
-/// Extension trait that constrains the [`crate::pac::Rstctrl`] peripheral
+/// Extension trait that constrains the [`crate::pac::RSTCTRL`] peripheral
 pub trait RstctrlExt {
     /// Constrains the [`pac::RSTCTRL`] peripheral.
     ///
     /// Consumes the [`pac::RSTCTRL`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::RSTCTRL`]: `crate::pac::Rstctrl`
+    /// [`pac::RSTCTRL`]: `crate::pac::RSTCTRL`
     /// [`HAL`]: `crate`
     fn constrain(self) -> Rstctrl;
 }

@@ -6,14 +6,14 @@
 
 use embedded_hal::digital::OutputPin;
 
-/// Extension trait that constrains the [`crate::pac::Portmux`] peripheral
+/// Extension trait that constrains the [`crate::pac::PORTMUX`] peripheral
 pub trait PortmuxExt {
     /// Constrains the [`pac::PORTMUX`] peripheral.
     ///
     /// Consumes the [`pac::PORTMUX`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::PORTMUX`]: `crate::pac::Portmux`
+    /// [`pac::PORTMUX`]: `crate::pac::PORTMUX`
     /// [`HAL`]: `crate`
     fn constrain(self) -> Portmux;
 }
@@ -21,11 +21,11 @@ pub trait PortmuxExt {
 /// Constrained Portmux peripheral
 ///
 /// An instance of this struct is acquired by calling the [`constrain`](PortmuxExt::constrain) function
-/// on the [`PORTMUX`] struct.
+/// on the [`PORTMUX`](crate::pac::PORTMUX) struct.
 ///
 /// ```
 /// let dp = pac::Peripherals::take().unwrap();
-/// let portmux = dp.portmux.constrain();
+/// let portmux = dp.PORTMUX.constrain();
 /// ```
 pub struct Portmux {
     mux: crate::pac::PORTMUX,
@@ -44,7 +44,7 @@ impl PortmuxExt for crate::pac::PORTMUX {
 ///
 /// ```
 /// let dp = pac::Peripherals::take().unwrap();
-/// let portmux = dp.portmux.constrain();
+/// let portmux = dp.PORTMUX.constrain();
 /// let porta = dp.PORTA.split();
 ///
 /// let rxpin = porta.pa2.into_peripheral::<pac::USART0>();

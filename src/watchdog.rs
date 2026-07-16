@@ -66,14 +66,14 @@ impl Into<WINDOW_A> for WatchdogTimeout {
     }
 }
 
-/// Extension trait that constrains the [`crate::pac::Wdt`] peripheral
+/// Extension trait that constrains the [`crate::pac::WDT`] peripheral
 pub trait WdtExt: crate::private::Sealed {
     /// Constrains the [`pac::WDT`] peripheral.
     ///
     /// Consumes the [`pac::WDT`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
-    /// [`pac::WDT`]: `crate::pac::Wdt`
+    /// [`pac::WDT`]: `crate::pac::WDT`
     /// [`HAL`]: `crate`
     fn constrain(self) -> WatchdogTimer;
 }

@@ -108,7 +108,7 @@ impl SpiClock {
 /// precomputed [`SpiClock`].
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Config {
-    /// Operation Mode as defined by the [`embedded-hal`]
+    /// Operation Mode as defined by [`embedded_hal::spi::Mode`]
     pub mode: Mode,
     /// The data order of transmissions
     pub order: DataOrder,

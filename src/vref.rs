@@ -5,7 +5,7 @@
 
 use crate::Toggle;
 
-/// Extension trait that constrains the [`crate::pac::Vref`] peripheral
+/// Extension trait that constrains the [`crate::pac::VREF`] peripheral
 pub trait VrefExt {
     /// Constrains the [`pac::VREF`] peripheral.
     ///
@@ -20,7 +20,7 @@ pub trait VrefExt {
 /// Constrained VREF peripheral
 ///
 /// An instance of this struct is acquired by calling the [`constrain`](VrefExt::constrain) function
-/// on the [`VREF`] struct.
+/// on the [`VREF`](crate::pac::VREF) struct.
 ///
 /// ```
 /// let dp = pac::Peripherals::take().unwrap();
