@@ -148,7 +148,10 @@ cfg_if! {
         pub const USERROW_START:    usize = 0x1300;
 
         /// End address of the USERROW in data space
-        pub const USERROW_END:      usize = 0x131F;
+        ///
+        /// The attiny3217 USERROW is 64 bytes, twice the size of the smaller
+        /// devices (ATDF: `USER_SIGNATURES` start 0x1300, size 0x40).
+        pub const USERROW_END:      usize = 0x133F;
 
         /// Total size of the USERROW in data space
         pub const USERROW_SIZE:    usize = USERROW_END - USERROW_START + 1;
@@ -497,8 +500,9 @@ impl UserrowAccess<'_> {
     /// Write to USERROW.
     ///
     /// The USERROW is written byte-wise starting from `offset`.
-    /// Since the page buffer is 32 bytes (same as USERROW size), 
-    /// no intermediate flushing is needed for sequential writes.
+    /// The whole USERROW fits into the NVM page buffer (the flash page
+    /// buffer is at least twice the USERROW size on every supported
+    /// device), so a single commit at the end suffices.
     ///
     /// Returns an [`Error::OutOfBounds`] in case data outside of the USERROW
     /// region is accessed. In case of a hardware write error [`Error::Write`] is returned.
