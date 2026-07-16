@@ -113,6 +113,12 @@ name = "twi"
 required-features = ["attiny817", "rt"]
 
 [[example]]
+# Device-agnostic (any part with TWI0 on PB0/PB1): pass the device feature
+# and matching -C target-cpu on the command line.
+name = "twi_hwtest"
+required-features = ["device-selected", "rt"]
+
+[[example]]
 name = "watchdog"
 required-features = ["attiny817", "rt"]
 
