@@ -158,6 +158,9 @@ cfg_if! {
     }
 }
 
+/// Total size of the EEPROM
+pub const EEPROM_SIZE: usize = EEPROM_MAP_END - EEPROM_MAP_START + 1;
+
 impl crate::private::Sealed for NVMCTRL {}
 
 pub trait NvmctrlExt: crate::private::Sealed {
@@ -185,6 +188,21 @@ impl NvmctrlExt for NVMCTRL {
     /// Get access to the USERROW of the microcontroller for reading and writing
     fn userrow(&self) -> UserrowAccess<'_>  {
         UserrowAccess { nvmctrl: self }
+    }
+}
+
+// All bounds checks are done in *offset space* (`0..region_size`) rather than
+// on absolute data-space addresses: `usize` is 16 bits on AVR, so a check like
+// `FLASH_MAP_START + offset + len - 1 > FLASH_MAP_END` silently wraps in
+// release builds (overflow checks are off) and would accept wild offsets. On
+// the attiny3217 the flash map moreover ends at 0xFFFF == `usize::MAX`, making
+// such a comparison dead code. Validating `offset + len <= region_size` with
+// checked arithmetic before ever adding the map start makes the later address
+// computation provably wrap-free.
+fn check_bounds(offset: usize, len: usize, region_size: usize) -> Result<(), Error> {
+    match offset.checked_add(len) {
+        Some(end) if end <= region_size => Ok(()),
+        _ => Err(Error::OutOfBounds),
     }
 }
 
@@ -216,9 +234,7 @@ impl FlashAccess<'_> {
     /// region defined by [`FLASH_MAP_START`] and [`FLASH_MAP_END`] is accessed.
     /// In case of a hardware write error [`Error::Write`] is returned.
     pub fn program(&self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
-        if FLASH_MAP_START + offset + bytes.len() - 1 > FLASH_MAP_END {
-            return Err(Error::OutOfBounds);
-        }
+        check_bounds(offset, bytes.len(), FLASH_SIZE)?;
 
         let mut ptr = ((FLASH_MAP_START + offset) & !(FLASH_PAGE_SIZE - 1)) as *mut u8;
 
@@ -234,11 +250,17 @@ impl FlashAccess<'_> {
             };
         }
 
-        // Write the new data into the page buffer
+        // Write the new data into the page buffer.
+        //
+        // The pointer increments use `wrapping_add`: on the attiny3217 the
+        // flash map ends at 0xFFFF, so stepping past the last byte wraps to
+        // address 0. The wrapped pointer is never dereferenced — it only
+        // feeds the page-boundary checks below, where 0 % FLASH_PAGE_SIZE
+        // correctly reads as "page complete".
         for b in bytes.iter() {
             unsafe {
                 ptr::write_volatile(ptr, *b);
-                ptr = ptr.add(1);
+                ptr = ptr.wrapping_add(1);
 
                 if ptr as usize % FLASH_PAGE_SIZE == 0 {
                     self.nvmctrl_cmd(CMD_A::ERWP)?;
@@ -251,7 +273,7 @@ impl FlashAccess<'_> {
             while (ptr as usize) % FLASH_PAGE_SIZE != 0 {
                 unsafe {
                     ptr::write_volatile(ptr, ptr::read_volatile(ptr));
-                    ptr = ptr.add(1);
+                    ptr = ptr.wrapping_add(1);
                 }
             }
 
@@ -289,9 +311,7 @@ impl FlashAccess<'_> {
     /// Returns an [`Error::OutOfBounds`] in case data outside of the flash
     /// region defined by [`FLASH_MAP_START`] and [`FLASH_MAP_END`] is accessed.
     pub fn read(&self, offset: usize, len: usize) -> Result<&[u8], Error> {
-        if FLASH_MAP_START + offset + len - 1 > FLASH_MAP_END {
-            return Err(Error::OutOfBounds);
-        }
+        check_bounds(offset, len, FLASH_SIZE)?;
 
         let ptr = (FLASH_MAP_START + offset) as *mut u8;
         Ok(unsafe { core::slice::from_raw_parts(ptr, len) })
@@ -338,9 +358,7 @@ impl FlashWriter<'_> {
     /// when a page boundary is crossed. Call `flush()` at the end to ensure
     /// the last partial page is written.
     pub fn write_chunk(&mut self, offset: usize, bytes: &[u8]) -> Result<bool, Error> {
-        if FLASH_MAP_START + offset + bytes.len() - 1 > FLASH_MAP_END {
-            return Err(Error::OutOfBounds);
-        }
+        check_bounds(offset, bytes.len(), FLASH_SIZE)?;
 
         let write_addr = FLASH_MAP_START + offset;
         let page_start = write_addr & !(FLASH_PAGE_SIZE - 1);
@@ -430,9 +448,7 @@ impl EepromAccess<'_> {
     /// region defined by [`FLASH_MAP_START`] and [`FLASH_MAP_END`] is accessed.
     /// In case of a hardware write error [`Error::Write`] is returned.
     pub fn program(&self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
-        if EEPROM_MAP_START + offset + bytes.len() - 1 > EEPROM_MAP_END {
-            return Err(Error::OutOfBounds);
-        }
+        check_bounds(offset, bytes.len(), EEPROM_SIZE)?;
 
         let mut ptr = (EEPROM_MAP_START + offset) as *mut u8;
 
@@ -468,9 +484,7 @@ impl EepromAccess<'_> {
     /// Returns an [`Error::OutOfBounds`] in case data outside of the flash
     /// region defined by [`FLASH_MAP_START`] and [`FLASH_MAP_END`] is accessed.
     pub fn read(&self, offset: usize, len: usize) -> Result<&[u8], Error> {
-        if EEPROM_MAP_START + offset + len - 1 > EEPROM_MAP_END {
-            return Err(Error::OutOfBounds);
-        }
+        check_bounds(offset, len, EEPROM_SIZE)?;
 
         let ptr = (EEPROM_MAP_START + offset) as *mut u8;
         Ok(unsafe { core::slice::from_raw_parts(ptr, len) })
@@ -507,9 +521,7 @@ impl UserrowAccess<'_> {
     /// Returns an [`Error::OutOfBounds`] in case data outside of the USERROW
     /// region is accessed. In case of a hardware write error [`Error::Write`] is returned.
     pub fn program(&self, offset: usize, bytes: &[u8]) -> Result<(), Error> {
-        if USERROW_START + offset + bytes.len() - 1 > USERROW_END {
-            return Err(Error::OutOfBounds);
-        }
+        check_bounds(offset, bytes.len(), USERROW_SIZE)?;
 
         let mut ptr = (USERROW_START + offset) as *mut u8;
 
@@ -535,9 +547,7 @@ impl UserrowAccess<'_> {
     /// This is a convenience function for single-byte writes to save program space.
     /// For multiple bytes, use [`program`] for better efficiency.
     pub fn write_byte(&self, offset: usize, byte: u8) -> Result<(), Error> {
-        if USERROW_START + offset > USERROW_END {
-            return Err(Error::OutOfBounds);
-        }
+        check_bounds(offset, 1, USERROW_SIZE)?;
 
         let ptr = (USERROW_START + offset) as *mut u8;
 
@@ -563,9 +573,7 @@ impl UserrowAccess<'_> {
     /// Returns an [`Error::OutOfBounds`] in case data outside of the USERROW
     /// region is accessed.
     pub fn read(&self, offset: usize, len: usize) -> Result<&[u8], Error> {
-        if USERROW_START + offset + len - 1 > USERROW_END {
-            return Err(Error::OutOfBounds);
-        }
+        check_bounds(offset, len, USERROW_SIZE)?;
 
         let ptr = (USERROW_START + offset) as *mut u8;
         Ok(unsafe { core::slice::from_raw_parts(ptr, len) })
@@ -576,9 +584,7 @@ impl UserrowAccess<'_> {
     /// This is a convenience function for single-byte reads to save program space.
     /// For multiple bytes, use [`read`] for better efficiency.
     pub fn read_byte(&self, offset: usize) -> Result<u8, Error> {
-        if USERROW_START + offset > USERROW_END {
-            return Err(Error::OutOfBounds);
-        }
+        check_bounds(offset, 1, USERROW_SIZE)?;
 
         let ptr = (USERROW_START + offset) as *const u8;
         Ok(unsafe { ptr::read_volatile(ptr) })
