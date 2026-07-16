@@ -285,17 +285,24 @@ impl FlashAccess<'_> {
 
     /// Erase a flash page.
     ///
-    /// This method erases a flash page starting from `offset`.
-    /// The offset does not need to be page-aligned.
-    /// 
-    /// Returns an [`Error::OutOfBounds`] in case the offset is outside of the flash
-    /// region defined by [`FLASH_MAP_START`] and [`FLASH_MAP_END`].
+    /// Erasing is page-granular: the whole [`FLASH_PAGE_SIZE`]-sized page
+    /// *containing* `offset` is erased to 0xFF. The offset does not need to
+    /// be page-aligned.
+    ///
+    /// Returns an [`Error::OutOfBounds`] in case `offset` lies outside the
+    /// flash ([`FLASH_SIZE`]).
     pub fn erase_page(&self, offset: usize) -> Result<(), Error> {
-        if FLASH_MAP_START + offset + FLASH_PAGE_SIZE - 1 > FLASH_MAP_END {
-            return Err(Error::OutOfBounds);
-        }
+        check_bounds(offset, 1, FLASH_SIZE)?;
 
-        let ptr = (FLASH_MAP_START + offset) as *mut u8;
+        // The ER command erases the page addressed by the last page-buffer
+        // write, so point the dummy write at the page start. Clear the
+        // buffer first: the buffer auto-clears after every *completed*
+        // command, but stale bytes from an abandoned fill (e.g. a dropped
+        // FlashWriter) would both AND into the dummy write and, worse,
+        // could address a different page than the one requested here.
+        self.nvmctrl_cmd(CMD_A::PBC)?;
+
+        let ptr = ((FLASH_MAP_START + offset) & !(FLASH_PAGE_SIZE - 1)) as *mut u8;
         unsafe { ptr::write_volatile(ptr, 0xFF) };
 
         self.nvmctrl_cmd(CMD_A::ER)?;
