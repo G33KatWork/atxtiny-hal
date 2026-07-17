@@ -182,5 +182,9 @@ impl<INST: DacRegExt> Dac<INST, LockedEnabled> {
     }
 }
 
-use crate::gpio::{Output, Stateless};
-impl DACOutputPin for crate::gpio::porta::PA6<Output<Stateless>> {}
+// The DAC drives the pin through its analog buffer; the datasheet-recommended
+// pin configuration is input buffer and output driver both disabled, which is
+// exactly the `Analog` mode. A digital output mode would leave the push-pull
+// driver contending with the DAC's analog buffer.
+use crate::gpio::Analog;
+impl DACOutputPin for crate::gpio::porta::PA6<Analog> {}

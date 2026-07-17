@@ -21,9 +21,9 @@ fn main() -> ! {
     // Split the PORTA peripheral into its pins
     let a = dp.PORTA.split();
 
-    // Grab the DAC output pin and disable its pullup
-    let mut dacout = a.pa6.into_stateless_push_pull_output();
-    dacout.internal_pull_up(Toggle::Off);
+    // Put the DAC output pin into analog mode (input buffer and output
+    // driver disabled, as the datasheet recommends for DAC output)
+    let dacout = a.pa6.into_analog_input();
 
     // Set up the reference voltage
     // Note: the configured VREF can be cloned to pass it into the DAC and AC
