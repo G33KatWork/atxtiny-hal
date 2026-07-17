@@ -109,6 +109,11 @@ impl super::General for TCA0 {
 
     #[inline(always)]
     fn reset_counter_peripheral(&mut self) {
+        // The datasheet only guarantees the RESET command while the
+        // peripheral is disabled; issued on a still-running TCA (e.g. when
+        // reconstructing a Timer from a previously used peripheral) it may
+        // be silently ignored.
+        self.single_ctrla().modify(|_, w| w.enable().clear_bit());
         self.single_ctrleset().write(|w| w.cmd().reset());
     }
 
@@ -127,7 +132,6 @@ impl super::General for TCA0 {
         self.single_ctrla().read().enable().bit_is_set()
     }
 
-    // FIXME: turn this into reset_peripheral and issue RESET cmd?
     #[inline(always)]
     fn reset_count(&mut self) {
         self.single_cnt().reset();
