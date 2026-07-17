@@ -777,6 +777,64 @@ macro_rules! gpio {
     };
 }
 
+// ================================================================================
+// Per-package pin tables
+// ================================================================================
+//
+// The die exposes full 8-bit ports internally; the package determines which
+// pads are bonded out. We only expose bonded pads. Pin lists are taken from
+// the ATDF `<pinout>`/`<instance>` sections (the PACs of the smaller parts
+// also omit the whole PORTB/PORTC register blocks, so the `pacs:` list
+// shrinks along with the packages).
+//
+// 8-pin parts bond out PA0-PA3 and PA6/PA7; PA4/PA5 do not exist there.
+
+#[cfg(feature = "pins-8")]
+gpio!({
+    pacs: [porta],
+    ports: [
+        {
+            port: (A/a, 0, porta),
+            pins: [ 0, 1, 2, 3, 6, 7 ],
+        },
+    ],
+});
+
+#[cfg(feature = "pins-14")]
+gpio!({
+    pacs: [porta, portb],
+    ports: [
+        {
+            port: (A/a, 0, porta),
+            pins: [ 0, 1, 2, 3, 4, 5, 6, 7 ],
+        },
+        {
+            port: (B/b, 1, portb),
+            pins: [ 0, 1, 2, 3 ],
+        },
+    ],
+});
+
+#[cfg(feature = "pins-20")]
+gpio!({
+    pacs: [porta, portb, portc],
+    ports: [
+        {
+            port: (A/a, 0, porta),
+            pins: [ 0, 1, 2, 3, 4, 5, 6, 7 ],
+        },
+        {
+            port: (B/b, 1, portb),
+            pins: [ 0, 1, 2, 3, 4, 5 ],
+        },
+        {
+            port: (C/c, 2, portc),
+            pins: [ 0, 1, 2, 3 ],
+        },
+    ],
+});
+
+#[cfg(feature = "pins-24")]
 gpio!({
     pacs: [porta, portb, portc],
     ports: [
@@ -798,16 +856,20 @@ gpio!({
 use crate::evsys::{Channel, ChannelConfigurator, EventGenerator, GeneratorAssigned, Unconfigured};
 
 // EVSYS pin-generator base values, audited against the ATDF value-groups
-// in vendor/attiny817.atdf (see also the commented per-channel tables in
-// evsys.rs). A pin's generator value is `base + pin_number` on the one
-// channel its port is routable to.
+// of all supported chips (they are identical across the whole 0/1-series,
+// see also the commented per-channel tables in evsys.rs). A pin's generator
+// value is `base + pin_number` on the one channel its port is routable to.
 const PORTA_ASYNCCH0_PIN_BASE: u8 = 0x0A;
 const PORTA_SYNCCH0_PIN_BASE: u8 = 0x0D;
+#[cfg(not(feature = "pins-8"))]
 const PORTB_ASYNCCH1_PIN_BASE: u8 = 0x0A;
 // The gap relative to PORTA's sync base is real: SYNCCH1 has no
 // PORTC entries, so PORTB starts at 0x08.
+#[cfg(not(feature = "pins-8"))]
 const PORTB_SYNCCH1_PIN_BASE: u8 = 0x08;
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 const PORTC_ASYNCCH2_PIN_BASE: u8 = 0x0A;
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 const PORTC_SYNCCH0_PIN_BASE: u8 = 0x07;
 
 // Generator for PortA
@@ -851,6 +913,7 @@ where
 
 // Generator for PortB
 // only routable to ASYNCCH1
+#[cfg(not(feature = "pins-8"))]
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
     for Pin<PORTB, U<X>, Input>
 where
@@ -870,6 +933,7 @@ where
 }
 
 // only routable to SYNCCH1
+#[cfg(not(feature = "pins-8"))]
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index>
     for Pin<PORTB, U<X>, Input>
 where
@@ -890,6 +954,7 @@ where
 
 // Generator for PortC
 // only routable to ASYNCCH2
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
     for Pin<PORTC, U<X>, Input>
 where
@@ -909,6 +974,7 @@ where
 }
 
 // only routable to SYNCCH0
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl<Evsys, Index, const X: u8> EventGenerator<Evsys, crate::evsys::Sync, Index>
     for Pin<PORTC, U<X>, Input>
 where

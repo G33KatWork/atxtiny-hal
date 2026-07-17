@@ -32,8 +32,12 @@ fn main() -> ! {
     // Grab AINP0
     let ainp0 = a.pa7.into_analog_input();
 
-    // Grab the AC output pin and disable its pullup
+    // Grab the AC output pin (PA5, or PA3 on 8-pin packages) and disable
+    // its pullup
+    #[cfg(not(feature = "pins-8"))]
     let mut acout = a.pa5.into_stateless_push_pull_output();
+    #[cfg(feature = "pins-8")]
+    let mut acout = a.pa3.into_stateless_push_pull_output();
     acout.internal_pull_up(Toggle::Off);
 
     // Create a comparator

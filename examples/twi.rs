@@ -20,16 +20,24 @@ fn main() -> ! {
     // Configure our clocks
     let _clocks = clkctrl.freeze().expect("valid clock config");
 
-    // Split the PORTA/B peripheral into its pins
-    let b = dp.PORTB.split();
-
-    // Grab the TWI pins
-    let sclpin = b.pb0.into_peripheral();
-    let sdapin = b.pb1.into_peripheral();
-
-    // Multiplex the TWI pins
-    let twi_pair = (sclpin, sdapin);
-    let twi_pair = twi_pair.mux(portmux.twi0);
+    // Grab and multiplex the TWI pins: PB0/PB1 on 14-pin-and-up packages,
+    // PA2/PA1 (the sole position) on the 8-pin ones.
+    #[cfg(not(feature = "pins-8"))]
+    let twi_pair = {
+        let b = dp.PORTB.split();
+        (b.pb0.into_peripheral(), b.pb1.into_peripheral()).mux(portmux.twi0)
+    };
+    #[cfg(feature = "pins-8")]
+    let twi_pair = {
+        // The turbofish disambiguates: PA2/PA1 also form the USART0
+        // alternate pinset on the 8-pin packages.
+        let a = dp.PORTA.split();
+        (
+            a.pa2.into_peripheral::<pac::TWI0>(),
+            a.pa1.into_peripheral::<pac::TWI0>(),
+        )
+            .mux(portmux.twi0)
+    };
 
     // Create a TWI abstraction
     const TWI_CLK: TwiClock = TwiClock::new(20_000_000, 100_000);

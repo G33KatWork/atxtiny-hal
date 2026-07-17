@@ -136,6 +136,7 @@ macro_rules! evsys {
     ({
         channels: [$(
             {
+                $(#[$meta:meta])*
                 channel: $index:literal,
                 userindex: $userindex:literal,
                 flavor: $flavor:ty,
@@ -179,6 +180,7 @@ macro_rules! evsys {
             }
 
             $(
+                $(#[$meta])*
                 #[doc = concat!("Event channel ", stringify!($index))]
                 pub type [<Channel $flavor $index>] = Channel<Evsys, $flavor, U<$index, $userindex>, Unconfigured>;
 
@@ -195,6 +197,7 @@ macro_rules! evsys {
             /// EVSYS Parts
             pub struct Parts {
                 $(
+                    $(#[$meta])*
                     pub [<channel_ $flavor:lower $index>]: [<Channel $flavor $index>],
                 )+
 
@@ -202,6 +205,10 @@ macro_rules! evsys {
                 pub user_tca0: UserTca0,
 
                 /// Event user token for the USART0 IrDA event input (SYNCUSER1)
+                ///
+                /// The 8-pin 0-series parts (ATtiny202/402) have no SYNCUSER1
+                /// register, so they have no token for it.
+                #[cfg(not(any(feature = "attiny202", feature = "attiny402")))]
                 pub user_usart0: UserUsart0,
             }
 
@@ -211,6 +218,7 @@ macro_rules! evsys {
                 fn split(self) -> Self::Parts {
                     Self::Parts {
                         $(
+                            $(#[$meta])*
                             [<channel_ $flavor:lower $index>]: [<Channel $flavor $index>] {
                                 evsys: Evsys,
                                 index: U::<$index, $userindex>::default(),
@@ -219,6 +227,7 @@ macro_rules! evsys {
                             },
                         )+
                         user_tca0: UserTca0 { _private: () },
+                        #[cfg(not(any(feature = "attiny202", feature = "attiny402")))]
                         user_usart0: UserUsart0 { _private: () },
                     }
                 }
@@ -379,11 +388,15 @@ pub struct UserTca0 {
 ///
 /// Handed out once by [`EvsysExt::split`]; consumed by
 /// [`Channel::connect_event_user`] on a sync channel.
+///
+/// The 8-pin 0-series parts (ATtiny202/402) have no SYNCUSER1 register.
+#[cfg(not(any(feature = "attiny202", feature = "attiny402")))]
 pub struct UserUsart0 {
     _private: (),
 }
 
 impl crate::private::Sealed for UserTca0 {}
+#[cfg(not(any(feature = "attiny202", feature = "attiny402")))]
 impl crate::private::Sealed for UserUsart0 {}
 
 impl EventUser<Evsys, Sync> for UserTca0 {
@@ -391,6 +404,7 @@ impl EventUser<Evsys, Sync> for UserTca0 {
     const FILE: UserRegisterFile = UserRegisterFile::Sync;
 }
 
+#[cfg(not(any(feature = "attiny202", feature = "attiny402")))]
 impl EventUser<Evsys, Sync> for UserUsart0 {
     const MULTIPLEXER_INDEX: u8 = 1;
     const FILE: UserRegisterFile = UserRegisterFile::Sync;
@@ -470,6 +484,9 @@ evsys!({
             // }
         },
         {
+            // Only the 1-series has ASYNCCH2/ASYNCCH3; the 0-series user
+            // multiplexers cannot select anything beyond ASYNCCH1.
+            #[cfg(feature = "series-1")]
             channel: 2,
             userindex: 5,
             flavor: Async,
@@ -493,6 +510,7 @@ evsys!({
             // }
         },
         {
+            #[cfg(feature = "series-1")]
             channel: 3,
             userindex: 6,
             flavor: Async,
@@ -546,6 +564,11 @@ evsys!({
             // }
         },
         {
+            // SYNCCH1 is selectable by the user multiplexers on the whole
+            // 1-series and on the 0-series 2/4 KB parts (204/404). The
+            // 8 KB+ 0-series parts have the channel register, but no user
+            // can select it, so it would be dead weight there.
+            #[cfg(any(feature = "series-1", feature = "attiny204", feature = "attiny404"))]
             channel: 1,
             userindex: 2,
             flavor: Sync,

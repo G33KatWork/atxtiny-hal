@@ -1,6 +1,5 @@
 //! # Voltage reference
 
-// TODO: macros for different CPUs which have different peripherals
 // FIXME: move this into the DAC and ADC modules? DAC and AC share the channel though
 
 use crate::Toggle;
@@ -35,10 +34,23 @@ pub struct Vref {
 
 /// The constrained VREF peripheral and one ownership token per
 /// reference-voltage channel
+///
+/// Tokens exist only for the channels whose consuming peripheral exists on
+/// the selected chip: `dac0` on the 1-series, `adc1`/`dac1`/`dac2` on the
+/// 16 KB+ 1-series parts. (The VREF register fields of absent channels are
+/// still present in the register map, but a token without a consumer would
+/// only be dead weight.)
 pub struct Parts {
     pub vref: Vref,
     pub adc0: ADCReferenceVoltage<0>,
+    #[cfg(feature = "periph-dac0")]
     pub dac0: DACReferenceVoltage<0>,
+    #[cfg(feature = "periph-adc1")]
+    pub adc1: ADCReferenceVoltage<1>,
+    #[cfg(feature = "periph-dac1")]
+    pub dac1: DACReferenceVoltage<1>,
+    #[cfg(feature = "periph-dac2")]
+    pub dac2: DACReferenceVoltage<2>,
 }
 
 impl VrefExt for crate::pac::VREF {
@@ -46,7 +58,14 @@ impl VrefExt for crate::pac::VREF {
         Parts {
             vref: Vref { vref: self },
             adc0: ADCReferenceVoltage,
+            #[cfg(feature = "periph-dac0")]
             dac0: DACReferenceVoltage,
+            #[cfg(feature = "periph-adc1")]
+            adc1: ADCReferenceVoltage,
+            #[cfg(feature = "periph-dac1")]
+            dac1: DACReferenceVoltage,
+            #[cfg(feature = "periph-dac2")]
+            dac2: DACReferenceVoltage,
         }
     }
 }
@@ -123,6 +142,7 @@ impl_reference_voltage!(
     adc0refen
 );
 
+#[cfg(feature = "periph-dac0")]
 impl_reference_voltage!(
     DAC0,
     DACReferenceVoltage<0>,
@@ -131,4 +151,41 @@ impl_reference_voltage!(
     dac0refsel,
     ctrlb,
     dac0refen
+);
+
+// The additional reference channels of the 16 KB+ 1-series parts live in
+// CTRLC/CTRLD; their force-enable bits share CTRLB with the baseline
+// channels.
+
+#[cfg(feature = "periph-adc1")]
+impl_reference_voltage!(
+    ADC1,
+    ADCReferenceVoltage<1>,
+    ReferenceVoltage,
+    ctrlc,
+    adc1refsel,
+    ctrlb,
+    adc1refen
+);
+
+#[cfg(feature = "periph-dac1")]
+impl_reference_voltage!(
+    DAC1,
+    DACReferenceVoltage<1>,
+    ReferenceVoltage,
+    ctrlc,
+    dac1refsel,
+    ctrlb,
+    dac1refen
+);
+
+#[cfg(feature = "periph-dac2")]
+impl_reference_voltage!(
+    DAC2,
+    DACReferenceVoltage<2>,
+    ReferenceVoltage,
+    ctrld,
+    dac2refsel,
+    ctrlb,
+    dac2refen
 );

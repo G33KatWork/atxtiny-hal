@@ -1246,6 +1246,26 @@ macro_rules! usart {
 
 use crate::gpio::{Input, Output, Stateless};
 
+// Pin tables from the datasheet I/O-multiplexing chapter (cross-checked with
+// the ATDF `<signals>` sections): the 8-pin parts route USART0 to PA6/PA7 by
+// default; everything else uses PB2/PB3. The alternate position is PA1/PA2
+// on all parts.
+#[cfg(feature = "pins-8")]
+usart!({
+    instance: 0,
+    pins: [
+        {
+            tx: (A/a, 6),
+            rx: (A/a, 7),
+        },
+        {
+            tx: (A/a, 1),
+            rx: (A/a, 2),
+        },
+    ]
+});
+
+#[cfg(not(feature = "pins-8"))]
 usart!({
     instance: 0,
     pins: [

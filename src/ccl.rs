@@ -297,9 +297,12 @@ impl CclRegExt for crate::pac::ccl::RegisterBlock {
 
     #[inline(always)]
     fn lut_clock_source(&self, lut_idx: u8, filter: ClockSource) {
+        // `.bit()` instead of `.variant()`: CLKSRC is a plain bit in most
+        // PACs, but an enumerated single-bit field (CLKPER/IN2) in the ones
+        // generated from newer ATDF packs. `.bit()` compiles against both.
         self.lut(lut_idx as usize)
             .lutctrla()
-            .modify(|_, w| w.clksrc().variant(filter.into()));
+            .modify(|_, w| w.clksrc().bit(filter.into()));
     }
 
     #[inline(always)]
@@ -455,10 +458,10 @@ ccl!({
 
 #[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Sequencer {
+    // The whole 0/1-series has exactly two LUTs and thus one sequencer.
+    // Sequencers for LUT23/LUT45 only appear on the 2-series and the
+    // AVR Dx families.
     LUT01,
-    // TODO: chip dependent
-    //LUT23,
-    //LUT45,
 }
 
 impl From<Sequencer> for u8 {
@@ -524,6 +527,11 @@ impl From<ClockSource> for bool {
     }
 }
 
+// The INSEL encodings are identical across the whole 0/1-series (the TCD0
+// selections exist in the 0-series register maps too, even though those
+// chips have no TCD0 — selecting one there just yields a constant input).
+// The 16 KB+ 1-series parts append AC1/AC2/TCB1 selections.
+
 pub enum Input0 {
     Masked,
     Feedback,
@@ -537,6 +545,12 @@ pub enum Input0 {
     Tcd0Woa,
     Usart0Xck,
     Spi0Sck,
+    #[cfg(feature = "periph-ac1")]
+    Ac1Out,
+    #[cfg(feature = "periph-ac2")]
+    Ac2Out,
+    #[cfg(feature = "periph-tcb1")]
+    Tcb1Wo,
 }
 
 impl From<Input0> for lutctrlb::INSEL0_A {
@@ -554,6 +568,12 @@ impl From<Input0> for lutctrlb::INSEL0_A {
             Input0::Tcd0Woa => lutctrlb::INSEL0_A::TCD0,
             Input0::Usart0Xck => lutctrlb::INSEL0_A::USART0,
             Input0::Spi0Sck => lutctrlb::INSEL0_A::SPI0,
+            #[cfg(feature = "periph-ac1")]
+            Input0::Ac1Out => lutctrlb::INSEL0_A::AC1,
+            #[cfg(feature = "periph-ac2")]
+            Input0::Ac2Out => lutctrlb::INSEL0_A::AC2,
+            #[cfg(feature = "periph-tcb1")]
+            Input0::Tcb1Wo => lutctrlb::INSEL0_A::TCB1,
         }
     }
 }
@@ -571,6 +591,12 @@ pub enum Input1 {
     Tcd0Wob,
     Usart0Txd,
     Spi0Mosi,
+    #[cfg(feature = "periph-ac1")]
+    Ac1Out,
+    #[cfg(feature = "periph-ac2")]
+    Ac2Out,
+    #[cfg(feature = "periph-tcb1")]
+    Tcb1Wo,
 }
 
 impl From<Input1> for lutctrlb::INSEL1_A {
@@ -588,6 +614,12 @@ impl From<Input1> for lutctrlb::INSEL1_A {
             Input1::Tcd0Wob => lutctrlb::INSEL1_A::TCD0,
             Input1::Usart0Txd => lutctrlb::INSEL1_A::USART0,
             Input1::Spi0Mosi => lutctrlb::INSEL1_A::SPI0,
+            #[cfg(feature = "periph-ac1")]
+            Input1::Ac1Out => lutctrlb::INSEL1_A::AC1,
+            #[cfg(feature = "periph-ac2")]
+            Input1::Ac2Out => lutctrlb::INSEL1_A::AC2,
+            #[cfg(feature = "periph-tcb1")]
+            Input1::Tcb1Wo => lutctrlb::INSEL1_A::TCB1,
         }
     }
 }
@@ -604,6 +636,12 @@ pub enum Input2 {
     Tca0Wo2,
     Tcd0Woa,
     Spi0Miso,
+    #[cfg(feature = "periph-ac1")]
+    Ac1Out,
+    #[cfg(feature = "periph-ac2")]
+    Ac2Out,
+    #[cfg(feature = "periph-tcb1")]
+    Tcb1Wo,
 }
 
 impl From<Input2> for lutctrlc::INSEL2_A {
@@ -620,26 +658,46 @@ impl From<Input2> for lutctrlc::INSEL2_A {
             Input2::Tca0Wo2 => lutctrlc::INSEL2_A::TCA0,
             Input2::Tcd0Woa => lutctrlc::INSEL2_A::TCD0,
             Input2::Spi0Miso => lutctrlc::INSEL2_A::SPI0,
+            #[cfg(feature = "periph-ac1")]
+            Input2::Ac1Out => lutctrlc::INSEL2_A::AC1,
+            #[cfg(feature = "periph-ac2")]
+            Input2::Ac2Out => lutctrlc::INSEL2_A::AC2,
+            #[cfg(feature = "periph-tcb1")]
+            Input2::Tcb1Wo => lutctrlc::INSEL2_A::TCB1,
         }
     }
 }
 
 // TODO: I didn't manage yet to add pins to the LUT state so far
-// TODO: macros
+//
+// Pin tables per package (datasheet I/O-multiplexing chapter): LUT0's
+// inputs (PA0-PA2) exist everywhere; its default output is PA4, except on
+// the 8-pin die where it is PA6. LUT1's output is PA7 everywhere, and it
+// has no input pins below the 20-pin package (PC3, plus PC4/PC5 on
+// 24-pin). The alternate outputs (PB4/PC1) only exist on 20/24-pin
+// packages.
 use crate::gpio::{Input, Output, Stateless};
 
+#[cfg(feature = "pins-8")]
+impl OutputPin<LUT0> for crate::gpio::porta::PA6<Output<Stateless>> {}
+#[cfg(not(feature = "pins-8"))]
 impl OutputPin<LUT0> for crate::gpio::porta::PA4<Output<Stateless>> {}
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl OutputPin<LUT0> for crate::gpio::portb::PB4<Output<Stateless>> {}
 
 impl OutputPin<LUT1> for crate::gpio::porta::PA7<Output<Stateless>> {}
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl OutputPin<LUT1> for crate::gpio::portc::PC1<Output<Stateless>> {}
 
 impl InputPin<LUT0, 0> for crate::gpio::porta::PA0<Input> {}
 impl InputPin<LUT0, 1> for crate::gpio::porta::PA1<Input> {}
 impl InputPin<LUT0, 2> for crate::gpio::porta::PA2<Input> {}
 
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl InputPin<LUT1, 0> for crate::gpio::portc::PC3<Input> {}
+#[cfg(feature = "pins-24")]
 impl InputPin<LUT1, 1> for crate::gpio::portc::PC4<Input> {}
+#[cfg(feature = "pins-24")]
 impl InputPin<LUT1, 2> for crate::gpio::portc::PC5<Input> {}
 
 use crate::evsys::ChannelConfigurator;

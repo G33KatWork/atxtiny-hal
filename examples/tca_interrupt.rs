@@ -31,11 +31,16 @@ fn main() -> ! {
     // Configure our clocks
     let clocks = clkctrl.freeze().expect("valid clock config");
 
-    // Split the PORTB peripheral into its pins
-    let b = dp.PORTB.split();
-
-    // Grab a pin for an LED
-    let led = b.pb6.into_push_pull_output();
+    // Demo LED pin per package: PB6 matches the LED on the ATtiny817
+    // Xplained boards; the smaller packages just use a free pin.
+    #[cfg(feature = "pins-24")]
+    let led = dp.PORTB.split().pb6.into_push_pull_output();
+    #[cfg(feature = "pins-20")]
+    let led = dp.PORTB.split().pb5.into_push_pull_output();
+    #[cfg(feature = "pins-14")]
+    let led = dp.PORTB.split().pb3.into_push_pull_output();
+    #[cfg(feature = "pins-8")]
+    let led = dp.PORTA.split().pa3.into_push_pull_output();
 
     // Create a timer with a fixed frequency using TCA0
     // If the frequency cannot be met given the constrained prescalers of the
@@ -69,7 +74,27 @@ fn main() -> ! {
     loop {}
 }
 
-#[avr_device::interrupt(attiny817)]
+// The interrupt attribute needs the concrete chip name to resolve the
+// vector, so the selected device feature picks the matching variant.
+// The TCA0_LUNF_OVF vector itself exists on every supported chip.
+#[cfg_attr(feature = "attiny202", avr_device::interrupt(attiny202))]
+#[cfg_attr(feature = "attiny204", avr_device::interrupt(attiny204))]
+#[cfg_attr(feature = "attiny402", avr_device::interrupt(attiny402))]
+#[cfg_attr(feature = "attiny404", avr_device::interrupt(attiny404))]
+#[cfg_attr(feature = "attiny804", avr_device::interrupt(attiny804))]
+#[cfg_attr(feature = "attiny1604", avr_device::interrupt(attiny1604))]
+#[cfg_attr(feature = "attiny1606", avr_device::interrupt(attiny1606))]
+#[cfg_attr(feature = "attiny212", avr_device::interrupt(attiny212))]
+#[cfg_attr(feature = "attiny214", avr_device::interrupt(attiny214))]
+#[cfg_attr(feature = "attiny412", avr_device::interrupt(attiny412))]
+#[cfg_attr(feature = "attiny414", avr_device::interrupt(attiny414))]
+#[cfg_attr(feature = "attiny416", avr_device::interrupt(attiny416))]
+#[cfg_attr(feature = "attiny417", avr_device::interrupt(attiny417))]
+#[cfg_attr(feature = "attiny816", avr_device::interrupt(attiny816))]
+#[cfg_attr(feature = "attiny817", avr_device::interrupt(attiny817))]
+#[cfg_attr(feature = "attiny1614", avr_device::interrupt(attiny1614))]
+#[cfg_attr(feature = "attiny1617", avr_device::interrupt(attiny1617))]
+#[cfg_attr(feature = "attiny3217", avr_device::interrupt(attiny3217))]
 fn TCA0_LUNF_OVF() {
     critical_section::with(|cs| {
         let mut cell = INTERRUPT_STATE.borrow(cs).borrow_mut();

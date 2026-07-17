@@ -145,9 +145,23 @@ fn main() -> ! {
     // Analog mode); PULLUPEN stays in effect while the TWI overrides the
     // pin, so the bus works without external resistors on a short bench
     // setup. See the module docs for the rise-time caveat.
-    let b = dp.PORTB.split();
-    let mut sclpin = b.pb0.into_peripheral();
-    let mut sdapin = b.pb1.into_peripheral();
+    // TWI sits on PB0/PB1 on 14-pin-and-up packages and on PA2/PA1 (the
+    // sole position) on the 8-pin ones.
+    #[cfg(not(feature = "pins-8"))]
+    let (mut sclpin, mut sdapin) = {
+        let b = dp.PORTB.split();
+        (b.pb0.into_peripheral(), b.pb1.into_peripheral())
+    };
+    #[cfg(feature = "pins-8")]
+    let (mut sclpin, mut sdapin) = {
+        // The turbofish disambiguates: PA2/PA1 also form the USART0
+        // alternate pinset on the 8-pin packages.
+        let a = dp.PORTA.split();
+        (
+            a.pa2.into_peripheral::<pac::TWI0>(),
+            a.pa1.into_peripheral::<pac::TWI0>(),
+        )
+    };
     sclpin.internal_pull_up(Toggle::On);
     sdapin.internal_pull_up(Toggle::On);
 

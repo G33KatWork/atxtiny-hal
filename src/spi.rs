@@ -369,6 +369,16 @@ macro_rules! spi {
 
 use crate::gpio::{Input, Output, Stateless};
 
+// The default position (PA3/PA2/PA1) is the same on every part; the
+// alternate position differs per die family (datasheet I/O-multiplexing
+// chapter, cross-checked with the ATDF `<signals>` sections):
+//
+// - 20/24-pin parts route the whole alternate set to PC0..PC3.
+// - The 2/4 KB dies (8-pin parts plus ATtiny204/404/214/414) only relocate
+//   MISO to PA7 and MOSI to PA6; SCK (and SS) stay put.
+// - The 8/16 KB 14-pin dies (ATtiny804/1604/1614) have no alternate
+//   position at all.
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 spi!({
     instance: SPI0,
     pins: [
@@ -386,3 +396,30 @@ spi!({
         },
     ]
 });
+
+#[cfg(not(any(feature = "pins-20", feature = "pins-24")))]
+spi!({
+    instance: SPI0,
+    pins: [
+        {
+            sck: (A/a, 3),
+            miso: (A/a, 2),
+            mosi: (A/a, 1),
+            //ss: (A/a, 4),
+        },
+    ]
+});
+
+// Alternate MISO/MOSI of the 2/4 KB dies. Written out manually instead of a
+// second `spi!` pin entry because SCK has no alternate pin there — a full
+// entry would implement `SckPin` for PA3 a second time.
+#[cfg(any(
+    feature = "pins-8",
+    all(feature = "pins-14", any(feature = "flash-2k", feature = "flash-4k"))
+))]
+impl MisoPin<SPI0> for crate::gpio::porta::PA7<Input> {}
+#[cfg(any(
+    feature = "pins-8",
+    all(feature = "pins-14", any(feature = "flash-2k", feature = "flash-4k"))
+))]
+impl MosiPin<SPI0> for crate::gpio::porta::PA6<Output<Stateless>> {}

@@ -395,16 +395,36 @@ impl<WaveformOutput: WaveformOutputPin<TCA0, CHAN>, const CHAN: u8> WaveformOutp
 {
 }
 
+// Waveform output pin tables per package (datasheet I/O-multiplexing
+// chapter). The 8-pin parts route WO0-WO2 to PA-pins with only WO0 having
+// an alternate; 14-pin-and-up parts use PB0-PB2 with alternates on
+// PB3-PB5, where the WO1/WO2 alternates only exist on 20/24-pin packages.
+
+#[cfg(feature = "pins-8")]
+impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::porta::PA3<Output<Stateless>> {}
+#[cfg(feature = "pins-8")]
+impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::porta::PA7<Output<Stateless>> {}
+#[cfg(feature = "pins-8")]
+impl WaveformOutputPin<TCA0, { 0 + C2 }> for crate::gpio::porta::PA1<Output<Stateless>> {}
+#[cfg(feature = "pins-8")]
+impl WaveformOutputPin<TCA0, { 0 + C3 }> for crate::gpio::porta::PA2<Output<Stateless>> {}
+
+#[cfg(not(feature = "pins-8"))]
 impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::portb::PB0<Output<Stateless>> {}
+#[cfg(not(feature = "pins-8"))]
 impl WaveformOutputPin<TCA0, { 0 + C2 }> for crate::gpio::portb::PB1<Output<Stateless>> {}
+#[cfg(not(feature = "pins-8"))]
 impl WaveformOutputPin<TCA0, { 0 + C3 }> for crate::gpio::portb::PB2<Output<Stateless>> {}
 // In split mode:
 //impl WaveformOutputPin<TCA0, C4> for crate::gpio::porta::PA3<Output<Stateless>> {}
 //impl WaveformOutputPin<TCA0, C5> for crate::gpio::porta::PA4<Output<Stateless>> {}
 //impl WaveformOutputPin<TCA0, C6> for crate::gpio::porta::PA5<Output<Stateless>> {}
 
+#[cfg(not(feature = "pins-8"))]
 impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::portb::PB3<Output<Stateless>> {}
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl WaveformOutputPin<TCA0, { 0 + C2 }> for crate::gpio::portb::PB4<Output<Stateless>> {}
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl WaveformOutputPin<TCA0, { 0 + C3 }> for crate::gpio::portb::PB5<Output<Stateless>> {}
 // In split mode:
 //impl WaveformOutputPin<TCA0, C4> for crate::gpio::portc::PC3<Output<Stateless>> {}

@@ -23,14 +23,30 @@ fn main() -> ! {
     // Configure our clocks
     let clocks = clkctrl.freeze().expect("valid clock config");
 
-    // Split the porta and portb peripherals into their pins
-    let (a, b) = (dp.PORTA.split(), dp.PORTB.split());
+    // Split the porta peripheral into its pins
+    let a = dp.PORTA.split();
 
-    // Grab a pin for an LED
-    let mut led = b.pb6.into_push_pull_output();
+    // Demo LED pin per package: PB6 matches the LED on the ATtiny817
+    // Xplained boards; the smaller packages just use a free pin.
+    #[cfg(feature = "pins-24")]
+    let mut led = dp.PORTB.split().pb6.into_push_pull_output();
+    #[cfg(feature = "pins-20")]
+    let mut led = dp.PORTB.split().pb5.into_push_pull_output();
+    #[cfg(feature = "pins-14")]
+    let mut led = dp.PORTB.split().pb3.into_push_pull_output();
+    #[cfg(feature = "pins-8")]
+    let mut led = a.pa3.into_push_pull_output();
 
-    // PWM output
+    // PWM output: TCB0's waveform output is PA5, except on the 8-pin
+    // packages where it is PA6. The UFCS call disambiguates on 8-pin
+    // packages, where PA6 is also the CCL LUT0 output pin.
+    #[cfg(not(feature = "pins-8"))]
     let pwm_wo = a.pa5.into_stateless_push_pull_output().mux(portmux.tcb0);
+    #[cfg(feature = "pins-8")]
+    let pwm_wo = IntoMuxedPinset::<pac::TCB0>::mux(
+        a.pa6.into_stateless_push_pull_output(),
+        portmux.tcb0,
+    );
 
     // Delay timer
     let t = FTimer::<_, 1024>::new(dp.RTC, RTCClockSource::OSCULP32K_32K).unwrap();

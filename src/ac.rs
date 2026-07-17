@@ -1,11 +1,13 @@
 //! # Analog comparator
 
 use crate::{
-    dac::DACOutputToAC,
     gpio::{Analog, Output, Stateless},
     pac::AC0,
 };
 use core::marker::PhantomData;
+
+#[cfg(feature = "periph-dac0")]
+use crate::dac::DACOutputToAC;
 
 /// Enabled Comparator (type state)
 pub struct Enabled;
@@ -20,6 +22,11 @@ impl ED for Disabled {}
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Config {
     pub hysteresis: Hysteresis,
+    /// Trade comparator response time for lower current draw.
+    ///
+    /// Only the 1-series comparators have the LPMODE bit, so the option
+    /// does not exist on 0-series chips.
+    #[cfg(feature = "series-1")]
     pub low_power_mode: bool,
     pub inverted: bool,
 }
@@ -28,6 +35,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             hysteresis: Hysteresis::Off,
+            #[cfg(feature = "series-1")]
             low_power_mode: false,
             inverted: false,
         }
@@ -40,6 +48,7 @@ impl Config {
         self
     }
 
+    #[cfg(feature = "series-1")]
     pub fn low_power_mode(mut self) -> Self {
         self.low_power_mode = true;
         self
@@ -96,10 +105,11 @@ macro_rules! impl_comparator {
                 config: Config,
             ) -> Comparator<$COMP, Disabled> {
                 self.ctrla().modify(|_, w| {
-                    w.hysmode()
-                        .set(config.hysteresis as u8)
-                        .lpmode()
-                        .bit(config.low_power_mode)
+                    let w = w.hysmode().set(config.hysteresis as u8);
+                    // Only the 1-series comparators have the LPMODE bit.
+                    #[cfg(feature = "series-1")]
+                    let w = w.lpmode().bit(config.low_power_mode);
+                    w
                 });
 
                 self.muxctrla()
@@ -251,6 +261,16 @@ macro_rules! refint_input {
     };
 }
 
+// ================================================================================
+// AC0 (all parts)
+// ================================================================================
+//
+// Pin tables from the datasheet I/O-multiplexing chapter, cross-checked
+// with the ATDF `<signals>` sections: P0/N0 (PA7/PA6) exist everywhere;
+// the output pin is PA3 on the 8-pin parts and PA5 elsewhere; P1/N1
+// (PB5/PB4) require a 20/24-pin package; P2 (PB1) exists on the 16 KB+
+// 1-series parts, P3 (PB6) on their 24-pin variants only.
+
 impl_comparator!(AC0, ac0);
 
 positive_input_pin!(
@@ -258,10 +278,23 @@ positive_input_pin!(
     crate::gpio::porta::PA7<Analog>,
     crate::pac::ac0::muxctrla::MUXPOS_A::PIN0
 );
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 positive_input_pin!(
     AC0,
     crate::gpio::portb::PB5<Analog>,
     crate::pac::ac0::muxctrla::MUXPOS_A::PIN1
+);
+#[cfg(feature = "periph-ac1")]
+positive_input_pin!(
+    AC0,
+    crate::gpio::portb::PB1<Analog>,
+    crate::pac::ac0::muxctrla::MUXPOS_A::PIN2
+);
+#[cfg(all(feature = "periph-ac1", feature = "pins-24"))]
+positive_input_pin!(
+    AC0,
+    crate::gpio::portb::PB6<Analog>,
+    crate::pac::ac0::muxctrla::MUXPOS_A::PIN3
 );
 
 negative_input_pin!(
@@ -269,12 +302,14 @@ negative_input_pin!(
     crate::gpio::porta::PA6<Analog>,
     crate::pac::ac0::muxctrla::MUXNEG_A::PIN0
 );
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 negative_input_pin!(
     AC0,
     crate::gpio::portb::PB4<Analog>,
     crate::pac::ac0::muxctrla::MUXNEG_A::PIN1
 );
 
+#[cfg(feature = "periph-dac0")]
 impl NegativeInput<AC0> for DACOutputToAC<0> {
     #[inline]
     fn setup(&self, comp: &AC0) {
@@ -282,6 +317,9 @@ impl NegativeInput<AC0> for DACOutputToAC<0> {
     }
 }
 
+#[cfg(feature = "pins-8")]
+output_pin!(AC0, crate::gpio::porta::PA3<Output<Stateless>>);
+#[cfg(not(feature = "pins-8"))]
 output_pin!(AC0, crate::gpio::porta::PA5<Output<Stateless>>);
 
 use crate::vref::DACReferenceVoltage;
@@ -291,11 +329,139 @@ refint_input!(
     crate::pac::ac0::muxctrla::MUXNEG_A::VREF
 );
 
+// ================================================================================
+// AC1/AC2 (16 KB+ 1-series parts)
+// ================================================================================
+//
+// Each comparator owns the reference channel of its equally-numbered
+// internal DAC (DACn feeds ACn, the `refint_input` token is the matching
+// `DACReferenceVoltage`). The additional P/N inputs on PB4-PB7 need the
+// 24-pin package.
+
+#[cfg(feature = "periph-ac1")]
+mod ac1 {
+    use super::*;
+    use crate::pac::AC1;
+
+    impl_comparator!(AC1, ac1);
+
+    positive_input_pin!(
+        AC1,
+        crate::gpio::porta::PA7<Analog>,
+        crate::pac::ac1::muxctrla::MUXPOS_A::PIN0
+    );
+    positive_input_pin!(
+        AC1,
+        crate::gpio::porta::PA6<Analog>,
+        crate::pac::ac1::muxctrla::MUXPOS_A::PIN1
+    );
+    positive_input_pin!(
+        AC1,
+        crate::gpio::portb::PB0<Analog>,
+        crate::pac::ac1::muxctrla::MUXPOS_A::PIN2
+    );
+    #[cfg(feature = "pins-24")]
+    positive_input_pin!(
+        AC1,
+        crate::gpio::portb::PB4<Analog>,
+        crate::pac::ac1::muxctrla::MUXPOS_A::PIN3
+    );
+
+    negative_input_pin!(
+        AC1,
+        crate::gpio::porta::PA5<Analog>,
+        crate::pac::ac1::muxctrla::MUXNEG_A::PIN0
+    );
+    #[cfg(feature = "pins-24")]
+    negative_input_pin!(
+        AC1,
+        crate::gpio::portb::PB7<Analog>,
+        crate::pac::ac1::muxctrla::MUXNEG_A::PIN1
+    );
+
+    impl NegativeInput<AC1> for DACOutputToAC<1> {
+        #[inline]
+        fn setup(&self, comp: &AC1) {
+            comp.muxctrla().modify(|_, w| w.muxneg().dac());
+        }
+    }
+
+    output_pin!(AC1, crate::gpio::portb::PB3<Output<Stateless>>);
+
+    refint_input!(
+        AC1,
+        DACReferenceVoltage<1>,
+        crate::pac::ac1::muxctrla::MUXNEG_A::VREF
+    );
+}
+
+#[cfg(feature = "periph-ac2")]
+mod ac2 {
+    use super::*;
+    use crate::pac::AC2;
+
+    impl_comparator!(AC2, ac2);
+
+    positive_input_pin!(
+        AC2,
+        crate::gpio::porta::PA6<Analog>,
+        crate::pac::ac2::muxctrla::MUXPOS_A::PIN0
+    );
+    positive_input_pin!(
+        AC2,
+        crate::gpio::portb::PB0<Analog>,
+        crate::pac::ac2::muxctrla::MUXPOS_A::PIN1
+    );
+    #[cfg(feature = "pins-24")]
+    positive_input_pin!(
+        AC2,
+        crate::gpio::portb::PB5<Analog>,
+        crate::pac::ac2::muxctrla::MUXPOS_A::PIN2
+    );
+    #[cfg(feature = "pins-24")]
+    positive_input_pin!(
+        AC2,
+        crate::gpio::portb::PB7<Analog>,
+        crate::pac::ac2::muxctrla::MUXPOS_A::PIN3
+    );
+
+    negative_input_pin!(
+        AC2,
+        crate::gpio::porta::PA7<Analog>,
+        crate::pac::ac2::muxctrla::MUXNEG_A::PIN0
+    );
+    #[cfg(feature = "pins-24")]
+    negative_input_pin!(
+        AC2,
+        crate::gpio::portb::PB6<Analog>,
+        crate::pac::ac2::muxctrla::MUXNEG_A::PIN1
+    );
+
+    impl NegativeInput<AC2> for DACOutputToAC<2> {
+        #[inline]
+        fn setup(&self, comp: &AC2) {
+            comp.muxctrla().modify(|_, w| w.muxneg().dac());
+        }
+    }
+
+    output_pin!(AC2, crate::gpio::portb::PB2<Output<Stateless>>);
+
+    refint_input!(
+        AC2,
+        DACReferenceVoltage<2>,
+        crate::pac::ac2::muxctrla::MUXNEG_A::VREF
+    );
+}
+
 use crate::evsys::ChannelConfigurator;
 use crate::evsys::{Channel, EventGenerator, GeneratorAssigned, Unconfigured};
 
-impl<Evsys, Index, AC> EventGenerator<Evsys, crate::evsys::Async, Index>
-    for Comparator<AC, Disabled>
+// AC0 only: generator value 0x03 is AC0_OUT on every async channel.
+// TODO: AC1/AC2 event generation — their generator values differ per
+//       async channel (0x13/0x12/0x11/0x12 style), so they need a small
+//       per-channel table instead of one constant.
+impl<Evsys, Index> EventGenerator<Evsys, crate::evsys::Async, Index>
+    for Comparator<AC0, Disabled>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index,

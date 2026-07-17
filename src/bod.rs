@@ -127,7 +127,13 @@ pub enum Level {
     Level430V,
 }
 
-#[cfg(any(feature = "attiny417", feature = "attiny817"))]
+// Only the ATtiny417/816/817 register descriptions define all eight
+// BODLEVEL encodings; every other supported chip (oddly including the
+// 416) only defines levels 0/2/7 and treats the rest as reserved — which
+// is why `get_brownout_detection_level` returns an `Option` there. Audited
+// against the ATDF `BOD_LVL` value-groups of all supported chips.
+
+#[cfg(any(feature = "attiny417", feature = "attiny816", feature = "attiny817"))]
 impl From<bod::ctrlb::LVL_A> for Level {
     fn from(value: bod::ctrlb::LVL_A) -> Self {
         use bod::ctrlb::LVL_A::*;
@@ -144,7 +150,7 @@ impl From<bod::ctrlb::LVL_A> for Level {
     }
 }
 
-#[cfg(any(feature = "attiny1617", feature = "attiny3217"))]
+#[cfg(not(any(feature = "attiny417", feature = "attiny816", feature = "attiny817")))]
 impl From<bod::ctrlb::LVL_A> for Level {
     fn from(value: bod::ctrlb::LVL_A) -> Self {
         use bod::ctrlb::LVL_A::*;
@@ -374,10 +380,10 @@ impl BrownoutDetector {
     /// the `Option` is kept so the API is identical across devices.
     #[inline]
     pub fn get_brownout_detection_level(&self) -> Option<Level> {
-        #[cfg(any(feature = "attiny417", feature = "attiny817"))]
+        #[cfg(any(feature = "attiny417", feature = "attiny816", feature = "attiny817"))]
         return Some(self.bod.ctrlb().read().lvl().variant().into());
 
-        #[cfg(any(feature = "attiny1617", feature = "attiny3217"))]
+        #[cfg(not(any(feature = "attiny417", feature = "attiny816", feature = "attiny817")))]
         return self.bod.ctrlb().read().lvl().variant().map(Into::into);
     }
 

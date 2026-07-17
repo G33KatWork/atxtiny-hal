@@ -27,11 +27,95 @@ device-selected = []
 rt = ["avr-device/rt"]
 fullpanic = []
 
-# devices
-attiny417 = ["avr-device/attiny417", "device-selected"]
-attiny817 = ["avr-device/attiny817", "device-selected"]
-attiny1617 = ["avr-device/attiny1617", "device-selected"]
-attiny3217 = ["avr-device/attiny3217", "device-selected"]
+# ================================================================================
+# Internal classification features
+# ================================================================================
+#
+# These features are implied by the device features below and encode the
+# properties the HAL needs to vary on: the die series, the package pin
+# count, and the presence of optional peripheral instances. They are an
+# implementation detail — never enable them directly. Enabling one by hand
+# (e.g. `periph-dac0` together with a 0-series chip) fails to compile deep
+# inside the PAC, because the PAC simply has no such peripheral.
+#
+# `[[example]]` sections reference these features in `required-features`,
+# which is why they must be Cargo features and not build.rs-emitted cfgs:
+# cargo skips an example automatically when the selected chip lacks a
+# required peripheral.
+
+# Die series. The tinyAVR 0- and 1-series share all register layouts; the
+# 2-series (not yet supported) does not.
+series-0 = []
+series-1 = []
+
+# Package pin count, encoded in the last digit of the part number
+# (x2 = 8 pins, x4 = 14, x6 = 20, x7 = 24). Determines which pads are
+# bonded out and thereby every per-package pin table.
+pins-8 = []
+pins-14 = []
+pins-20 = []
+pins-24 = []
+
+# Port availability unions over the pin counts (PORTB from 14 pins up,
+# PORTC from 20 pins up). `required-features` lists are AND-combined, so
+# examples needing "any package with a PORTB" gate on these instead of a
+# pin-count feature.
+port-b = []
+port-c = []
+
+# Optional peripheral instances. The baseline set (AC0, ADC0, CCL, EVSYS,
+# RTC, SPI0, TCA0, TCB0, TWI0, USART0, ...) exists on every supported chip
+# and needs no feature. 1-series parts add DAC0/TCD0; the 16 KB+ 1-series
+# parts (1614/1617/3217) additionally add AC1/AC2, ADC1, the internal
+# DAC1/DAC2 (AC reference sources) and TCB1.
+periph-dac0 = []
+periph-dac1 = []
+periph-dac2 = []
+periph-tcd0 = []
+periph-ac1 = []
+periph-ac2 = []
+periph-adc1 = []
+periph-tcb1 = []
+
+# Flash geometry, used by the NVMCTRL driver for the flash/EEPROM sizes
+# and page sizes.
+flash-2k = []
+flash-4k = []
+flash-8k = []
+flash-16k = []
+flash-32k = []
+
+# ================================================================================
+# Device features
+# ================================================================================
+#
+# Exactly one must be selected. Each implies the classification features
+# above; this table is the single source of truth for the peripheral
+# matrix (derived from the Microchip ATDF files).
+
+# tinyAVR 0-series
+attiny202 = ["avr-device/attiny202", "device-selected", "series-0", "pins-8", "flash-2k"]
+attiny204 = ["avr-device/attiny204", "device-selected", "series-0", "pins-14", "port-b", "flash-2k"]
+attiny402 = ["avr-device/attiny402", "device-selected", "series-0", "pins-8", "flash-4k"]
+attiny404 = ["avr-device/attiny404", "device-selected", "series-0", "pins-14", "port-b", "flash-4k"]
+attiny804 = ["avr-device/attiny804", "device-selected", "series-0", "pins-14", "port-b", "flash-8k"]
+attiny1604 = ["avr-device/attiny1604", "device-selected", "series-0", "pins-14", "port-b", "flash-16k"]
+attiny1606 = ["avr-device/attiny1606", "device-selected", "series-0", "pins-20", "port-b", "port-c", "flash-16k"]
+
+# tinyAVR 1-series
+attiny212 = ["avr-device/attiny212", "device-selected", "series-1", "pins-8", "flash-2k", "periph-dac0", "periph-tcd0"]
+attiny214 = ["avr-device/attiny214", "device-selected", "series-1", "pins-14", "port-b", "flash-2k", "periph-dac0", "periph-tcd0"]
+attiny412 = ["avr-device/attiny412", "device-selected", "series-1", "pins-8", "flash-4k", "periph-dac0", "periph-tcd0"]
+attiny414 = ["avr-device/attiny414", "device-selected", "series-1", "pins-14", "port-b", "flash-4k", "periph-dac0", "periph-tcd0"]
+attiny416 = ["avr-device/attiny416", "device-selected", "series-1", "pins-20", "port-b", "port-c", "flash-4k", "periph-dac0", "periph-tcd0"]
+attiny417 = ["avr-device/attiny417", "device-selected", "series-1", "pins-24", "port-b", "port-c", "flash-4k", "periph-dac0", "periph-tcd0"]
+attiny816 = ["avr-device/attiny816", "device-selected", "series-1", "pins-20", "port-b", "port-c", "flash-8k", "periph-dac0", "periph-tcd0"]
+attiny817 = ["avr-device/attiny817", "device-selected", "series-1", "pins-24", "port-b", "port-c", "flash-8k", "periph-dac0", "periph-tcd0"]
+
+# tinyAVR 1-series, 16 KB+ "premium" parts with the extended analog set
+attiny1614 = ["avr-device/attiny1614", "device-selected", "series-1", "pins-14", "port-b", "flash-16k", "periph-dac0", "periph-tcd0", "periph-ac1", "periph-ac2", "periph-adc1", "periph-dac1", "periph-dac2", "periph-tcb1"]
+attiny1617 = ["avr-device/attiny1617", "device-selected", "series-1", "pins-24", "port-b", "port-c", "flash-16k", "periph-dac0", "periph-tcd0", "periph-ac1", "periph-ac2", "periph-adc1", "periph-dac1", "periph-dac2", "periph-tcb1"]
+attiny3217 = ["avr-device/attiny3217", "device-selected", "series-1", "pins-24", "port-b", "port-c", "flash-32k", "periph-dac0", "periph-tcd0", "periph-ac1", "periph-ac2", "periph-adc1", "periph-dac1", "periph-dac2", "periph-tcb1"]
 
 [patch.crates-io]
 avr-device = { path = "../avr-device" }
@@ -56,76 +140,102 @@ test = false
 bench = false
 required-features = ["attiny817", "rt"]
 
+# All examples are device-agnostic: pass any device feature and the
+# matching -C target-cpu on the command line (see scripts/build-all-chips.sh).
+# Pin choices are made per package with #[cfg(feature = "pins-N")] blocks
+# inside each example. `required-features` lists the peripherals an example
+# needs, so cargo automatically skips it on chips that lack them.
+
+[[example]]
+name = "ac"
+required-features = ["device-selected", "rt"]
+
+[[example]]
+name = "ac_dac"
+required-features = ["periph-dac0", "rt"]
+
+[[example]]
+name = "ac_dac_vref"
+required-features = ["periph-dac0", "rt"]
+
+[[example]]
+name = "dac"
+required-features = ["periph-dac0", "rt"]
+
 [[example]]
 name = "gpio"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "nvmctrl"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "panic_serial"
-required-features = ["attiny817", "rt", "fullpanic"]
+required-features = ["device-selected", "rt", "fullpanic"]
 
 [[example]]
 name = "serial"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
+
+[[example]]
+name = "serial_nb"
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "serial_println"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
+# Needs a UART plus SPI with two chip selects at the same time — that
+# doesn't fit on the 8-pin packages.
 name = "spi"
-required-features = ["attiny817", "rt"]
+required-features = ["port-b", "rt"]
 
 [[example]]
 name = "tca_clock_tcb"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "tca_delay"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "tca_interrupt"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "tca_pwm_hz"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "tca_pwm"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "tca_timer"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "tcb_pwm"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "twi"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
-# Device-agnostic (any part with TWI0 on PB0/PB1): pass the device feature
-# and matching -C target-cpu on the command line.
 name = "twi_hwtest"
 required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "watchdog"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "evsys"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]
 
 [[example]]
 name = "rtc_delay"
-required-features = ["attiny817", "rt"]
+required-features = ["device-selected", "rt"]

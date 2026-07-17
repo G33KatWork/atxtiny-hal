@@ -22,12 +22,19 @@ fn main() -> ! {
     // Configure our clocks
     let clocks = clkctrl.freeze().expect("valid clock config");
 
-    // Split the PORTA and PORTB peripheral into its pins
+    // Split the PORTA peripheral into its pins
     let a = dp.PORTA.split();
-    let b = dp.PORTB.split();
 
-    // Blinky things
-    let mut led = b.pb6.into_push_pull_output();
+    // Blinky things. PB6 matches the LED on the ATtiny817 Xplained boards;
+    // the smaller packages just use a free pin.
+    #[cfg(feature = "pins-24")]
+    let mut led = dp.PORTB.split().pb6.into_push_pull_output();
+    #[cfg(feature = "pins-20")]
+    let mut led = dp.PORTB.split().pb5.into_push_pull_output();
+    #[cfg(feature = "pins-14")]
+    let mut led = dp.PORTB.split().pb3.into_push_pull_output();
+    #[cfg(feature = "pins-8")]
+    let mut led = a.pa1.into_push_pull_output();
 
     // Setup VREF for DAC to 2.5V
     let vref_parts = dp.VREF.constrain();
@@ -51,8 +58,12 @@ fn main() -> ! {
     // Grab the DAC as AINN0
     let ainn0 = dac.dac_get_ac0_input();
 
-    // Grab the AC output pin and disable its pullup
+    // Grab the AC output pin (PA5, or PA3 on 8-pin packages) and disable
+    // its pullup
+    #[cfg(not(feature = "pins-8"))]
     let mut acout = a.pa5.into_stateless_push_pull_output();
+    #[cfg(feature = "pins-8")]
+    let mut acout = a.pa3.into_stateless_push_pull_output();
     acout.internal_pull_up(Toggle::Off);
 
     // Create a comparator

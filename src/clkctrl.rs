@@ -51,6 +51,12 @@ impl ClkctrlExt for CLKCTRL {
 pub enum MainClkSrc {
     Osc20M,
     OscUlp32K,
+    /// 32.768 kHz crystal oscillator on the TOSC1/TOSC2 pins.
+    ///
+    /// Only the 1-series has the XOSC32K oscillator, and its 8-pin parts
+    /// do not bond out the TOSC pins — so the variant only exists on
+    /// 14-pin-and-up 1-series chips.
+    #[cfg(all(feature = "series-1", not(feature = "pins-8")))]
     XOsc32K,
     ExtClk,
 }
@@ -59,6 +65,7 @@ fn into_clksel(src: MainClkSrc) -> mclkctrla::CLKSEL_A {
     match src {
         MainClkSrc::Osc20M => mclkctrla::CLKSEL_A::OSC20M,
         MainClkSrc::OscUlp32K => mclkctrla::CLKSEL_A::OSCULP32K,
+        #[cfg(all(feature = "series-1", not(feature = "pins-8")))]
         MainClkSrc::XOsc32K => mclkctrla::CLKSEL_A::XOSC32K,
         MainClkSrc::ExtClk => mclkctrla::CLKSEL_A::EXTCLK,
     }
@@ -205,6 +212,7 @@ impl ClkCtrl {
         // TODO: expose SEL (crystal vs. external clock on TOSC1), CSUT and
         //       RUNSTDBY configuration. Both SEL and CSUT may only be changed
         //       while the oscillator is disabled and not yet stable.
+        #[cfg(all(feature = "series-1", not(feature = "pins-8")))]
         if self.main_clk_src == MainClkSrc::XOsc32K {
             clkctrl
                 .xosc32kctrla()
@@ -229,9 +237,16 @@ impl ClkCtrl {
             mclkctrla::CLKSEL_A::OSCULP32K => {
                 while clkctrl.mclkstatus().read().osc32ks().bit_is_clear() {}
             }
+            #[cfg(all(feature = "series-1", not(feature = "pins-8")))]
             mclkctrla::CLKSEL_A::XOSC32K => {
                 while clkctrl.mclkstatus().read().xosc32ks().bit_is_clear() {}
             }
+            // The 8-pin 1-series PACs still define the XOSC32K encoding in
+            // CLKSEL even though the TOSC pins are not bonded out there;
+            // `MainClkSrc` has no variant for it, so `into_clksel` can never
+            // produce it and this arm is unreachable by construction.
+            #[cfg(all(feature = "series-1", feature = "pins-8"))]
+            mclkctrla::CLKSEL_A::XOSC32K => {}
         };
 
         // Set per_clk divider

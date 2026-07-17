@@ -26,151 +26,82 @@ use crate::pac::{nvmctrl::ctrla::CMD_A, NVMCTRL};
 //       USERROW = 0x1300
 // TODO: Parse BOOTEND and APPEND fuses and offer some API?
 
+// Memory geometry per flash-size tier, audited against the ATDF
+// memory-segment tables of all supported chips (MAPPED_PROGMEM, EEPROM,
+// USER_SIGNATURES). Everything below 32 KB shares 64-byte flash pages,
+// 32-byte EEPROM pages and a 32-byte USERROW; only the EEPROM size and the
+// mapped-flash window scale. The 32 KB tier doubles all three page/row
+// sizes along with filling the entire 0x8000..0xFFFF data-space window.
 cfg_if! {
-    if #[cfg(any(
-        feature = "attiny417",
-    ))] {
-        /// Start address of the flash in data space
-        pub const FLASH_MAP_START:  usize = 0x8000;
+    if #[cfg(feature = "flash-2k")] {
+        /// End address of the flash in data space
+        pub const FLASH_MAP_END:    usize = 0x87FF;
 
+        /// End address of the EEPROM in data space (64 bytes)
+        pub const EEPROM_MAP_END:   usize = 0x143F;
+    } else if #[cfg(feature = "flash-4k")] {
         /// End address of the flash in data space
         pub const FLASH_MAP_END:    usize = 0x8FFF;
 
-        /// Total size of the flash in data space
-        pub const FLASH_SIZE:       usize = FLASH_MAP_END - FLASH_MAP_START + 1;
-
-        /// Page size of the flash in data space
-        pub const FLASH_PAGE_SIZE:  usize = 64;
-
-
-        /// Start address of the EEPROM in data space
-        pub const EEPROM_MAP_START: usize = 0x1400;
-
-        /// End address of the EEPROM in data space
+        /// End address of the EEPROM in data space (128 bytes)
         pub const EEPROM_MAP_END:   usize = 0x147F;
-
-        /// Page size of the EEPROM in data space
-        pub const EEPROM_PAGE_SIZE: usize = 32;
-
-
-        /// Start address of the USERROW in data space
-        pub const USERROW_START:    usize = 0x1300;
-
-        /// End address of the USERROW in data space
-        pub const USERROW_END:      usize = 0x131F;
-
-        /// Total size of the USERROW in data space
-        pub const USERROW_SIZE:    usize = USERROW_END - USERROW_START + 1;
-
-    } else if #[cfg(any(
-        feature = "attiny817",
-    ))] {
-        /// Start address of the flash in data space
-        pub const FLASH_MAP_START:  usize = 0x8000;
-
+    } else if #[cfg(feature = "flash-8k")] {
         /// End address of the flash in data space
         pub const FLASH_MAP_END:    usize = 0x9FFF;
 
-        /// Total size of the flash in data space
-        pub const FLASH_SIZE:       usize = FLASH_MAP_END - FLASH_MAP_START + 1;
-
-        /// Page size of the flash in data space
-        pub const FLASH_PAGE_SIZE:  usize = 64;
-
-
-        /// Start address of the EEPROM in data space
-        pub const EEPROM_MAP_START: usize = 0x1400;
-
-        /// End address of the EEPROM in data space
+        /// End address of the EEPROM in data space (128 bytes)
         pub const EEPROM_MAP_END:   usize = 0x147F;
-
-        /// Page size of the EEPROM in data space
-        pub const EEPROM_PAGE_SIZE: usize = 32;
-
-
-        /// Start address of the USERROW in data space
-        pub const USERROW_START:    usize = 0x1300;
-
-        /// End address of the USERROW in data space
-        pub const USERROW_END:      usize = 0x131F;
-
-        /// Total size of the USERROW in data space
-        pub const USERROW_SIZE:    usize = USERROW_END - USERROW_START + 1;
-
-    } else if #[cfg(any(
-        feature = "attiny1617",
-    ))] {
-        /// Start address of the flash in data space
-        pub const FLASH_MAP_START:  usize = 0x8000;
-
+    } else if #[cfg(feature = "flash-16k")] {
         /// End address of the flash in data space
         pub const FLASH_MAP_END:    usize = 0xBFFF;
 
-        /// Total size of the flash in data space
-        pub const FLASH_SIZE:       usize = FLASH_MAP_END - FLASH_MAP_START + 1;
-
-        /// Page size of the flash in data space
-        pub const FLASH_PAGE_SIZE:  usize = 64;
-
-
-        /// Start address of the EEPROM in data space
-        pub const EEPROM_MAP_START: usize = 0x1400;
-
-        /// End address of the EEPROM in data space
+        /// End address of the EEPROM in data space (256 bytes)
         pub const EEPROM_MAP_END:   usize = 0x14FF;
-
-        /// Page size of the EEPROM in data space
-        pub const EEPROM_PAGE_SIZE: usize = 32;
-
-
-        /// Start address of the USERROW in data space
-        pub const USERROW_START:    usize = 0x1300;
-
-        /// End address of the USERROW in data space
-        pub const USERROW_END:      usize = 0x131F;
-
-        /// Total size of the USERROW in data space
-        pub const USERROW_SIZE:    usize = USERROW_END - USERROW_START + 1;
-
-    } else if #[cfg(any(
-        feature = "attiny3217",
-    ))] {
-        /// Start address of the flash in data space
-        pub const FLASH_MAP_START:  usize = 0x8000;
-
+    } else if #[cfg(feature = "flash-32k")] {
         /// End address of the flash in data space
         pub const FLASH_MAP_END:    usize = 0xFFFF;
 
-        /// Total size of the flash in data space
-        pub const FLASH_SIZE:       usize = FLASH_MAP_END - FLASH_MAP_START + 1;
+        /// End address of the EEPROM in data space (256 bytes)
+        pub const EEPROM_MAP_END:   usize = 0x14FF;
+    }
+}
 
+cfg_if! {
+    if #[cfg(feature = "flash-32k")] {
         /// Page size of the flash in data space
         pub const FLASH_PAGE_SIZE:  usize = 128;
-
-
-        /// Start address of the EEPROM in data space
-        pub const EEPROM_MAP_START: usize = 0x1400;
-
-        /// End address of the EEPROM in data space
-        pub const EEPROM_MAP_END:   usize = 0x14FF;
 
         /// Page size of the EEPROM in data space
         pub const EEPROM_PAGE_SIZE: usize = 64;
 
-
-        /// Start address of the USERROW in data space
-        pub const USERROW_START:    usize = 0x1300;
-
-        /// End address of the USERROW in data space
-        ///
-        /// The attiny3217 USERROW is 64 bytes, twice the size of the smaller
-        /// devices (ATDF: `USER_SIGNATURES` start 0x1300, size 0x40).
+        /// End address of the USERROW in data space (64 bytes)
         pub const USERROW_END:      usize = 0x133F;
+    } else if #[cfg(feature = "device-selected")] {
+        /// Page size of the flash in data space
+        pub const FLASH_PAGE_SIZE:  usize = 64;
 
-        /// Total size of the USERROW in data space
-        pub const USERROW_SIZE:    usize = USERROW_END - USERROW_START + 1;
+        /// Page size of the EEPROM in data space
+        pub const EEPROM_PAGE_SIZE: usize = 32;
+
+        /// End address of the USERROW in data space (32 bytes)
+        pub const USERROW_END:      usize = 0x131F;
     }
 }
+
+/// Start address of the flash in data space
+pub const FLASH_MAP_START:  usize = 0x8000;
+
+/// Total size of the flash in data space
+pub const FLASH_SIZE:       usize = FLASH_MAP_END - FLASH_MAP_START + 1;
+
+/// Start address of the EEPROM in data space
+pub const EEPROM_MAP_START: usize = 0x1400;
+
+/// Start address of the USERROW in data space
+pub const USERROW_START:    usize = 0x1300;
+
+/// Total size of the USERROW in data space
+pub const USERROW_SIZE:     usize = USERROW_END - USERROW_START + 1;
 
 /// Total size of the EEPROM
 pub const EEPROM_SIZE: usize = EEPROM_MAP_END - EEPROM_MAP_START + 1;

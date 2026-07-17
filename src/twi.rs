@@ -712,6 +712,36 @@ macro_rules! twi {
 
 use crate::gpio::Peripheral;
 
+// Pin tables from the datasheet I/O-multiplexing chapter (cross-checked
+// with the ATDF `<signals>` sections):
+//
+// - 8-pin parts only have TWI0 on PA1/PA2 (their sole position).
+// - 0-series 14/20-pin parts only have the PB0/PB1 position.
+// - 1-series 14-pin-and-up parts have PB0/PB1 plus the PA1/PA2 alternate.
+
+#[cfg(feature = "pins-8")]
+twi!({
+    instance: TWI0,
+    pins: [
+        {
+            scl: (A/a, 2),
+            sda: (A/a, 1),
+        },
+    ]
+});
+
+#[cfg(all(feature = "series-0", not(feature = "pins-8")))]
+twi!({
+    instance: TWI0,
+    pins: [
+        {
+            scl: (B/b, 0),
+            sda: (B/b, 1),
+        },
+    ]
+});
+
+#[cfg(all(feature = "series-1", not(feature = "pins-8")))]
 twi!({
     instance: TWI0,
     pins: [

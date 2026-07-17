@@ -13,10 +13,44 @@ fn main() -> ! {
 
     let _clocks = clkctrl.freeze().expect("valid clock config");
 
-    let b = dp.PORTB.split();
-    let mut btn = b.pb7.into_pull_up_input();
-    let mut led = b.pb6.into_push_pull_output();
-    let mut led2 = b.pb5.into_push_pull_output();
+    // Demo pins per package: on the ATtiny817 Xplained boards PB7 is the
+    // button and PB6 the LED; the smaller packages just use free pins.
+    #[cfg(feature = "pins-24")]
+    let (mut btn, mut led, mut led2) = {
+        let b = dp.PORTB.split();
+        (
+            b.pb7.into_pull_up_input(),
+            b.pb6.into_push_pull_output(),
+            b.pb5.into_push_pull_output(),
+        )
+    };
+    #[cfg(feature = "pins-20")]
+    let (mut btn, mut led, mut led2) = {
+        let b = dp.PORTB.split();
+        (
+            b.pb4.into_pull_up_input(),
+            b.pb5.into_push_pull_output(),
+            b.pb3.into_push_pull_output(),
+        )
+    };
+    #[cfg(feature = "pins-14")]
+    let (mut btn, mut led, mut led2) = {
+        let b = dp.PORTB.split();
+        (
+            b.pb0.into_pull_up_input(),
+            b.pb1.into_push_pull_output(),
+            b.pb2.into_push_pull_output(),
+        )
+    };
+    #[cfg(feature = "pins-8")]
+    let (mut btn, mut led, mut led2) = {
+        let a = dp.PORTA.split();
+        (
+            a.pa1.into_pull_up_input(),
+            a.pa2.into_push_pull_output(),
+            a.pa3.into_push_pull_output(),
+        )
+    };
 
     let mut i = 0;
 

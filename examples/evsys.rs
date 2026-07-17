@@ -21,8 +21,12 @@ fn main() -> ! {
     // Configure our clocks
     let _clocks = clkctrl.freeze().expect("valid clock config");
 
-    // Split the PORTA/B/C peripheral into their pins
-    let (a, b, c) = (dp.PORTA.split(), dp.PORTB.split(), dp.PORTC.split());
+    // Split the ports that exist on the selected package
+    let a = dp.PORTA.split();
+    #[cfg(feature = "port-b")]
+    let b = dp.PORTB.split();
+    #[cfg(feature = "port-c")]
+    let c = dp.PORTC.split();
 
     // Grab AINN0 & AINP0
     let ainn0 = a.pa6.into_analog_input();
@@ -31,14 +35,6 @@ fn main() -> ! {
     // Grab EVOUT0 at PA2
     let pa2 = a.pa2.into_peripheral();
     let evout0 = pa2.mux(portmux.evout0);
-
-    // Grab EVOUT1 at PB2
-    let pb2 = b.pb2.into_peripheral();
-    let evout1 = pb2.mux(portmux.evout1);
-
-    // Grab EVOUT2 at PC2
-    let pc2 = c.pc2.into_peripheral();
-    let evout2 = pc2.mux(portmux.evout2);
 
     // Create a comparator
     let mut ac = dp.AC0.comparator(
@@ -63,18 +59,39 @@ fn main() -> ! {
     let async_ch0 = ac.connect_event_generator(async_ch0, ());
     let _async_ch0_evout0 = async_ch0.connect_event_user(evout0);
 
-    // AC event -> EVOUT1 (PB2)
-    let async_ch2 = evsys.channel_async2;
-    let async_ch2 = ac.connect_event_generator(async_ch2, ());
-    let _async_ch2 = async_ch2.connect_event_user(evout1);
+    // AC event -> EVOUT1 (PB2). Needs both a PORTB and a third async
+    // channel, which only the 1-series has.
+    #[cfg(all(feature = "series-1", feature = "port-b"))]
+    {
+        let evout1 = b.pb2.into_peripheral().mux(portmux.evout1);
+        let async_ch2 = evsys.channel_async2;
+        let async_ch2 = ac.connect_event_generator(async_ch2, ());
+        let _async_ch2 = async_ch2.connect_event_user(evout1);
+    }
 
     let _ac = ac.enable();
 
-    // PB0 event -> EVOUT2 (PC2)
-    let mut b0 = b.pb0.into_pull_up_input();
-    let async_ch1 = evsys.channel_async1;
-    let async_ch1 = b0.connect_event_generator(async_ch1, ());
-    let _async_ch1 = async_ch1.connect_event_user(evout2);
+    // PB0 event -> event output. PORTB pins route to ASYNCCH1; the output
+    // goes to EVOUT2 (PC2) where a PORTC exists, otherwise to EVOUT1 (PB2)
+    // on the 0-series 14-pin parts (whose EVOUT1 the AC demo above does
+    // not occupy). On 14-pin 1-series parts every bonded event output is
+    // already taken, so this part of the demo is skipped there.
+    #[cfg(feature = "port-c")]
+    {
+        let evout2 = c.pc2.into_peripheral().mux(portmux.evout2);
+        let mut b0 = b.pb0.into_pull_up_input();
+        let async_ch1 = evsys.channel_async1;
+        let async_ch1 = b0.connect_event_generator(async_ch1, ());
+        let _async_ch1 = async_ch1.connect_event_user(evout2);
+    }
+    #[cfg(all(feature = "series-0", feature = "port-b", not(feature = "port-c")))]
+    {
+        let evout1 = b.pb2.into_peripheral().mux(portmux.evout1);
+        let mut b0 = b.pb0.into_pull_up_input();
+        let async_ch1 = evsys.channel_async1;
+        let async_ch1 = b0.connect_event_generator(async_ch1, ());
+        let _async_ch1 = async_ch1.connect_event_user(evout1);
+    }
 
     loop {}
 }

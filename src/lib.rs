@@ -8,8 +8,26 @@ compile_error!(
     "This crate requires you to specify your target chip as a feature.
 
     Please select one of the following:
+
+    tinyAVR 0-series:
+    * attiny202
+    * attiny204
+    * attiny402
+    * attiny404
+    * attiny804
+    * attiny1604
+    * attiny1606
+
+    tinyAVR 1-series:
+    * attiny212
+    * attiny214
+    * attiny412
+    * attiny414
+    * attiny416
     * attiny417
+    * attiny816
     * attiny817
+    * attiny1614
     * attiny1617
     * attiny3217
     "
@@ -38,6 +56,8 @@ pub mod bod;
 pub mod ccl;
 pub mod clkctrl;
 pub mod cpuint;
+// The DAC only exists on 1-series parts.
+#[cfg(feature = "periph-dac0")]
 pub mod dac;
 pub mod evout;
 pub mod evsys;
@@ -83,14 +103,34 @@ impl From<bool> for Toggle {
     }
 }
 
-#[cfg(feature = "attiny417")]
-pub use avr_device::attiny417 as pac;
+// One re-export per supported chip; selecting more than one device feature
+// yields a (deliberate) duplicate-definition error on `pac`.
+macro_rules! pac_for {
+    ($($feature:literal => $chip:ident,)+) => {
+        $(
+            #[cfg(feature = $feature)]
+            pub use avr_device::$chip as pac;
+        )+
+    };
+}
 
-#[cfg(feature = "attiny817")]
-pub use avr_device::attiny817 as pac;
-
-#[cfg(feature = "attiny1617")]
-pub use avr_device::attiny1617 as pac;
-
-#[cfg(feature = "attiny3217")]
-pub use avr_device::attiny3217 as pac;
+pac_for! {
+    "attiny202" => attiny202,
+    "attiny204" => attiny204,
+    "attiny402" => attiny402,
+    "attiny404" => attiny404,
+    "attiny804" => attiny804,
+    "attiny1604" => attiny1604,
+    "attiny1606" => attiny1606,
+    "attiny212" => attiny212,
+    "attiny214" => attiny214,
+    "attiny412" => attiny412,
+    "attiny414" => attiny414,
+    "attiny416" => attiny416,
+    "attiny417" => attiny417,
+    "attiny816" => attiny816,
+    "attiny817" => attiny817,
+    "attiny1614" => attiny1614,
+    "attiny1617" => attiny1617,
+    "attiny3217" => attiny3217,
+}

@@ -22,32 +22,85 @@ fn main() -> ! {
     // Configure our clocks
     let _clocks = clkctrl.freeze().expect("valid clock config");
 
-    // Split the porta and portc peripheral into its pins
-    let (a, c) = (dp.PORTA.split(), dp.PORTC.split());
+    // Pin choices per package: the 20/24-pin packages route the SPI to its
+    // PORTC alternate position and keep the USART on the PA1/PA2 alternate;
+    // the 14-pin packages use the default positions of both (USART on
+    // PB2/PB3, SPI on PA1-PA3), because the USART alternate would collide
+    // with the SPI pins there. The second chip select moves to PB4 on
+    // 20-pin packages (no PC4) and to PA5 on 14-pin ones. The 8-pin
+    // packages cannot fit a UART plus SPI with two chip selects at all,
+    // hence the `port-b` requirement in Cargo.toml.
+    #[cfg(feature = "pins-24")]
+    let (usart_pair, spi_pair, mut cs_ms, mut cs_mpu) = {
+        let (a, c) = (dp.PORTA.split(), dp.PORTC.split());
+        let usart_pair = (
+            a.pa2.into_peripheral::<pac::USART0>(),
+            a.pa1.into_peripheral::<pac::USART0>(),
+        )
+            .mux(portmux.usart0);
+        let spi_pair = (
+            c.pc0.into_peripheral(),
+            c.pc1.into_peripheral(),
+            c.pc2.into_peripheral(),
+        )
+            .mux(portmux.spi0);
+        (
+            usart_pair,
+            spi_pair,
+            c.pc3.into_stateless_push_pull_output(),
+            c.pc4.into_stateless_push_pull_output(),
+        )
+    };
+    #[cfg(feature = "pins-20")]
+    let (usart_pair, spi_pair, mut cs_ms, mut cs_mpu) = {
+        let (a, b, c) = (dp.PORTA.split(), dp.PORTB.split(), dp.PORTC.split());
+        let usart_pair = (
+            a.pa2.into_peripheral::<pac::USART0>(),
+            a.pa1.into_peripheral::<pac::USART0>(),
+        )
+            .mux(portmux.usart0);
+        let spi_pair = (
+            c.pc0.into_peripheral(),
+            c.pc1.into_peripheral(),
+            c.pc2.into_peripheral(),
+        )
+            .mux(portmux.spi0);
+        (
+            usart_pair,
+            spi_pair,
+            c.pc3.into_stateless_push_pull_output(),
+            b.pb4.into_stateless_push_pull_output(),
+        )
+    };
+    #[cfg(feature = "pins-14")]
+    let (usart_pair, spi_pair, mut cs_ms, mut cs_mpu) = {
+        let (a, b) = (dp.PORTA.split(), dp.PORTB.split());
+        let usart_pair = (
+            b.pb3.into_peripheral::<pac::USART0>(),
+            b.pb2.into_peripheral::<pac::USART0>(),
+        )
+            .mux(portmux.usart0);
+        let spi_pair = (
+            a.pa3.into_peripheral(),
+            a.pa2.into_peripheral(),
+            a.pa1.into_peripheral(),
+        )
+            .mux(portmux.spi0);
+        (
+            usart_pair,
+            spi_pair,
+            a.pa4.into_stateless_push_pull_output(),
+            a.pa5.into_stateless_push_pull_output(),
+        )
+    };
 
     // Serial port setup
-    let usart_pair = (
-        a.pa2.into_peripheral::<pac::USART0>(),
-        a.pa1.into_peripheral::<pac::USART0>(),
-    )
-        .mux(portmux.usart0);
     const BAUD: BaudRate = BaudRate::new(20_000_000, 115_200);
     let mut s = Serial::new(dp.USART0, usart_pair, BAUD, Config::default());
-
-    // Grab the SPI pins
-    let sckpin = c.pc0.into_peripheral();
-    let misopin = c.pc1.into_peripheral();
-    let mosipin = c.pc2.into_peripheral();
-    let mut cs_ms = c.pc3.into_stateless_push_pull_output();
-    let mut cs_mpu = c.pc4.into_stateless_push_pull_output();
 
     // Deselect any chip-selects
     cs_ms.set_high().unwrap();
     cs_mpu.set_high().unwrap();
-
-    // Multiplex the SPI pins
-    let spi_pair = (sckpin, misopin, mosipin);
-    let spi_pair = spi_pair.mux(portmux.spi0);
 
     // Create an SPI abstraction
     const SPI_CLK: SpiClock = SpiClock::new(20_000_000, 625_000);

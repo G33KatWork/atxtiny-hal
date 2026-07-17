@@ -4,7 +4,7 @@
 use enumset::EnumSetType;
 
 use crate::pac::{TCA0, TCB0};
-use crate::{clkctrl::Clocks, pac::tcb0::ctrla, time::*, Toggle};
+use crate::{clkctrl::Clocks, time::*, Toggle};
 
 use super::tcb_8bit::TCB8Bit;
 
@@ -52,14 +52,22 @@ pub trait Tcb8bitPwmCapable: super::Instance + super::TimerClock {
     fn into_8bit_pwm(self) -> TCB8Bit;
 }
 
-impl super::Instance for TCB0 {}
-impl Tcb8bitPwmCapable for TCB0 {
-    fn into_8bit_pwm(self) -> TCB8Bit {
-        TCB8Bit { tim: self }
-    }
-}
+// All timer functionality is implemented once here and stamped out per TCB
+// instance (TCB0 everywhere, TCB1 on the 16 KB+ 1-series parts). The PAC
+// generates a separate register module per instance, so the register enum
+// types (e.g. `CLKSEL_A`) are distinct types and everything referencing
+// them has to be re-expanded rather than shared.
+//
+// The 8-bit PWM mode wrapper ([`TCB8Bit`]) is deliberately not part of the
+// macro: it currently hardwires TCB0 (see `Tcb8bitPwmCapable` below).
+// TODO: extend TCB8Bit/`Tcb8bitPwmCapable` (and the PORTMUX pinsets) to
+//       TCB1 once its waveform output is needed.
+macro_rules! tcb {
+    ($TCB:ident, $tcb:ident) => {
 
-impl super::TimerClock for TCB0 {
+impl super::Instance for crate::pac::$TCB {}
+
+impl super::TimerClock for crate::pac::$TCB {
     type ClockSource = TCBClockSource;
 
     #[inline(always)]
@@ -88,15 +96,20 @@ impl super::TimerClock for TCB0 {
 
     #[inline(always)]
     fn set_prescaler(&mut self, psc: u16) {
+        use crate::pac::$tcb::ctrla::CLKSEL_A;
+        let clksel = match psc {
+            1 => CLKSEL_A::CLKDIV1,
+            2 => CLKSEL_A::CLKDIV2,
+            _ => panic!("Invalid prescaler"),
+        };
         if !self.ctrla().read().clksel().is_clktca() {
-            self.ctrla()
-                .modify(|_, w| w.clksel().variant(into_clksrc(psc)));
+            self.ctrla().modify(|_, w| w.clksel().variant(clksel));
         }
     }
 
     #[inline(always)]
     fn read_prescaler(&self) -> u16 {
-        use ctrla::CLKSEL_A::*;
+        use crate::pac::$tcb::ctrla::CLKSEL_A::*;
         // The 2-bit CLKSEL field has a reserved 0b11 pattern, so `variant()`
         // is an Option. A corrupted CTRLA must not turn this diagnostic read
         // into a panic (the unwrap dragged panic code into every
@@ -110,16 +123,7 @@ impl super::TimerClock for TCB0 {
     }
 }
 
-impl super::AsClockSource for TCA0 {
-    type OutputClock = TCBClockSource;
-
-    #[inline(always)]
-    fn use_as_clock_source(&self, timer_clk: Hertz) -> Self::OutputClock {
-        TCBClockSource::TCA(timer_clk)
-    }
-}
-
-impl super::General for TCB0 {
+impl super::General for crate::pac::$TCB {
     const TIMER_WIDTH_BITS: u8 = 16;
     type CounterValue = u16;
     type Interrupt = Interrupt;
@@ -190,7 +194,7 @@ impl super::General for TCB0 {
     }
 }
 
-impl super::PeriodicMode for TCB0 {
+impl super::PeriodicMode for crate::pac::$TCB {
     const PERIOD_DOUBLE_BUFFERED: bool = false;
 
     #[inline(always)]
@@ -204,7 +208,7 @@ impl super::PeriodicMode for TCB0 {
         //        have a reference to the Timer, hence this stuff
         //        When the split pwm channels get a ref to the timer, we can
         //        get rid of this again
-        let tim = unsafe { &*TCB0::ptr() };
+        let tim = unsafe { &*crate::pac::$TCB::ptr() };
         critical_section::with(|_| tim.ccmp().read().bits())
     }
 
@@ -234,16 +238,30 @@ impl super::PeriodicMode for TCB0 {
     }
 }
 
-fn into_clksrc(prescaler: u16) -> ctrla::CLKSEL_A {
-    use ctrla::CLKSEL_A::*;
-    match prescaler {
-        1 => CLKDIV1,
-        2 => CLKDIV2,
-        _ => panic!("Invalid prescaler"),
+impl crate::private::Sealed for crate::pac::$TCB {}
+
+    };
+}
+
+tcb!(TCB0, tcb0);
+#[cfg(feature = "periph-tcb1")]
+tcb!(TCB1, tcb1);
+
+impl super::AsClockSource for TCA0 {
+    type OutputClock = TCBClockSource;
+
+    #[inline(always)]
+    fn use_as_clock_source(&self, timer_clk: Hertz) -> Self::OutputClock {
+        TCBClockSource::TCA(timer_clk)
     }
 }
 
-impl crate::private::Sealed for crate::pac::TCB0 {}
+// The 8-bit PWM mode wrapper is TCB0-only for now, see the note on `tcb!`.
+impl Tcb8bitPwmCapable for TCB0 {
+    fn into_8bit_pwm(self) -> TCB8Bit {
+        TCB8Bit { tim: self }
+    }
+}
 
 use super::pwm::{WaveformOutputPinset, C1};
 use crate::gpio::{Output, Stateless};
@@ -280,5 +298,11 @@ impl<WaveformOutput: WaveformOutputPin<TCB8Bit, CHAN>, const CHAN: u8>
 {
 }
 
+// TCB0's waveform output: PA6 on 8-pin parts, otherwise PA5 with a PC0
+// alternate on 20/24-pin packages.
+#[cfg(feature = "pins-8")]
+impl WaveformOutputPin<TCB8Bit, { 0 + C1 }> for crate::gpio::porta::PA6<Output<Stateless>> {}
+#[cfg(not(feature = "pins-8"))]
 impl WaveformOutputPin<TCB8Bit, { 0 + C1 }> for crate::gpio::porta::PA5<Output<Stateless>> {}
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl WaveformOutputPin<TCB8Bit, { 0 + C1 }> for crate::gpio::portc::PC0<Output<Stateless>> {}

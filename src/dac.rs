@@ -5,7 +5,6 @@
 
 use core::marker::PhantomData;
 
-use crate::pac::DAC0;
 use crate::vref::DACReferenceVoltage;
 
 /// DAC Register interface traits private to this module
@@ -68,17 +67,6 @@ pub struct Dac<INST, ED, PIN = (), const IDX: u8 = 0> {
     _ref: DACReferenceVoltage<IDX>,
     pin: PIN,
     _enabled: PhantomData<ED>,
-}
-
-impl DacExt<DAC0, 0> for DAC0 {
-    fn constrain(self, ref_voltage: DACReferenceVoltage<0>) -> Dac<Self, Disabled, (), 0> {
-        Dac {
-            dac: self,
-            _ref: ref_voltage,
-            pin: (),
-            _enabled: PhantomData,
-        }
-    }
 }
 
 impl<INST: DacRegExt, PIN, const IDX: u8> Dac<INST, Disabled, PIN, IDX> {
@@ -210,35 +198,71 @@ pub trait DACOutputPin: crate::private::Sealed {}
 pub struct DACOutputToAC<const IDX: u8>;
 impl<const IDX: u8> crate::private::Sealed for DACOutputToAC<IDX> {}
 
-// TODO: implement macros for the following code
+// One expansion per DAC instance. The index couples the instance to its
+// reference-voltage channel and to the analog comparator that can consume
+// its output (DACn feeds ACn's negative input).
+macro_rules! dac {
+    ($DAC:ident, $idx:literal) => {
+        paste::paste! {
+            impl DacExt<crate::pac::$DAC, $idx> for crate::pac::$DAC {
+                fn constrain(
+                    self,
+                    ref_voltage: DACReferenceVoltage<$idx>,
+                ) -> Dac<Self, Disabled, (), $idx> {
+                    Dac {
+                        dac: self,
+                        _ref: ref_voltage,
+                        pin: (),
+                        _enabled: PhantomData,
+                    }
+                }
+            }
 
-impl DacRegExt for DAC0 {
-    #[inline]
-    fn enable(&self, enable: bool) {
-        self.ctrla().modify(|_, w| w.enable().variant(enable));
-    }
+            impl DacRegExt for crate::pac::$DAC {
+                #[inline]
+                fn enable(&self, enable: bool) {
+                    self.ctrla().modify(|_, w| w.enable().variant(enable));
+                }
 
-    #[inline]
-    fn enable_output(&self, enable: bool) {
-        self.ctrla().modify(|_, w| w.outen().variant(enable));
-    }
+                #[inline]
+                fn enable_output(&self, enable: bool) {
+                    self.ctrla().modify(|_, w| w.outen().variant(enable));
+                }
 
-    #[inline]
-    fn set_value(&self, value: u8) {
-        self.data().write(|w| w.set(value));
-    }
+                #[inline]
+                fn set_value(&self, value: u8) {
+                    self.data().write(|w| w.set(value));
+                }
+            }
+
+            impl<PIN> Dac<crate::pac::$DAC, LockedEnabled, PIN, $idx> {
+                #[doc = concat!(
+                    "Get the DAC output that can be used as a negative input into AC",
+                    stringify!($idx)
+                )]
+                pub fn [<dac_get_ac $idx _input>](&self) -> DACOutputToAC<$idx> {
+                    DACOutputToAC
+                }
+            }
+        }
+    };
 }
 
-impl<INST: DacRegExt, PIN> Dac<INST, LockedEnabled, PIN, 0> {
-    /// Get the DAC output that can be used as a negative input into AC0
-    pub fn dac_get_ac0_input(&self) -> DACOutputToAC<0> {
-        DACOutputToAC
-    }
-}
+dac!(DAC0, 0);
+
+// DAC1 and DAC2 of the 16 KB+ 1-series parts are internal reference DACs
+// for AC1/AC2: they have no output pad, so no `DACOutputPin` exists for
+// them and `output_pin` can never be called on their `Dac` instances.
+#[cfg(feature = "periph-dac1")]
+dac!(DAC1, 1);
+#[cfg(feature = "periph-dac2")]
+dac!(DAC2, 2);
 
 // The DAC drives the pin through its analog buffer; the datasheet-recommended
 // pin configuration is input buffer and output driver both disabled, which is
 // exactly the `Analog` mode. A digital output mode would leave the push-pull
 // driver contending with the DAC's analog buffer.
+//
+// DAC0's output pad is PA6 on every 1-series part and package.
 use crate::gpio::Analog;
 impl DACOutputPin for crate::gpio::porta::PA6<Analog> {}

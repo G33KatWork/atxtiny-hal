@@ -17,11 +17,16 @@ fn main() -> ! {
     // Configure our clocks
     let clocks = clkctrl.freeze().expect("valid clock config");
 
-    // Split the PORTB peripheral into its pins
-    let b = dp.PORTB.split();
-
-    // Grab a pin for an LED
-    let mut led = b.pb6.into_push_pull_output();
+    // Demo LED pin per package: PB6 matches the LED on the ATtiny817
+    // Xplained boards; the smaller packages just use a free pin.
+    #[cfg(feature = "pins-24")]
+    let mut led = dp.PORTB.split().pb6.into_push_pull_output();
+    #[cfg(feature = "pins-20")]
+    let mut led = dp.PORTB.split().pb5.into_push_pull_output();
+    #[cfg(feature = "pins-14")]
+    let mut led = dp.PORTB.split().pb3.into_push_pull_output();
+    #[cfg(feature = "pins-8")]
+    let mut led = dp.PORTA.split().pa3.into_push_pull_output();
 
     // Create a timer with a fixed frequency using TCA0
     // If the frequency cannot be met given the constrained prescalers of the

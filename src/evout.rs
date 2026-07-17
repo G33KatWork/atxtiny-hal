@@ -62,8 +62,12 @@ where
     }
 }
 
+// One event output per port (PA2/PB2/PC2) — each exists exactly when its
+// port is bonded out on the package.
 impl EventOutputPin<EVSYS, EVOUT0> for crate::gpio::porta::PA2<Peripheral<EVSYS>> {}
+#[cfg(not(feature = "pins-8"))]
 impl EventOutputPin<EVSYS, EVOUT1> for crate::gpio::portb::PB2<Peripheral<EVSYS>> {}
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl EventOutputPin<EVSYS, EVOUT2> for crate::gpio::portc::PC2<Peripheral<EVSYS>> {}
 
 use crate::evsys::{Async, EventUser, Evsys, Sync, UserRegisterFile};
@@ -91,8 +95,17 @@ macro_rules! evout_user {
     };
 }
 
+// The ASYNCUSERn index assignment (8 + EVOUT number) is identical across
+// the whole 0/1-series, verified against the ATDF register captions of all
+// supported chips.
 evout_user! {
     crate::gpio::porta::PA2<Peripheral<EVSYS>> => EVOUT0,
+}
+#[cfg(not(feature = "pins-8"))]
+evout_user! {
     crate::gpio::portb::PB2<Peripheral<EVSYS>> => EVOUT1,
+}
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
+evout_user! {
     crate::gpio::portc::PC2<Peripheral<EVSYS>> => EVOUT2,
 }
