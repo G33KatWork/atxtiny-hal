@@ -137,11 +137,18 @@ impl<TIM: Instance + General, const FREQ: u32> FTimer<TIM, FREQ> {
         self.tim.prepare_clock_source(clk);
 
         let clk_rate = TIM::get_input_clock_rate(clk);
-        if clk_rate.raw() % FREQ != 0 {
+        // FREQ == 0 would divide by zero below; FREQ is const, so the check
+        // folds away for every valid instantiation.
+        if FREQ == 0 || clk_rate.raw() % FREQ != 0 {
             return Err(Error::ImpossiblePrescaler);
         }
 
-        let psc = (clk_rate.raw() / FREQ) as u16;
+        // Keep the ratio in u32 until it provably fits: `as u16` silently
+        // truncated e.g. 65537 to 1 — a valid prescaler — and the timer ran
+        // 65536 times too fast with no error.
+        let psc: u16 = (clk_rate.raw() / FREQ)
+            .try_into()
+            .map_err(|_| Error::ImpossiblePrescaler)?;
         if !TIM::is_prescaler_valid(psc, clk) {
             return Err(Error::ImpossiblePrescaler);
         }
