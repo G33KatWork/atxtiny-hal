@@ -59,7 +59,7 @@ impl<TIM: Instance + General> Timer<TIM> {
     #[cfg_attr(docsrs, doc(cfg(feature = "enumset")))]
     #[inline]
     pub fn configured_interrupts(&mut self) -> enumset::EnumSet<TIM::Interrupt> {
-        let mut interrupts = EnumSet::new();
+        let mut interrupts = enumset::EnumSet::new();
 
         for interrupt in enumset::EnumSet::<TIM::Interrupt>::all().iter() {
             if self.is_interrupt_configured(interrupt) {
