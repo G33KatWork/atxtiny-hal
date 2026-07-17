@@ -41,13 +41,36 @@ impl Slpctrl {
     }
 
     /// Enter the [previously configured](Slpctrl::set_sleep_mode) sleep mode
+    ///
     /// This function sets the sleep-enable bit, performs the sleep and clears
     /// the enable bit once the CPU woke up again and yielded control back to
-    /// the non-interrupt context.
+    /// the non-interrupt context. It returns with interrupts globally
+    /// **enabled** — waking from sleep requires servicing the wake interrupt.
+    ///
+    /// To sleep race-free until an event, call this with interrupts globally
+    /// *disabled*, after checking the wake condition:
+    ///
+    /// ```ignore
+    /// avr_device::interrupt::disable();
+    /// while !wake_condition() {
+    ///     slpctrl.sleep(); // atomically re-enables interrupts and sleeps
+    ///     avr_device::interrupt::disable();
+    /// }
+    /// unsafe { avr_device::interrupt::enable() };
+    /// ```
+    ///
+    /// If instead interrupts are enabled on entry, the classic AVR sleep race
+    /// applies: a wake event arriving just before the `sleep` instruction is
+    /// serviced first and the CPU then sleeps anyway — forever, if the event
+    /// was a one-shot.
     pub fn sleep(&mut self) {
         let ctrla = unsafe { &(*SLPCTRL::ptr()).ctrla() };
         ctrla.modify(|_, w| w.sen().set_bit());
-        unsafe { asm!("sleep") };
+        // `sei` only takes effect after the *following* instruction, so with
+        // interrupts disabled on entry no interrupt can slip in between
+        // enabling them and entering sleep: pending wake events are serviced
+        // after the CPU is already sleeping, i.e. they wake it as intended.
+        unsafe { asm!("sei", "sleep") };
         ctrla.modify(|_, w| w.sen().clear_bit());
     }
 }
