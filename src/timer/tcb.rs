@@ -191,6 +191,8 @@ impl super::General for TCB0 {
 }
 
 impl super::PeriodicMode for TCB0 {
+    const PERIOD_DOUBLE_BUFFERED: bool = false;
+
     #[inline(always)]
     fn set_periodic_mode(&mut self) {
         self.ctrlb().modify(|_, w| w.cntmode().int());

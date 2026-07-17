@@ -119,6 +119,8 @@ impl super::General for TCB8Bit {
 // peripheral and with any ISR touching them, so each CCMP access — and in
 // particular the read-modify-write pairs — runs inside a critical section.
 impl super::PeriodicMode for TCB8Bit {
+    const PERIOD_DOUBLE_BUFFERED: bool = false;
+
     #[inline(always)]
     fn set_periodic_mode(&mut self) {
         self.tim.ctrlb().modify(|_, w| w.cntmode().pwm8());

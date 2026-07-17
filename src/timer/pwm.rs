@@ -283,9 +283,22 @@ where
         let (period, prescaler) = self
             .tim
             .calculate_period_and_prescaler::<TIM>(clk, period)?;
-        self.tim.set_prescaler(prescaler);
-        self.tim.set_period(period)?;
-        self.tim.trigger_update();
+        if TIM::PERIOD_DOUBLE_BUFFERED {
+            self.tim.set_prescaler(prescaler);
+            self.tim.set_period(period)?;
+            self.tim.trigger_update();
+        } else {
+            // An unbuffered period write is live: shrinking the top below
+            // the running count would make the counter wrap through the
+            // full counter width once (~65 ms at 1 MHz) before matching
+            // again. Reprogramming with the counter stopped costs one
+            // truncated PWM cycle instead of a runaway one.
+            self.tim.disable_counter();
+            self.tim.set_prescaler(prescaler);
+            self.tim.set_period(period)?;
+            self.tim.reset_count();
+            self.tim.enable_counter();
+        }
         Ok(())
     }
 
@@ -398,8 +411,16 @@ where
             .ok_or(Error::ImpossiblePeriod)?
             .try_into()
             .map_err(|_| Error::ImpossiblePeriod)?;
-        self.tim.set_period(period)?;
-        self.tim.trigger_update();
+        if TIM::PERIOD_DOUBLE_BUFFERED {
+            self.tim.set_period(period)?;
+            self.tim.trigger_update();
+        } else {
+            // Same runaway-cycle avoidance as in PwmHz::set_period above.
+            self.tim.disable_counter();
+            self.tim.set_period(period)?;
+            self.tim.reset_count();
+            self.tim.enable_counter();
+        }
         Ok(())
     }
 

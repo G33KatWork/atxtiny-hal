@@ -164,6 +164,8 @@ impl General for RTC {
 }
 
 impl PeriodicMode for RTC {
+    const PERIOD_DOUBLE_BUFFERED: bool = false;
+
     #[inline(always)]
     fn set_periodic_mode(&mut self) {}
 

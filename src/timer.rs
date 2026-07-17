@@ -57,6 +57,16 @@ mod sealed {
     }
 
     pub trait PeriodicMode: General {
+        /// Whether period updates go through a hardware double buffer.
+        ///
+        /// On buffered timers (TCA) a new period written while the counter
+        /// runs only takes effect at the next UPDATE condition. On
+        /// unbuffered timers (TCB, RTC) the write is live: shrinking the
+        /// period below the current count makes the counter run through a
+        /// full counter-width wrap before matching again, so callers must
+        /// stop the counter around the update instead.
+        const PERIOD_DOUBLE_BUFFERED: bool;
+
         fn set_periodic_mode(&mut self);
 
         #[inline(always)]

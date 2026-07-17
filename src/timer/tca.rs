@@ -201,6 +201,8 @@ impl super::General for TCA0 {
 }
 
 impl super::PeriodicMode for TCA0 {
+    const PERIOD_DOUBLE_BUFFERED: bool = true;
+
     #[inline(always)]
     fn set_periodic_mode(&mut self) {
         self.single_ctrlb()
