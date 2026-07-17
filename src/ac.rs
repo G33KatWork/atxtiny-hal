@@ -128,6 +128,11 @@ macro_rules! impl_comparator {
             /// Enables the comparator
             pub fn enable(self) -> Comparator<$COMP, Enabled> {
                 self.regs.ctrla().modify(|_, w| w.enable().set_bit());
+                // A CMP flag left over from a previous enable period (or from
+                // the output settling on enable) would fire a spurious
+                // interrupt the moment `listen` is active. Discard it so only
+                // edges from here on are reported.
+                self.regs.status().write(|w| w.cmp().set_bit());
                 Comparator {
                     regs: self.regs,
                     _enabled: PhantomData,
@@ -177,7 +182,10 @@ macro_rules! impl_comparator {
             /// Unpends the output signal interrupt
             #[inline]
             pub fn unpend(&self) {
-                self.regs.status().modify(|_, w| w.cmp().set_bit());
+                // Plain write, not read-modify-write: on a write-1-to-clear
+                // register an RMW would also clear any other flag that became
+                // pending between the read and the write.
+                self.regs.status().write(|w| w.cmp().set_bit());
             }
 
             /// Configures a GPIO pin to output the signal of the comparator

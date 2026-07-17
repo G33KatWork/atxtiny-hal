@@ -433,6 +433,9 @@ impl BrownoutDetector {
     /// Clear the voltage level monitoring interrupt event.
     #[inline]
     pub fn clear_event(&mut self) {
-        self.bod.intflags().modify(|_, w| w.vlmif().set_bit());
+        // Plain write, not read-modify-write: on a write-1-to-clear register
+        // an RMW would also clear any other flag that became pending between
+        // the read and the write.
+        self.bod.intflags().write(|w| w.vlmif().set_bit());
     }
 }
