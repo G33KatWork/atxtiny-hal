@@ -456,24 +456,60 @@ mod ac2 {
 use crate::evsys::ChannelConfigurator;
 use crate::evsys::{Channel, EventGenerator, GeneratorAssigned, Unconfigured};
 
-// AC0 only: generator value 0x03 is AC0_OUT on every async channel.
-// TODO: AC1/AC2 event generation — their generator values differ per
-//       async channel (0x13/0x12/0x11/0x12 style), so they need a small
-//       per-channel table instead of one constant.
-impl<Evsys, Index> EventGenerator<Evsys, crate::evsys::Async, Index>
-    for Comparator<AC0, Disabled>
-where
-    Evsys: crate::evsys::marker::Evsys,
-    Index: crate::evsys::marker::Index,
-{
-    type EventSource = ();
+// Comparator outputs as asynchronous event generators.
+//
+// AC0's generator value is 0x03 on every async channel, but AC1/AC2 have a
+// different value on each channel, so the macro takes one value per channel
+// index. The tables come from the ASYNCCHn generator value groups in the
+// vendored ATDFs (pack 2.1.484) and are identical on all three chips that
+// have AC1/AC2 (attiny1614/1617/3217).
+//
+// The match on the channel index is total (no panic arm): the index is the
+// `marker::Index::X` const behind an `#[inline(always)]` accessor, so each
+// concrete channel const-folds to its single generator value.
+macro_rules! ac_event_generator {
+    ($(#[$meta:meta])* $AC:ident, $ch0:literal, $ch1:literal, $ch2:literal, $ch3:literal) => {
+        $(#[$meta])*
+        impl<Evsys, Index> EventGenerator<Evsys, crate::evsys::Async, Index>
+            for Comparator<crate::pac::$AC, Disabled>
+        where
+            Evsys: crate::evsys::marker::Evsys,
+            Index: crate::evsys::marker::Index,
+        {
+            type EventSource = ();
 
-    fn connect_event_generator(
-        &mut self,
-        mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>,
-        _source: (),
-    ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
-        channel.set_generator(0x03);
-        channel.with_state(GeneratorAssigned)
-    }
+            fn connect_event_generator(
+                &mut self,
+                mut channel: Channel<Evsys, crate::evsys::Async, Index, Unconfigured>,
+                _source: (),
+            ) -> Channel<Evsys, crate::evsys::Async, Index, GeneratorAssigned> {
+                let generator = match channel.index.index() {
+                    0 => $ch0,
+                    1 => $ch1,
+                    2 => $ch2,
+                    _ => $ch3,
+                };
+                channel.set_generator(generator);
+                channel.with_state(GeneratorAssigned)
+            }
+        }
+    };
 }
+
+ac_event_generator!(AC0, 0x03, 0x03, 0x03, 0x03);
+ac_event_generator!(
+    #[cfg(feature = "periph-ac1")]
+    AC1,
+    0x13,
+    0x12,
+    0x10,
+    0x12
+);
+ac_event_generator!(
+    #[cfg(feature = "periph-ac2")]
+    AC2,
+    0x14,
+    0x13,
+    0x11,
+    0x13
+);
