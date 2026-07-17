@@ -337,9 +337,11 @@ impl BrownoutDetector {
     /// Set the configured sleep brownout detection mode
     #[inline]
     pub fn set_sleep_mode(&mut self, mode: Mode) {
+        // BOD.CTRLA is under configuration change protection; an unprotected
+        // write is silently ignored by the hardware.
         self.bod
             .ctrla()
-            .modify(|_, w| w.sleep().variant(mode.into()));
+            .modify_protected(|_, w| w.sleep().variant(mode.into()));
     }
 
     /// Get the configured sleep brownout detection mode
