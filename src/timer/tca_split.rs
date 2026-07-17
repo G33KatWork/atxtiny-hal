@@ -419,17 +419,54 @@ impl super::AsClockSource for TCASplit {
 // while split for the same reason; both halves capture the resulting tick
 // rate at split time for their Hz-based period setters.
 
-use super::pwm::PwmHz;
-use super::{Channel, Error, Pins, TimerClock, WithPwm};
+use super::pwm::{Pwm, PwmHz};
+use super::{Channel, Error, FTimer, Pins, Timer, TimerClock, WithPwm};
 use core::marker::PhantomData;
+
+/// The timer wrapper a frequency-group split was created from, held
+/// opaquely by [`SplitLowPwm`] and restored by
+/// [`rejoin`](SplitLowPwm::rejoin).
+///
+/// Sealed: implemented exactly for the two split-mode PWM origins,
+/// [`Timer<TCASplit>`] (the [`PwmHz`] path) and [`FTimer<TCASplit,
+/// FREQ>`] (the fixed-precision [`Pwm`] path).
+pub trait SplitPwmOrigin<P, PINS>: crate::private::Sealed + Sized {
+    /// The lockstep PWM wrapper [`rejoin`](SplitLowPwm::rejoin) rebuilds.
+    type Wrapper;
+
+    #[doc(hidden)]
+    fn rebuild(self, pins: PINS) -> Self::Wrapper;
+}
+
+impl crate::private::Sealed for Timer<TCASplit> {}
+impl<const FREQ: u32> crate::private::Sealed for FTimer<TCASplit, FREQ> {}
+
+impl<P, PINS: Pins<TCASplit, P>> SplitPwmOrigin<P, PINS> for Timer<TCASplit> {
+    type Wrapper = PwmHz<TCASplit, P, PINS>;
+
+    fn rebuild(self, pins: PINS) -> Self::Wrapper {
+        PwmHz::from_parts(self, pins)
+    }
+}
+
+impl<P, PINS: Pins<TCASplit, P>, const FREQ: u32> SplitPwmOrigin<P, PINS>
+    for FTimer<TCASplit, FREQ>
+{
+    type Wrapper = Pwm<TCASplit, P, PINS, FREQ>;
+
+    fn rebuild(self, pins: PINS) -> Self::Wrapper {
+        Pwm::from_parts(self, pins)
+    }
+}
 
 /// The low half (WO0-WO2) of a frequency-group split — the master.
 ///
-/// Owns the peripheral and the pinset; period writes only touch LPER.
-/// Interrupt/event configuration (including the high half's underflow)
-/// stays available through `Deref` to [`Timer`](super::Timer).
-pub struct SplitLowPwm<P, PINS> {
-    timer: super::Timer<TCASplit>,
+/// Owns the peripheral (inside the opaque origin wrapper `O`) and the
+/// pinset; period writes only touch LPER. Interrupt/event configuration
+/// (including the high half's underflow) stays available through `Deref`
+/// to the origin.
+pub struct SplitLowPwm<O, P, PINS> {
+    origin: O,
     pins: PINS,
     tick: Hertz,
     _p: PhantomData<P>,
@@ -445,6 +482,25 @@ pub struct SplitHighPwm<P, PINS> {
     _p: PhantomData<(P, PINS)>,
 }
 
+fn make_halves<O, P, PINS>(
+    origin: O,
+    pins: PINS,
+    tick: Hertz,
+) -> (SplitLowPwm<O, P, PINS>, SplitHighPwm<P, PINS>) {
+    (
+        SplitLowPwm {
+            origin,
+            pins,
+            tick,
+            _p: PhantomData,
+        },
+        SplitHighPwm {
+            tick,
+            _p: PhantomData,
+        },
+    )
+}
+
 impl<P, PINS: Pins<TCASplit, P>> PwmHz<TCASplit, P, PINS> {
     /// Break the lockstep PWM into a low-half master and a high-half
     /// slave with independently settable periods.
@@ -452,22 +508,28 @@ impl<P, PINS: Pins<TCASplit, P>> PwmHz<TCASplit, P, PINS> {
     /// The shared prescaler stays as configured; both halves keep
     /// running. Rejoin with [`SplitLowPwm::rejoin`] to restore the
     /// lockstep wrapper (and with it, the ability to stop the counter).
-    pub fn split_frequency_groups(self) -> (SplitLowPwm<P, PINS>, SplitHighPwm<P, PINS>) {
+    pub fn split_frequency_groups(
+        self,
+    ) -> (SplitLowPwm<Timer<TCASplit>, P, PINS>, SplitHighPwm<P, PINS>) {
         let (timer, pins) = self.into_parts();
-        let tick = <TCASplit as super::TimerClock>::get_input_clock_rate(timer.clk)
+        let tick = <TCASplit as TimerClock>::get_input_clock_rate(timer.clk)
             / timer.tim.read_prescaler() as u32;
-        (
-            SplitLowPwm {
-                timer,
-                pins,
-                tick,
-                _p: PhantomData,
-            },
-            SplitHighPwm {
-                tick,
-                _p: PhantomData,
-            },
-        )
+        make_halves(timer, pins, tick)
+    }
+}
+
+impl<P, PINS: Pins<TCASplit, P>, const FREQ: u32> Pwm<TCASplit, P, PINS, FREQ> {
+    /// Same as [`PwmHz::split_frequency_groups`], for the
+    /// fixed-precision wrapper. The tick rate is the wrapper's `FREQ`
+    /// by construction.
+    pub fn split_frequency_groups(
+        self,
+    ) -> (
+        SplitLowPwm<FTimer<TCASplit, FREQ>, P, PINS>,
+        SplitHighPwm<P, PINS>,
+    ) {
+        let (timer, pins) = self.into_parts();
+        make_halves(timer, pins, Hertz::from_raw(FREQ))
     }
 }
 
@@ -485,7 +547,7 @@ fn period_from_frequency(tick: Hertz, freq: Hertz) -> Result<u8, Error> {
         .map_err(|_| Error::ImpossiblePeriod)
 }
 
-impl<P, PINS: Pins<TCASplit, P>> SplitLowPwm<P, PINS> {
+impl<O: SplitPwmOrigin<P, PINS>, P, PINS: Pins<TCASplit, P>> SplitLowPwm<O, P, PINS> {
     /// Validate that the channel belongs to the low half *and* is backed
     /// by the pinset (`check_used` alone also passes high channels).
     fn check(c: Channel) -> Result<u8, Error> {
@@ -499,7 +561,8 @@ impl<P, PINS: Pins<TCASplit, P>> SplitLowPwm<P, PINS> {
 
     /// Set the low half's period (LPER) in timer ticks.
     pub fn set_period(&mut self, period: u8) {
-        self.timer.tim.tim.split_lper().write(|w| w.set(period));
+        let tim = unsafe { &*TCA0::ptr() };
+        tim.split_lper().write(|w| w.set(period));
     }
 
     /// Set the low half's PWM frequency, if reachable with the shared
@@ -510,7 +573,8 @@ impl<P, PINS: Pins<TCASplit, P>> SplitLowPwm<P, PINS> {
 
     /// 100% duty for the low half (LPER + 1).
     pub fn max_duty(&self) -> u32 {
-        self.timer.tim.tim.split_lper().read().bits() as u32 + 1
+        let tim = unsafe { &*TCA0::ptr() };
+        tim.split_lper().read().bits() as u32 + 1
     }
 
     pub fn set_duty(&mut self, channel: Channel, duty: u32) -> Result<(), Error> {
@@ -532,31 +596,34 @@ impl<P, PINS: Pins<TCASplit, P>> SplitLowPwm<P, PINS> {
         Ok(TCASplit::enable_channel(Self::check(channel)?, false))
     }
 
-    /// Hand the high-half slave back and return to the lockstep wrapper.
+    /// Hand the high-half slave back and return to the lockstep wrapper
+    /// this split was created from.
     ///
     /// Restores the lockstep invariant by copying LPER into HPER; the
     /// counter keeps running. This is the only road to stopping it:
-    /// [`release`](PwmHz::release) lives on the returned wrapper.
-    pub fn rejoin(self, _high: SplitHighPwm<P, PINS>) -> PwmHz<TCASplit, P, PINS> {
-        let lper = self.timer.tim.tim.split_lper().read().bits();
-        self.timer.tim.tim.split_hper().write(|w| w.set(lper));
-        PwmHz::from_parts(self.timer, self.pins)
+    /// `release()` lives on the returned wrapper.
+    pub fn rejoin(self, _high: SplitHighPwm<P, PINS>) -> O::Wrapper {
+        let tim = unsafe { &*TCA0::ptr() };
+        let lper = tim.split_lper().read().bits();
+        tim.split_hper().write(|w| w.set(lper));
+        self.origin.rebuild(self.pins)
     }
 }
 
 // The interrupt/event API (which also covers the high half's underflow)
-// comes via Deref; Timer's counter-affecting methods (`release`,
-// `counter_hz`) take `self` by value and are unreachable through it.
-impl<P, PINS> core::ops::Deref for SplitLowPwm<P, PINS> {
-    type Target = super::Timer<TCASplit>;
+// comes via Deref to the origin wrapper. Its counter-affecting methods
+// (`release`, `counter_hz`, `counter`, `delay`) all take `self` by value
+// and are unreachable through it.
+impl<O, P, PINS> core::ops::Deref for SplitLowPwm<O, P, PINS> {
+    type Target = O;
     fn deref(&self) -> &Self::Target {
-        &self.timer
+        &self.origin
     }
 }
 
-impl<P, PINS> core::ops::DerefMut for SplitLowPwm<P, PINS> {
+impl<O, P, PINS> core::ops::DerefMut for SplitLowPwm<O, P, PINS> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.timer
+        &mut self.origin
     }
 }
 

@@ -508,6 +508,21 @@ where
         self.tim.disable_counter();
         (self.timer, self.pins)
     }
+
+    // Same crate-internal pair as on `PwmHz` (see there); `into_parts`
+    // leaves the counter running.
+
+    pub(crate) fn from_parts(timer: FTimer<TIM, FREQ>, pins: PINS) -> Self {
+        Pwm {
+            timer,
+            pins,
+            _p: PhantomData,
+        }
+    }
+
+    pub(crate) fn into_parts(self) -> (FTimer<TIM, FREQ>, PINS) {
+        (self.timer, self.pins)
+    }
 }
 
 impl<TIM, P, PINS, const FREQ: u32> crate::traits::PwmTimer for Pwm<TIM, P, PINS, FREQ>
