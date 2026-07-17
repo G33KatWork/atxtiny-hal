@@ -109,8 +109,19 @@ impl fmt::Debug for WatchdogTimer {
 
 impl WatchdogTimer {
     /// Write the timeout and window values into the CTRLA register
+    ///
+    /// NOTE: When `STATUS.LOCK` is set (via [`lock`](WatchdogTimer::lock) or
+    /// the fuse-enabled watchdog), the hardware ignores all CTRLA writes, so
+    /// reconfiguration is silently without effect.
     fn setup(&self, timeout: WatchdogTimeout, window: Option<WatchdogTimeout>) {
         let window = window.unwrap_or(WatchdogTimeout::Disabled);
+
+        // CTRLA writes are ignored while a previous write is still being
+        // synchronized into the watchdog clock domain (2-3 WDT clock cycles,
+        // i.e. milliseconds), so wait for the synchronizer to go idle first.
+        // This matters at boot (a fuse-driven configuration may still be
+        // synchronizing) and for back-to-back reconfiguration.
+        while self.wdt.status().read().syncbusy().bit_is_set() {}
 
         self.wdt.ctrla().write_protected(|w| {
             w.period()
