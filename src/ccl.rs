@@ -165,6 +165,11 @@ impl<Ccl, Index, State> Lut<Ccl, Index, State> {
     }
 }
 
+// Every LUT method — including enable/disable — takes a proof that the whole
+// CCL block is disabled: due to the errata acknowledged on
+// [`Control::enable`], *all* LUT and SEQCTRL registers are enable-protected
+// while `CTRLA.ENABLE` is set, so any write issued in that window is silently
+// discarded by the hardware.
 impl<Ccl, Index> Lut<Ccl, Index, Inactive>
 where
     Ccl: marker::Ccl,
@@ -175,14 +180,14 @@ where
     /// An enabled LUT cannot be reconfigured until it's disabled again using
     /// [`Lut::disable`].
     #[inline]
-    pub fn enable(self) -> Lut<Ccl, Index, Active> {
+    pub fn enable(self, _ctrl: &Control<Ccl, Inactive>) -> Lut<Ccl, Index, Active> {
         unsafe { (*self.ccl.ptr()).lut_enable(self.index.index(), Toggle::On) };
         self.into_state()
     }
 
     /// Configure the edge detection.
     #[inline]
-    pub fn edge_detection(self, enable: Toggle) -> Self {
+    pub fn edge_detection(self, _ctrl: &Control<Ccl, Inactive>, enable: Toggle) -> Self {
         unsafe { (*self.ccl.ptr()).lut_edge_detection(self.index.index(), enable) };
         self
     }
@@ -192,35 +197,41 @@ where
     /// When enabled, this overrides the pin configuration of the
     /// PORT I/O controller.
     #[inline]
-    pub fn output_enable(self, enable: Toggle) -> Self {
+    pub fn output_enable(self, _ctrl: &Control<Ccl, Inactive>, enable: Toggle) -> Self {
         unsafe { (*self.ccl.ptr()).lut_output_enable(self.index.index(), enable) };
         self
     }
 
     /// Configure the output synchronization filter.
     #[inline]
-    pub fn filter(self, filter: FilterSelection) -> Self {
+    pub fn filter(self, _ctrl: &Control<Ccl, Inactive>, filter: FilterSelection) -> Self {
         unsafe { (*self.ccl.ptr()).lut_filter_selection(self.index.index(), filter) };
         self
     }
 
     /// Select the clock source for the sequencer.
     #[inline]
-    pub fn clock_source(self, clock_src: ClockSource) -> Self {
+    pub fn clock_source(self, _ctrl: &Control<Ccl, Inactive>, clock_src: ClockSource) -> Self {
         unsafe { (*self.ccl.ptr()).lut_clock_source(self.index.index(), clock_src) };
         self
     }
 
     /// Define the two inputs into the lookup table.
     #[inline]
-    pub fn inputs(self, input0: Input0, input1: Input1, input2: Input2) -> Self {
+    pub fn inputs(
+        self,
+        _ctrl: &Control<Ccl, Inactive>,
+        input0: Input0,
+        input1: Input1,
+        input2: Input2,
+    ) -> Self {
         unsafe { (*self.ccl.ptr()).lut_inputs(self.index.index(), input0, input1, input2) };
         self
     }
 
     /// Set the lookup table value.
     #[inline]
-    pub fn table(self, lookup_table: u8) -> Self {
+    pub fn table(self, _ctrl: &Control<Ccl, Inactive>, lookup_table: u8) -> Self {
         unsafe { (*self.ccl.ptr()).lut_table(self.index.index(), lookup_table) };
         self
     }
@@ -236,7 +247,7 @@ where
     /// A disabled LUT can be reconfigured again until it's enabled using
     /// [`Lut::enable`].
     #[inline]
-    pub fn disable(self) -> Lut<Ccl, Index, Inactive> {
+    pub fn disable(self, _ctrl: &Control<Ccl, Inactive>) -> Lut<Ccl, Index, Inactive> {
         unsafe { (*self.ccl.ptr()).lut_enable(self.index.index(), Toggle::Off) };
         self.into_state()
     }
@@ -247,12 +258,14 @@ use private::CclRegExt;
 impl CclRegExt for crate::pac::ccl::RegisterBlock {
     #[inline(always)]
     fn enable(&self) {
-        self.ctrla().write(|w| w.enable().set_bit());
+        // modify, not write: a plain write would clobber RUNSTDBY once
+        // configuring it is supported (see the TODO at the top of the file).
+        self.ctrla().modify(|_, w| w.enable().set_bit());
     }
 
     #[inline(always)]
     fn disable(&self) {
-        self.ctrla().write(|w| w.enable().clear_bit());
+        self.ctrla().modify(|_, w| w.enable().clear_bit());
     }
 
     #[inline(always)]
@@ -316,33 +329,40 @@ impl CclRegExt for crate::pac::ccl::RegisterBlock {
 }
 
 /// Generic main control block for a CCL
-#[derive(ufmt::derive::uDebug, Debug)]
-pub struct Control<Ccl> {
+///
+/// The `State` type parameter tracks whether the CCL-wide `CTRLA.ENABLE` bit
+/// is set. All LUT and sequencer configuration requires a
+/// `&Control<_, Inactive>` because of the enable-protection errata described
+/// on [`Control::enable`].
+// Debug only, no uDebug: ufmt provides no uDebug impl for PhantomData, same
+// as on [`Lut`].
+#[derive(Debug)]
+pub struct Control<Ccl, State = Inactive> {
     pub(crate) ccl: Ccl,
+    _state: PhantomData<State>,
 }
 
 // Make all Control peripheral trait extensions sealable.
-impl<Ccl> crate::private::Sealed for Control<Ccl> {}
+impl<Ccl, State> crate::private::Sealed for Control<Ccl, State> {}
 
-impl<Ccl> Control<Ccl>
+impl<Ccl> Control<Ccl, Inactive>
 where
     Ccl: marker::Ccl,
 {
     /// Enable the CCL peripheral block
     ///
-    /// NOTE: Due to an errata, the whole CCL blocks needs to be disabled
+    /// NOTE: Due to an errata, the whole CCL block needs to be disabled
     /// completely to reconfigure even independent LUTs, otherwise registers
     /// in the LUT region are still going to be enable-protected. The AVR-DD
-    /// series fixes this errata
+    /// series fixes this errata. This is why LUT and sequencer configuration
+    /// requires a reference to a `Control<_, Inactive>`.
     #[inline]
-    pub fn enable(&self) {
+    pub fn enable(self) -> Control<Ccl, Active> {
         unsafe { (*self.ccl.ptr()).enable() };
-    }
-
-    /// Disable the CCL peripheral block
-    #[inline]
-    pub fn disable(&self) {
-        unsafe { (*self.ccl.ptr()).disable() };
+        Control {
+            ccl: self.ccl,
+            _state: PhantomData,
+        }
     }
 
     /// Set the sequencer config to connect multiple LUTs together and build
@@ -350,6 +370,22 @@ where
     #[inline]
     pub fn sequencer_config(&self, seq: Sequencer, cfg: SequencerConfig) {
         unsafe { (*self.ccl.ptr()).sequencer_config(seq.into(), cfg) };
+    }
+}
+
+impl<Ccl> Control<Ccl, Active>
+where
+    Ccl: marker::Ccl,
+{
+    /// Disable the CCL peripheral block, making LUT and sequencer
+    /// configuration possible again
+    #[inline]
+    pub fn disable(self) -> Control<Ccl, Inactive> {
+        unsafe { (*self.ccl.ptr()).disable() };
+        Control {
+            ccl: self.ccl,
+            _state: PhantomData,
+        }
     }
 }
 
@@ -393,7 +429,7 @@ macro_rules! ccl {
 
                 fn split(self) -> Self::Parts {
                     Self::Parts {
-                        control: Control { ccl: Ccl },
+                        control: Control { ccl: Ccl, _state: PhantomData },
                         $(
                             [<lut $index>]: [<LUT $index>] {
                                 ccl: Ccl,
@@ -609,8 +645,8 @@ impl InputPin<LUT1, 2> for crate::gpio::portc::PC5<Input> {}
 use crate::evsys::ChannelConfigurator;
 use crate::evsys::{Channel, EventGenerator, GeneratorAssigned, Unconfigured};
 
-impl<Evsys, Index, CCL, State, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
-    for Lut<CCL, U<X>, State>
+impl<Evsys, Index, C, State, const X: u8> EventGenerator<Evsys, crate::evsys::Async, Index>
+    for Lut<C, U<X>, State>
 where
     Evsys: crate::evsys::marker::Evsys,
     Index: crate::evsys::marker::Index,
