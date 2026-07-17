@@ -10,7 +10,7 @@ pub trait VrefExt {
     /// Constrains the [`pac::VREF`] peripheral.
     ///
     /// Consumes the [`pac::VREF`] peripheral and converts it to a [`HAL`] internal type
-    /// constraining it's public access surface to fit the design of the `HAL`.
+    /// constraining its public access surface to fit the design of the `HAL`.
     ///
     /// Returns the constrained peripheral together with one ownership token
     /// per reference-voltage channel.

@@ -21,8 +21,9 @@ pub use embedded_hal_nb;
 pub use embedded_io;
 
 mod private {
-    /// Private sealed trait to seal all GPIO implementations
-    /// which do implement peripheral functionalities.
+    /// Private sealed trait used crate-wide to prevent downstream crates
+    /// from implementing this HAL's public traits (pin markers, peripheral
+    /// extensions, ...) for their own types.
     pub trait Sealed {}
 }
 

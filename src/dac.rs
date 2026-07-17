@@ -25,7 +25,7 @@ pub struct Enabled;
 /// Disabled DAC (type state)
 pub struct Disabled;
 
-/// Enabled DAC that connect be disabled anymore because other peripherals depend on it (type state)
+/// Enabled DAC that cannot be disabled anymore because other peripherals depend on it (type state)
 pub struct LockedEnabled;
 
 pub trait ED {}
@@ -38,7 +38,7 @@ pub trait DacExt<INST: DacRegExt, const IDX: u8> {
     /// Constrains the [`DAC0`] peripheral.
     ///
     /// Consumes the [`pac::DAC0`] peripheral and converts it to a [`HAL`] internal type
-    /// constraining it's public access surface to fit the design of the `HAL`.
+    /// constraining its public access surface to fit the design of the `HAL`.
     ///
     /// Takes ownership of the [`DACReferenceVoltage`] token for this DAC's
     /// reference channel, so the reference cannot be handed to a second

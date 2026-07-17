@@ -24,8 +24,8 @@ pub enum ResetReason {
 
     /// Watchdog Reset Flag
     ///
-    /// This flag is set when the system was reset through by an expired.
-    /// watchdog timer. The watchdog timer can be configured using the `[WatchdogTimer]`
+    /// This flag is set when the system was reset by an expired watchdog
+    /// timer. The watchdog timer can be configured using the `[WatchdogTimer]`
     /// peripheral.
     #[doc(alias = "WDRF")]
     Watchdog,
@@ -38,7 +38,7 @@ pub enum ResetReason {
 
     /// Brownout Reset Flag
     ///
-    /// This flag is set when the system was reset by the Brownount detector.
+    /// This flag is set when the system was reset by the Brownout detector.
     /// The brownout detector can be configured using the `[BrownoutDetector]`
     /// peripheral.
     #[doc(alias = "BORF")]
@@ -56,7 +56,7 @@ pub trait RstctrlExt {
     /// Constrains the [`pac::RSTCTRL`] peripheral.
     ///
     /// Consumes the [`pac::RSTCTRL`] peripheral and converts it to a [`HAL`] internal type
-    /// constraining it's public access surface to fit the design of the `HAL`.
+    /// constraining its public access surface to fit the design of the `HAL`.
     ///
     /// [`pac::RSTCTRL`]: `crate::pac::RSTCTRL`
     /// [`HAL`]: `crate`
@@ -136,7 +136,7 @@ impl Rstctrl {
     /// Clear **all** reset flags.
     #[inline]
     pub fn clear_reasons(&mut self) {
-        // SAFETY: This atomic write clears all flags and ignores the reserverd bit fields.
+        // SAFETY: This atomic write clears all flags and ignores the reserved bit fields.
         self.rstctrl.rstfr().write(|w| unsafe { w.bits(u8::MAX) });
     }
 }

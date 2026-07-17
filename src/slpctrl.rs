@@ -9,7 +9,7 @@ pub trait SlpctrlExt {
     /// Constrains the [`pac::SLPCTRL`] peripheral.
     ///
     /// Consumes the [`pac::SLPCTRL`] peripheral and converts it to a [`HAL`] internal type
-    /// constraining it's public access surface to fit the design of the `HAL`.
+    /// constraining its public access surface to fit the design of the `HAL`.
     ///
     /// [`pac::SLPCTRL`]: `crate::pac::SLPCTRL`
     /// [`HAL`]: `crate`

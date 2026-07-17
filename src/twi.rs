@@ -350,7 +350,7 @@ where
         interrupts
     }
 
-    /// Check if an event happend.
+    /// Check if an event happened.
     #[inline]
     pub fn is_event_triggered(&self, event: Event) -> bool {
         let mstatus = self.twi.mstatus().read();

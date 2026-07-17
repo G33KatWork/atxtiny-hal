@@ -281,12 +281,12 @@ mod split {
         /// # Safety
         ///
         /// This is unsafe, because the creation of this struct
-        /// is only possible by splitting the the USART peripheral
+        /// is only possible by splitting the USART peripheral
         /// into Tx and Rx, which are internally both pointing
         /// to the same peripheral.
         ///
         /// Therefor, if getting a mutuable reference to the peripheral
-        /// or changing any of it's configuration, the exclusivity
+        /// or changing any of its configuration, the exclusivity
         /// is no longer guaranteed by the type system.
         ///
         /// Ensure that the Tx and Rx implemtation only do things with
@@ -334,12 +334,12 @@ mod split {
         // /// # Safety
         // ///
         // /// This is unsafe, because the creation of this struct
-        // /// is only possible by splitting the the USART peripheral
+        // /// is only possible by splitting the USART peripheral
         // /// into Tx and Rx, which are internally both pointing
         // /// to the same peripheral.
         // ///
         // /// Therefor, if getting a mutuable reference to the peripheral
-        // /// or changing any of it's configuration, the exclusivity
+        // /// or changing any of its configuration, the exclusivity
         // /// is no longer guaranteed by the type system.
         // ///
         // /// Ensure that the Tx and Rx implemtation only do things with
@@ -613,7 +613,7 @@ where
         interrupts
     }
 
-    /// Check if an interrupt event happend.
+    /// Check if an interrupt event happened.
     #[inline]
     pub fn is_event_triggered(&self, event: Event) -> bool {
         let isr = self.usart.status().read();
@@ -669,7 +669,7 @@ where
     /// Clear **all** interrupt events.
     #[inline]
     pub fn clear_events(&mut self) {
-        // SAFETY: This atomic write clears all flags and ignores the reserverd bit fields.
+        // SAFETY: This atomic write clears all flags and ignores the reserved bit fields.
         self.usart.status().write(|w| unsafe { w.bits(u8::MAX) });
     }
 

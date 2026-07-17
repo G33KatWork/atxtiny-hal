@@ -7,7 +7,7 @@ pub trait SyscfgExt {
     /// Constrains the [`pac::SYSCFG`] peripheral.
     ///
     /// Consumes the [`pac::SYSCFG`] peripheral and converts it to a [`HAL`] internal type
-    /// constraining it's public access surface to fit the design of the `HAL`.
+    /// constraining its public access surface to fit the design of the `HAL`.
     ///
     /// [`pac::SYSCFG`]: `crate::pac::SYSCFG`
     /// [`HAL`]: `crate`

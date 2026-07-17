@@ -243,7 +243,7 @@ impl<Gpio, Index, Mode> crate::private::Sealed for Pin<Gpio, Index, Mode> {}
 ///
 /// This moves the pin type information to be known
 /// at runtime, and erases the specific compile time type of the GPIO.
-/// The only compile time information of the GPIO pin is it's Mode.
+/// The only compile time information of the GPIO pin is its Mode.
 ///
 /// # Code-size cost
 ///

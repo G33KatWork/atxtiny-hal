@@ -202,7 +202,7 @@ where
         self.spi.intctrl().read().ie().bit_is_set()
     }
 
-    /// Check if an interrupt event happend.
+    /// Check if an interrupt event happened.
     #[inline]
     pub fn is_event_triggered(&self, event: UnbufferedEvent) -> bool {
         let intflags = self.spi.intflags().read();

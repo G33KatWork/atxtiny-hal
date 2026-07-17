@@ -20,16 +20,16 @@ pub enum ActiveMode {
     /// The brownout detector is disabled
     Disabled,
 
-    /// The brownout detector is enabled continously
+    /// The brownout detector is enabled continuously
     Enabled,
 
     /// The brownout detector is enabled but samples the voltage at
     /// regular intervals as defined by [`SamplingFrequency`]
     Sampled,
 
-    /// The brownout detector is continously enabled during Active mode and
+    /// The brownout detector is continuously enabled during Active mode and
     /// disabled in sleep modes. When a wake-up event occurs, the wake-up is
-    /// halted until the the brownout detector signals that the power is good
+    /// halted until the brownout detector signals that the power is good
     EnabledAndWakeupHaltedTillBODReady,
 }
 
@@ -43,7 +43,7 @@ pub enum SleepMode {
     /// The brownout detector is disabled
     Disabled,
 
-    /// The brownout detector is enabled continously
+    /// The brownout detector is enabled continuously
     Enabled,
 
     /// The brownout detector is enabled but samples the voltage at
@@ -231,7 +231,7 @@ pub trait BodExt {
     /// Constrains the [`pac::BOD`] peripheral into a configurator.
     ///
     /// Consumes the [`pac::BOD`] peripheral and converts it to a [`HAL`] internal type
-    /// constraining it's public access surface to fit the design of the `HAL`.
+    /// constraining its public access surface to fit the design of the `HAL`.
     ///
     /// Using the [`configurator`], the peripheral can be initially configured with
     /// a builder pattern. Afterwards the settings can be changed using the
@@ -424,7 +424,7 @@ impl BrownoutDetector {
         self.bod.intctrl().modify(|_, w| w.vlmie().clear_bit());
     }
 
-    /// Check if the voltage level monitoring interrupt event happend.
+    /// Check if the voltage level monitoring interrupt event happened.
     #[inline]
     pub fn is_event_triggered(&self) -> bool {
         self.bod.intflags().read().vlmif().bit_is_set()

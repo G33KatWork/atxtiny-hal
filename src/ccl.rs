@@ -138,7 +138,7 @@ impl<Ccl, Index, State> crate::private::Sealed for Lut<Ccl, Index, State> {}
 ///
 /// This moves the LUT type information to be known
 /// at runtime, and erases the specific compile time type of the LUT.
-/// The only compile time information of the LUT is it's Mode.
+/// The only compile time information of the LUT is its Mode.
 pub type Lutx<Ccl, State> = Lut<Ccl, Ux, State>;
 
 impl<Ccl, State, const X: u8> Lut<Ccl, U<X>, State> {
