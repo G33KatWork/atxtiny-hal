@@ -63,7 +63,10 @@ mod sealed {
         fn set_period(&mut self, period: Self::CounterValue) -> Result<(), Error> {
             let p: u32 = period.into();
 
-            if p > 0 && p <= Self::max_period().into() {
+            // A register value of 0 is a legitimate one-tick period on all
+            // supported timers (TCA/TCB/RTC count from 0 through the period
+            // value inclusive), so only the upper bound is checked.
+            if p <= Self::max_period().into() {
                 Ok(unsafe { self.set_period_unchecked(period) })
             } else {
                 Err(Error::ImpossiblePeriod)
@@ -80,18 +83,30 @@ mod sealed {
             clk: C::ClockSource,
             frequency: Hertz,
         ) -> Result<(Self::CounterValue, u16), Error> {
-            let ticks = C::get_input_clock_rate(clk).raw() / frequency.raw();
+            // Reject 0 Hz (division by zero) and frequencies above the input
+            // clock (zero ticks) up front — both used to underflow/panic in
+            // the math below in dev builds.
+            let ticks = C::get_input_clock_rate(clk)
+                .raw()
+                .checked_div(frequency.raw())
+                .ok_or(Error::ImpossiblePeriod)?;
+            if ticks == 0 {
+                return Err(Error::ImpossiblePeriod);
+            }
+
             // Round the division up to the next integer to properly determine the
             // prescaler which is an upper bound
-            // let prescaler = ticks.div_ceil(1 << Self::TIMER_WIDTH_BITS);  // nightly feature
-            let prescaler =
-                (ticks + (1 << Self::TIMER_WIDTH_BITS) - 1) / (1 << Self::TIMER_WIDTH_BITS);
+            let prescaler = ticks.div_ceil(1 << Self::TIMER_WIDTH_BITS);
 
             let prescaler = C::get_valid_prescalers(clk)
                 .iter()
                 .find(|e| **e as u32 >= prescaler)
                 .ok_or(Error::ImpossiblePrescaler)?;
-            let period = (ticks / *prescaler as u32) - 1;
+            // Round the period up as well: an integer period that is one tick
+            // too long beats a timeout that expires early. The prescaler
+            // choice above guarantees ticks <= prescaler << TIMER_WIDTH_BITS,
+            // so the rounded-up period still fits the counter width.
+            let period = ticks.div_ceil(*prescaler as u32) - 1;
 
             let period = period.try_into().map_err(|_| Error::ImpossiblePeriod)?;
             Ok((period, *prescaler))

@@ -118,7 +118,12 @@ impl<TIM: Instance + PeriodicMode, const FREQ: u32> Counter<TIM, FREQ> {
         self.tim.set_periodic_mode();
         self.tim.clear_overflow();
 
-        let period = (timeout.ticks() - 1)
+        // A zero-length timeout has no period value; the fugit_timer::Timer
+        // contract expects an Err here, not a subtraction panic.
+        let period = timeout
+            .ticks()
+            .checked_sub(1)
+            .ok_or(Error::ImpossiblePeriod)?
             .try_into()
             .map_err(|_| Error::ImpossiblePeriod)?;
         self.tim.set_period(period)?;

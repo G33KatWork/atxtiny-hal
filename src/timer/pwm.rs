@@ -392,7 +392,10 @@ where
     }
 
     fn set_period(&mut self, period: TimerDurationU32<FREQ>) -> Result<(), Error> {
-        let period = (period.ticks() - 1)
+        let period = period
+            .ticks()
+            .checked_sub(1)
+            .ok_or(Error::ImpossiblePeriod)?
             .try_into()
             .map_err(|_| Error::ImpossiblePeriod)?;
         self.tim.set_period(period)?;
@@ -536,7 +539,10 @@ impl<TIM: Instance + WithPwm, const FREQ: u32> FTimer<TIM, FREQ> {
         self.tim.set_pwm_mode(mode);
         self.tim.clear_overflow();
 
-        let period = (time.ticks() - 1)
+        let period = time
+            .ticks()
+            .checked_sub(1)
+            .ok_or(Error::ImpossiblePeriod)?
             .try_into()
             .map_err(|_| Error::ImpossiblePeriod)?;
         self.tim.set_period(period)?;
