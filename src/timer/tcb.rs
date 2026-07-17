@@ -48,8 +48,18 @@ impl From<Clocks> for TCBClockSource {
     }
 }
 
-pub trait Tcb8bitPwmCapable: super::Instance + super::TimerClock {
-    fn into_8bit_pwm(self) -> TCB8Bit;
+/// TCB instances that can be reconfigured into the 8-bit PWM mode.
+///
+/// The supertrait equality bounds pin down the associated types the
+/// [`TCB8Bit`] wrapper delegates through, so its `TimerClock`/`General`
+/// impls can be written once instead of per instance.
+pub trait Tcb8bitPwmCapable:
+    super::Instance
+    + super::TimerClock<ClockSource = TCBClockSource>
+    + super::General<CounterValue = u16, Interrupt = Interrupt, Event = Event>
+    + Sized
+{
+    fn into_8bit_pwm(self) -> TCB8Bit<Self>;
 }
 
 // All timer functionality is implemented once here and stamped out per TCB
@@ -58,10 +68,8 @@ pub trait Tcb8bitPwmCapable: super::Instance + super::TimerClock {
 // types (e.g. `CLKSEL_A`) are distinct types and everything referencing
 // them has to be re-expanded rather than shared.
 //
-// The 8-bit PWM mode wrapper ([`TCB8Bit`]) is deliberately not part of the
-// macro: it currently hardwires TCB0 (see `Tcb8bitPwmCapable` below).
-// TODO: extend TCB8Bit/`Tcb8bitPwmCapable` (and the PORTMUX pinsets) to
-//       TCB1 once its waveform output is needed.
+// The 8-bit PWM mode wrapper ([`TCB8Bit`]) has its own `tcb_8bit!` macro
+// in `tcb_8bit.rs` for the same reason.
 macro_rules! tcb {
     ($TCB:ident, $tcb:ident) => {
 
@@ -256,13 +264,6 @@ impl super::AsClockSource for TCA0 {
     }
 }
 
-// The 8-bit PWM mode wrapper is TCB0-only for now, see the note on `tcb!`.
-impl Tcb8bitPwmCapable for TCB0 {
-    fn into_8bit_pwm(self) -> TCB8Bit {
-        TCB8Bit { tim: self }
-    }
-}
-
 use super::pwm::{WaveformOutputPinset, C1};
 use crate::gpio::{Output, Stateless};
 use core::marker::PhantomData;
@@ -293,16 +294,32 @@ where
 }
 
 // TCB 8 Bit PWM mode outputs
-impl<WaveformOutput: WaveformOutputPin<TCB8Bit, CHAN>, const CHAN: u8>
-    WaveformOutputPinset<TCB8Bit, CHAN> for TcbPinset<TCB8Bit, WaveformOutput, CHAN>
+impl<TCB, WaveformOutput, const CHAN: u8> WaveformOutputPinset<TCB8Bit<TCB>, CHAN>
+    for TcbPinset<TCB8Bit<TCB>, WaveformOutput, CHAN>
+where
+    TCB: Tcb8bitPwmCapable,
+    WaveformOutput: WaveformOutputPin<TCB8Bit<TCB>, CHAN>,
 {
 }
 
 // TCB0's waveform output: PA6 on 8-pin parts, otherwise PA5 with a PC0
 // alternate on 20/24-pin packages.
 #[cfg(feature = "pins-8")]
-impl WaveformOutputPin<TCB8Bit, { 0 + C1 }> for crate::gpio::porta::PA6<Output<Stateless>> {}
+impl WaveformOutputPin<TCB8Bit<TCB0>, { 0 + C1 }> for crate::gpio::porta::PA6<Output<Stateless>> {}
 #[cfg(not(feature = "pins-8"))]
-impl WaveformOutputPin<TCB8Bit, { 0 + C1 }> for crate::gpio::porta::PA5<Output<Stateless>> {}
+impl WaveformOutputPin<TCB8Bit<TCB0>, { 0 + C1 }> for crate::gpio::porta::PA5<Output<Stateless>> {}
 #[cfg(any(feature = "pins-20", feature = "pins-24"))]
-impl WaveformOutputPin<TCB8Bit, { 0 + C1 }> for crate::gpio::portc::PC0<Output<Stateless>> {}
+impl WaveformOutputPin<TCB8Bit<TCB0>, { 0 + C1 }> for crate::gpio::portc::PC0<Output<Stateless>> {}
+
+// TCB1's waveform output (16 KB+ 1-series parts): PA3, with a PC4 alternate
+// bonded only on the 24-pin packages (the 20-pin TCB1 parts stop at PC3).
+#[cfg(feature = "periph-tcb1")]
+impl WaveformOutputPin<TCB8Bit<crate::pac::TCB1>, { 0 + C1 }>
+    for crate::gpio::porta::PA3<Output<Stateless>>
+{
+}
+#[cfg(all(feature = "periph-tcb1", feature = "pins-24"))]
+impl WaveformOutputPin<TCB8Bit<crate::pac::TCB1>, { 0 + C1 }>
+    for crate::gpio::portc::PC4<Output<Stateless>>
+{
+}

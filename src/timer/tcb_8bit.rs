@@ -1,22 +1,29 @@
-use crate::pac::TCB0;
-
 use crate::{time::*, Toggle};
 
-use super::tcb::{Event, Interrupt};
+use super::tcb::{Event, Interrupt, TCBClockSource, Tcb8bitPwmCapable};
 
-pub struct TCB8Bit {
-    pub(crate) tim: TCB0,
+/// A TCB instance reconfigured into its 8-bit PWM mode (CNTMODE = PWM8).
+///
+/// Obtained via [`Tcb8bitPwmCapable::into_8bit_pwm`]; the type parameter is
+/// the underlying PAC instance (e.g. `TCB8Bit<TCB0>`).
+pub struct TCB8Bit<TCB> {
+    pub(crate) tim: TCB,
 }
 
-impl super::Instance for TCB8Bit {}
-impl crate::private::Sealed for TCB8Bit {}
+impl<TCB: Tcb8bitPwmCapable> super::Instance for TCB8Bit<TCB> {}
+impl<TCB: Tcb8bitPwmCapable> crate::private::Sealed for TCB8Bit<TCB> {}
 
-impl super::TimerClock for TCB8Bit {
-    type ClockSource = <TCB0 as super::TimerClock>::ClockSource;
+// Clocking and the generic counter plumbing only go through the trait
+// methods of the wrapped instance, so they are written once for every
+// `Tcb8bitPwmCapable` instance. The register-touching impls (PeriodicMode,
+// WithPwm) live in the `tcb_8bit!` macro below instead.
+
+impl<TCB: Tcb8bitPwmCapable> super::TimerClock for TCB8Bit<TCB> {
+    type ClockSource = TCBClockSource;
 
     #[inline(always)]
     fn get_input_clock_rate(clk: Self::ClockSource) -> Hertz {
-        TCB0::get_input_clock_rate(clk)
+        TCB::get_input_clock_rate(clk)
     }
 
     #[inline(always)]
@@ -26,7 +33,7 @@ impl super::TimerClock for TCB8Bit {
 
     #[inline(always)]
     fn get_valid_prescalers(clk: Self::ClockSource) -> &'static [u16] {
-        TCB0::get_valid_prescalers(clk)
+        TCB::get_valid_prescalers(clk)
     }
 
     #[inline(always)]
@@ -40,7 +47,7 @@ impl super::TimerClock for TCB8Bit {
     }
 }
 
-impl super::General for TCB8Bit {
+impl<TCB: Tcb8bitPwmCapable> super::General for TCB8Bit<TCB> {
     const TIMER_WIDTH_BITS: u8 = 8;
     type CounterValue = u8;
     type Interrupt = Interrupt;
@@ -118,7 +125,21 @@ impl super::General for TCB8Bit {
 // On top of that, TEMP is shared with every other 16-bit register of the
 // peripheral and with any ISR touching them, so each CCMP access — and in
 // particular the read-modify-write pairs — runs inside a critical section.
-impl super::PeriodicMode for TCB8Bit {
+//
+// These impls are stamped out per TCB instance rather than written
+// generically: they access registers directly, and the PAC generates a
+// separate register module per instance, so the register enum types (e.g.
+// `CNTMODE_A`) are distinct types.
+macro_rules! tcb_8bit {
+    ($TCB:ident) => {
+
+impl Tcb8bitPwmCapable for crate::pac::$TCB {
+    fn into_8bit_pwm(self) -> TCB8Bit<crate::pac::$TCB> {
+        TCB8Bit { tim: self }
+    }
+}
+
+impl super::PeriodicMode for TCB8Bit<crate::pac::$TCB> {
     const PERIOD_DOUBLE_BUFFERED: bool = false;
 
     #[inline(always)]
@@ -132,7 +153,7 @@ impl super::PeriodicMode for TCB8Bit {
         //        have a reference to the Timer, hence this stuff
         //        When the split pwm channels get a ref to the timer, we can
         //        get rid of this again
-        let tim = unsafe { &*TCB0::ptr() };
+        let tim = unsafe { &*crate::pac::$TCB::ptr() };
         critical_section::with(|_| (tim.ccmp().read().bits() & 0x00FF) as u8)
     }
 
@@ -168,7 +189,7 @@ impl super::PeriodicMode for TCB8Bit {
     }
 }
 
-impl super::WithPwm for TCB8Bit {
+impl super::WithPwm for TCB8Bit<crate::pac::$TCB> {
     const CH_NUMBER: u8 = 1;
     type GenerationMode = ();
     type CompareValue = u8;
@@ -193,7 +214,7 @@ impl super::WithPwm for TCB8Bit {
     }
 
     fn enable_channel(channel: u8, b: bool) {
-        let tim = unsafe { &*TCB0::ptr() };
+        let tim = unsafe { &*crate::pac::$TCB::ptr() };
         match channel {
             0 => _ = tim.ctrlb().modify(|_, w| w.ccmpen().bit(b)),
             _ => panic!("invalid channel number"),
@@ -201,7 +222,7 @@ impl super::WithPwm for TCB8Bit {
     }
 
     fn set_compare_value(channel: u8, value: Self::CompareValue) {
-        let tim = unsafe { &*TCB0::ptr() };
+        let tim = unsafe { &*crate::pac::$TCB::ptr() };
         match channel {
             0 => critical_section::with(|_| {
                 let period = tim.ccmp().read().bits() & 0x00FF;
@@ -213,7 +234,7 @@ impl super::WithPwm for TCB8Bit {
     }
 
     fn read_compare_value(channel: u8) -> Self::CompareValue {
-        let tim = unsafe { &*TCB0::ptr() };
+        let tim = unsafe { &*crate::pac::$TCB::ptr() };
         match channel {
             0 => critical_section::with(|_| (tim.ccmp().read().bits() >> 8) as u8),
             _ => panic!("invalid channel number"),
@@ -222,7 +243,7 @@ impl super::WithPwm for TCB8Bit {
 
     #[inline(always)]
     fn clear_compare_match(channel: u8) {
-        let tim = unsafe { &*TCB0::ptr() };
+        let tim = unsafe { &*crate::pac::$TCB::ptr() };
         match channel {
             0 => _ = tim.intflags().write(|w| w.capt().set_bit()),
             _ => panic!("invalid channel number"),
@@ -231,10 +252,17 @@ impl super::WithPwm for TCB8Bit {
 
     #[inline(always)]
     fn get_compare_match(channel: u8) -> bool {
-        let tim = unsafe { &*TCB0::ptr() };
+        let tim = unsafe { &*crate::pac::$TCB::ptr() };
         match channel {
             0 => tim.intflags().read().capt().bit_is_set(),
             _ => panic!("invalid channel number"),
         }
     }
 }
+
+    };
+}
+
+tcb_8bit!(TCB0);
+#[cfg(feature = "periph-tcb1")]
+tcb_8bit!(TCB1);

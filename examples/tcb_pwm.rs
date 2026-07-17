@@ -52,6 +52,31 @@ fn main() -> ! {
     let t = FTimer::<_, 1024>::new(dp.RTC, RTCClockSource::OSCULP32K_32K).unwrap();
     let mut d = t.delay();
 
+    // The 16 KB+ 1-series parts have a second TCB whose waveform output is
+    // PA3, with a PC4 alternate on the 24-pin packages. Drive a fixed-duty
+    // PWM from TCB1 alongside the sweeping TCB0 one below, using the
+    // alternate pin position where it exists so both routings are covered.
+    #[cfg(all(feature = "periph-tcb1", feature = "pins-14"))]
+    let pwm1_wo = a.pa3.into_stateless_push_pull_output().mux(portmux.tcb1);
+    #[cfg(all(feature = "periph-tcb1", feature = "pins-24"))]
+    let pwm1_wo = dp
+        .PORTC
+        .split()
+        .pc4
+        .into_stateless_push_pull_output()
+        .mux(portmux.tcb1);
+
+    #[cfg(feature = "periph-tcb1")]
+    let mut pwm1 = {
+        let t = Timer::new(dp.TCB1.into_8bit_pwm(), TCBClockSource::Peripheral(clocks));
+        t.pwm_custom(pwm1_wo, 2, 255, ()).unwrap()
+    };
+    #[cfg(feature = "periph-tcb1")]
+    {
+        pwm1.set_duty(Channel::C1, 128).unwrap();
+        pwm1.enable(Channel::C1).unwrap();
+    }
+
     // Create a timer with a variable frequency using TCB0 in 8 Bit PWM mode
     let tcb0_8bit_pwm = dp.TCB0.into_8bit_pwm();
     let t = Timer::new(tcb0_8bit_pwm, TCBClockSource::Peripheral(clocks));

@@ -49,9 +49,9 @@ macro_rules! mux_tokens {
         /// single-context initialization, which is the usual pattern.
         //
         // Non-exhaustive so that tokens for not-yet-supported routings
-        // (TCA WO3-5, TCB1 on the larger devices) can be added without a
-        // breaking change: users can move fields out but never construct
-        // or exhaustively destructure the struct.
+        // (TCA WO3-5) can be added without a breaking change: users can
+        // move fields out but never construct or exhaustively destructure
+        // the struct.
         #[non_exhaustive]
         pub struct Portmux {
             $($(#[$meta])* pub $field: $Token,)+
@@ -124,6 +124,9 @@ mux_tokens! {
     tca0_wo2: Tca0Wo2Mux,
     /// Routing token for the TCB0 waveform output pin
     tcb0: Tcb0Mux,
+    /// Routing token for the TCB1 waveform output pin
+    #[cfg(feature = "periph-tcb1")]
+    tcb1: Tcb1Mux,
     /// Enable token for the event system output 0 pin
     evout0: Evout0Mux,
     /// Enable token for the event system output 1 pin
@@ -657,7 +660,7 @@ use crate::timer::{tcb::TcbPinset, tcb_8bit::TCB8Bit};
 
 #[cfg(feature = "pins-8")]
 impl IntoMuxedPinset<TCB0> for crate::gpio::porta::PA6<Output<Stateless>> {
-    type Pinset = TcbPinset<TCB8Bit, crate::gpio::porta::PA6<Output<Stateless>>, { 0 + C1 }>;
+    type Pinset = TcbPinset<TCB8Bit<TCB0>, crate::gpio::porta::PA6<Output<Stateless>>, { 0 + C1 }>;
 
     type Token = Tcb0Mux;
 
@@ -669,7 +672,7 @@ impl IntoMuxedPinset<TCB0> for crate::gpio::porta::PA6<Output<Stateless>> {
 
 #[cfg(not(feature = "pins-8"))]
 impl IntoMuxedPinset<TCB0> for crate::gpio::porta::PA5<Output<Stateless>> {
-    type Pinset = TcbPinset<TCB8Bit, crate::gpio::porta::PA5<Output<Stateless>>, { 0 + C1 }>;
+    type Pinset = TcbPinset<TCB8Bit<TCB0>, crate::gpio::porta::PA5<Output<Stateless>>, { 0 + C1 }>;
 
     type Token = Tcb0Mux;
 
@@ -681,12 +684,47 @@ impl IntoMuxedPinset<TCB0> for crate::gpio::porta::PA5<Output<Stateless>> {
 
 #[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl IntoMuxedPinset<TCB0> for crate::gpio::portc::PC0<Output<Stateless>> {
-    type Pinset = TcbPinset<TCB8Bit, crate::gpio::portc::PC0<Output<Stateless>>, { 0 + C1 }>;
+    type Pinset = TcbPinset<TCB8Bit<TCB0>, crate::gpio::portc::PC0<Output<Stateless>>, { 0 + C1 }>;
 
     type Token = Tcb0Mux;
 
     fn mux(self, token: Tcb0Mux) -> Self::Pinset {
         token.regs().ctrld().modify(|_r, w| w.tcb0().set_bit());
+        TcbPinset::new(self)
+    }
+}
+
+// TCB1's waveform output (16 KB+ 1-series parts) sits on PA3, with a PC4
+// alternate bonded only on the 24-pin packages.
+
+#[cfg(feature = "periph-tcb1")]
+impl IntoMuxedPinset<crate::pac::TCB1> for crate::gpio::porta::PA3<Output<Stateless>> {
+    type Pinset = TcbPinset<
+        TCB8Bit<crate::pac::TCB1>,
+        crate::gpio::porta::PA3<Output<Stateless>>,
+        { 0 + C1 },
+    >;
+
+    type Token = Tcb1Mux;
+
+    fn mux(self, token: Tcb1Mux) -> Self::Pinset {
+        token.regs().ctrld().modify(|_r, w| w.tcb1().clear_bit());
+        TcbPinset::new(self)
+    }
+}
+
+#[cfg(all(feature = "periph-tcb1", feature = "pins-24"))]
+impl IntoMuxedPinset<crate::pac::TCB1> for crate::gpio::portc::PC4<Output<Stateless>> {
+    type Pinset = TcbPinset<
+        TCB8Bit<crate::pac::TCB1>,
+        crate::gpio::portc::PC4<Output<Stateless>>,
+        { 0 + C1 },
+    >;
+
+    type Token = Tcb1Mux;
+
+    fn mux(self, token: Tcb1Mux) -> Self::Pinset {
+        token.regs().ctrld().modify(|_r, w| w.tcb1().set_bit());
         TcbPinset::new(self)
     }
 }
