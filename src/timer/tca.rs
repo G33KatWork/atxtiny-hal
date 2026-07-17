@@ -1,7 +1,10 @@
 //! # 16-bit Timer/Counter Type A
 
-// TODO: support more than one TCA (right now all is defined for TCA0, we need macros)
-// TODO: support split mode, right now only normal is supported
+// Everything here is written concretely for TCA0: every tinyAVR 0/1/2-series
+// part has exactly one TCA, so a `tcb!`-style macro would be speculative.
+// Multi-TCA only starts in the AVR Dx family (TCA1 on 48/64-pin DA/DB),
+// which is out of this crate's scope; if such a target ever joins, wrapping
+// these impls in a macro is a purely internal refactor.
 
 #[cfg(feature = "enumset")]
 use enumset::EnumSetType;
@@ -361,7 +364,12 @@ fn from_clksrc(prescaler: single_ctrla::CLKSEL_A) -> u16 {
 
 impl crate::private::Sealed for TCA0 {}
 
-use super::pwm::{WaveformOutputPinset, C1, C2, C3};
+use super::pwm::{WaveformOutputPinset, C1, C2, C3, C4};
+// WO4/WO5 are not bonded on the 8-pin packages, so their channel consts
+// would be dead imports there.
+#[cfg(not(feature = "pins-8"))]
+use super::pwm::{C5, C6};
+use super::tca_split::TCASplit;
 use crate::gpio::{Output, Stateless};
 use core::marker::PhantomData;
 
@@ -395,6 +403,22 @@ impl<WaveformOutput: WaveformOutputPin<TCA0, CHAN>, const CHAN: u8> WaveformOutp
 {
 }
 
+// A normal-mode WO0-WO2 pinset drives the same pad from LCMP0-2 when the
+// timer runs in split mode, so it is also a valid split-mode pinset for
+// its channel. The reverse does not hold: WO3-WO5 markers/pinsets are
+// keyed on `TCASplit` (below and in portmux.rs), because those outputs
+// only exist in split mode — this is what makes handing a WO3-5 pinset
+// to a 16-bit-mode PWM constructor a compile error.
+impl<WaveformOutput: WaveformOutputPin<TCA0, CHAN>, const CHAN: u8>
+    WaveformOutputPinset<TCASplit, CHAN> for TcaPinset<TCA0, WaveformOutput, CHAN>
+{
+}
+
+impl<WaveformOutput: WaveformOutputPin<TCASplit, CHAN>, const CHAN: u8>
+    WaveformOutputPinset<TCASplit, CHAN> for TcaPinset<TCASplit, WaveformOutput, CHAN>
+{
+}
+
 // Waveform output pin tables per package (datasheet I/O-multiplexing
 // chapter). The 8-pin parts route WO0-WO2 to PA-pins with only WO0 having
 // an alternate; 14-pin-and-up parts use PB0-PB2 with alternates on
@@ -415,10 +439,6 @@ impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::portb::PB0<Output<Stat
 impl WaveformOutputPin<TCA0, { 0 + C2 }> for crate::gpio::portb::PB1<Output<Stateless>> {}
 #[cfg(not(feature = "pins-8"))]
 impl WaveformOutputPin<TCA0, { 0 + C3 }> for crate::gpio::portb::PB2<Output<Stateless>> {}
-// In split mode:
-//impl WaveformOutputPin<TCA0, C4> for crate::gpio::porta::PA3<Output<Stateless>> {}
-//impl WaveformOutputPin<TCA0, C5> for crate::gpio::porta::PA4<Output<Stateless>> {}
-//impl WaveformOutputPin<TCA0, C6> for crate::gpio::porta::PA5<Output<Stateless>> {}
 
 #[cfg(not(feature = "pins-8"))]
 impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::portb::PB3<Output<Stateless>> {}
@@ -426,7 +446,21 @@ impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::portb::PB3<Output<Stat
 impl WaveformOutputPin<TCA0, { 0 + C2 }> for crate::gpio::portb::PB4<Output<Stateless>> {}
 #[cfg(any(feature = "pins-20", feature = "pins-24"))]
 impl WaveformOutputPin<TCA0, { 0 + C3 }> for crate::gpio::portb::PB5<Output<Stateless>> {}
-// In split mode:
-//impl WaveformOutputPin<TCA0, C4> for crate::gpio::portc::PC3<Output<Stateless>> {}
-//impl WaveformOutputPin<TCA0, C5> for crate::gpio::portc::PC4<Output<Stateless>> {}
-//impl WaveformOutputPin<TCA0, C6> for crate::gpio::portc::PC5<Output<Stateless>> {}
+
+// WO3-WO5 (split mode only, hence keyed on `TCASplit`): PA3-PA5 defaults
+// on every package — on 8-pin parts only WO3 is bonded (PA3, fixed
+// position, shared with WO0's default) — with PC3-PC5 alternates where
+// those pins exist (PC3 on 20/24-pin, PC4/PC5 on 24-pin only).
+
+impl WaveformOutputPin<TCASplit, { 0 + C4 }> for crate::gpio::porta::PA3<Output<Stateless>> {}
+#[cfg(not(feature = "pins-8"))]
+impl WaveformOutputPin<TCASplit, { 0 + C5 }> for crate::gpio::porta::PA4<Output<Stateless>> {}
+#[cfg(not(feature = "pins-8"))]
+impl WaveformOutputPin<TCASplit, { 0 + C6 }> for crate::gpio::porta::PA5<Output<Stateless>> {}
+
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
+impl WaveformOutputPin<TCASplit, { 0 + C4 }> for crate::gpio::portc::PC3<Output<Stateless>> {}
+#[cfg(feature = "pins-24")]
+impl WaveformOutputPin<TCASplit, { 0 + C5 }> for crate::gpio::portc::PC4<Output<Stateless>> {}
+#[cfg(feature = "pins-24")]
+impl WaveformOutputPin<TCASplit, { 0 + C6 }> for crate::gpio::portc::PC5<Output<Stateless>> {}

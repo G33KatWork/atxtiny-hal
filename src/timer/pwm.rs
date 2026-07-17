@@ -12,12 +12,20 @@ use core::ops::{Deref, DerefMut};
 /// output pin depends on the specific chip.
 pub trait WaveformOutputPinset<TCA, const CHAN: u8> {}
 
+/// PWM channel selector.
+///
+/// C4-C6 only exist on the six-channel split-mode TCA
+/// ([`TCASplit`](super::tca_split::TCASplit)); on three-channel timers
+/// they are rejected by [`Pins::check_used`] at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Channel {
     C1 = 0,
     C2 = 1,
     C3 = 2,
+    C4 = 3,
+    C5 = 4,
+    C6 = 5,
 }
 
 pub struct Ch<const C: u8>;
@@ -29,17 +37,26 @@ pub struct Ch<const C: u8>;
 pub const C1: u8 = 0;
 pub const C2: u8 = 1;
 pub const C3: u8 = 2;
+pub const C4: u8 = 3;
+pub const C5: u8 = 4;
+pub const C6: u8 = 5;
 
 pub trait Pins<TIM, P> {
     const C1: bool = false;
     const C2: bool = false;
     const C3: bool = false;
+    const C4: bool = false;
+    const C5: bool = false;
+    const C6: bool = false;
     type Channels;
 
     fn check_used(c: Channel) -> Result<Channel, Error> {
         if (c == Channel::C1 && Self::C1)
             || (c == Channel::C2 && Self::C2)
             || (c == Channel::C3 && Self::C3)
+            || (c == Channel::C4 && Self::C4)
+            || (c == Channel::C5 && Self::C5)
+            || (c == Channel::C6 && Self::C6)
         {
             Ok(c)
         } else {
@@ -75,14 +92,74 @@ macro_rules! pins_impl {
     };
 }
 
+// Every non-empty subset of the six channels (C4-C6 only materialize for
+// timers whose pinsets provide those channels, i.e. split-mode TCA).
+// Multiple impls share a tuple arity; inference still resolves uniquely
+// because each pinset type satisfies `PwmPin` for exactly its channel.
 pins_impl!(
+    (P1, P2, P3, P4, P5, P6), (C1, C2, C3, C4, C5, C6);
+    (P1, P2, P3, P4, P5), (C1, C2, C3, C4, C5);
+    (P1, P2, P3, P4, P6), (C1, C2, C3, C4, C6);
+    (P1, P2, P3, P5, P6), (C1, C2, C3, C5, C6);
+    (P1, P2, P4, P5, P6), (C1, C2, C4, C5, C6);
+    (P1, P3, P4, P5, P6), (C1, C3, C4, C5, C6);
+    (P2, P3, P4, P5, P6), (C2, C3, C4, C5, C6);
+    (P1, P2, P3, P4), (C1, C2, C3, C4);
+    (P1, P2, P3, P5), (C1, C2, C3, C5);
+    (P1, P2, P3, P6), (C1, C2, C3, C6);
+    (P1, P2, P4, P5), (C1, C2, C4, C5);
+    (P1, P2, P4, P6), (C1, C2, C4, C6);
+    (P1, P2, P5, P6), (C1, C2, C5, C6);
+    (P1, P3, P4, P5), (C1, C3, C4, C5);
+    (P1, P3, P4, P6), (C1, C3, C4, C6);
+    (P1, P3, P5, P6), (C1, C3, C5, C6);
+    (P1, P4, P5, P6), (C1, C4, C5, C6);
+    (P2, P3, P4, P5), (C2, C3, C4, C5);
+    (P2, P3, P4, P6), (C2, C3, C4, C6);
+    (P2, P3, P5, P6), (C2, C3, C5, C6);
+    (P2, P4, P5, P6), (C2, C4, C5, C6);
+    (P3, P4, P5, P6), (C3, C4, C5, C6);
     (P1, P2, P3), (C1, C2, C3);
-    (P2, P3), (C2, C3);
-    (P1, P3), (C1, C3);
+    (P1, P2, P4), (C1, C2, C4);
+    (P1, P2, P5), (C1, C2, C5);
+    (P1, P2, P6), (C1, C2, C6);
+    (P1, P3, P4), (C1, C3, C4);
+    (P1, P3, P5), (C1, C3, C5);
+    (P1, P3, P6), (C1, C3, C6);
+    (P1, P4, P5), (C1, C4, C5);
+    (P1, P4, P6), (C1, C4, C6);
+    (P1, P5, P6), (C1, C5, C6);
+    (P2, P3, P4), (C2, C3, C4);
+    (P2, P3, P5), (C2, C3, C5);
+    (P2, P3, P6), (C2, C3, C6);
+    (P2, P4, P5), (C2, C4, C5);
+    (P2, P4, P6), (C2, C4, C6);
+    (P2, P5, P6), (C2, C5, C6);
+    (P3, P4, P5), (C3, C4, C5);
+    (P3, P4, P6), (C3, C4, C6);
+    (P3, P5, P6), (C3, C5, C6);
+    (P4, P5, P6), (C4, C5, C6);
     (P1, P2), (C1, C2);
-    (P3), (C3);
-    (P2), (C2);
+    (P1, P3), (C1, C3);
+    (P1, P4), (C1, C4);
+    (P1, P5), (C1, C5);
+    (P1, P6), (C1, C6);
+    (P2, P3), (C2, C3);
+    (P2, P4), (C2, C4);
+    (P2, P5), (C2, C5);
+    (P2, P6), (C2, C6);
+    (P3, P4), (C3, C4);
+    (P3, P5), (C3, C5);
+    (P3, P6), (C3, C6);
+    (P4, P5), (C4, C5);
+    (P4, P6), (C4, C6);
+    (P5, P6), (C5, C6);
     (P1), (C1);
+    (P2), (C2);
+    (P3), (C3);
+    (P4), (C4);
+    (P5), (C5);
+    (P6), (C6);
 );
 
 macro_rules! tuples {

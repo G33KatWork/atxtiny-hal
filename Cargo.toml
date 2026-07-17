@@ -217,6 +217,10 @@ name = "tca_timer"
 required-features = ["device-selected", "rt"]
 
 [[example]]
+name = "tca_split_pwm"
+required-features = ["device-selected", "rt"]
+
+[[example]]
 name = "tcb_pwm"
 required-features = ["device-selected", "rt"]
 

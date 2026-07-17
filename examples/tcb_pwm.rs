@@ -38,10 +38,14 @@ fn main() -> ! {
     let mut led = a.pa3.into_push_pull_output();
 
     // PWM output: TCB0's waveform output is PA5, except on the 8-pin
-    // packages where it is PA6. The UFCS call disambiguates on 8-pin
-    // packages, where PA6 is also the CCL LUT0 output pin.
+    // packages where it is PA6. The UFCS calls disambiguate: PA5 is also
+    // TCA0's split-mode WO5, and on 8-pin packages PA6 is also the CCL
+    // LUT0 output pin.
     #[cfg(not(feature = "pins-8"))]
-    let pwm_wo = a.pa5.into_stateless_push_pull_output().mux(portmux.tcb0);
+    let pwm_wo = IntoMuxedPinset::<pac::TCB0>::mux(
+        a.pa5.into_stateless_push_pull_output(),
+        portmux.tcb0,
+    );
     #[cfg(feature = "pins-8")]
     let pwm_wo = IntoMuxedPinset::<pac::TCB0>::mux(
         a.pa6.into_stateless_push_pull_output(),
@@ -56,15 +60,18 @@ fn main() -> ! {
     // PA3, with a PC4 alternate on the 24-pin packages. Drive a fixed-duty
     // PWM from TCB1 alongside the sweeping TCB0 one below, using the
     // alternate pin position where it exists so both routings are covered.
+    // UFCS again: PA3/PC4 are also TCA0 split-mode outputs (WO3 and
+    // WO4's alternate position).
     #[cfg(all(feature = "periph-tcb1", feature = "pins-14"))]
-    let pwm1_wo = a.pa3.into_stateless_push_pull_output().mux(portmux.tcb1);
+    let pwm1_wo = IntoMuxedPinset::<pac::TCB1>::mux(
+        a.pa3.into_stateless_push_pull_output(),
+        portmux.tcb1,
+    );
     #[cfg(all(feature = "periph-tcb1", feature = "pins-24"))]
-    let pwm1_wo = dp
-        .PORTC
-        .split()
-        .pc4
-        .into_stateless_push_pull_output()
-        .mux(portmux.tcb1);
+    let pwm1_wo = IntoMuxedPinset::<pac::TCB1>::mux(
+        dp.PORTC.split().pc4.into_stateless_push_pull_output(),
+        portmux.tcb1,
+    );
 
     #[cfg(feature = "periph-tcb1")]
     let mut pwm1 = {

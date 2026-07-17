@@ -12,6 +12,7 @@ pub use timer::*;
 
 pub mod rtc;
 pub mod tca;
+pub mod tca_split;
 pub mod tcb;
 pub mod tcb_8bit;
 

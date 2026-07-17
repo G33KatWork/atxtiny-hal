@@ -48,10 +48,9 @@ macro_rules! mux_tokens {
         /// ISRs) concurrently can lose updates — do the muxing during
         /// single-context initialization, which is the usual pattern.
         //
-        // Non-exhaustive so that tokens for not-yet-supported routings
-        // (TCA WO3-5) can be added without a breaking change: users can
-        // move fields out but never construct or exhaustively destructure
-        // the struct.
+        // Non-exhaustive so that tokens for any not-yet-supported routings
+        // can be added without a breaking change: users can move fields
+        // out but never construct or exhaustively destructure the struct.
         #[non_exhaustive]
         pub struct Portmux {
             $($(#[$meta])* pub $field: $Token,)+
@@ -122,6 +121,14 @@ mux_tokens! {
     tca0_wo1: Tca0Wo1Mux,
     /// Routing token for the TCA0 waveform output 2 pin
     tca0_wo2: Tca0Wo2Mux,
+    /// Routing token for the TCA0 waveform output 3 pin (split mode)
+    tca0_wo3: Tca0Wo3Mux,
+    /// Routing token for the TCA0 waveform output 4 pin (split mode)
+    #[cfg(not(feature = "pins-8"))]
+    tca0_wo4: Tca0Wo4Mux,
+    /// Routing token for the TCA0 waveform output 5 pin (split mode)
+    #[cfg(not(feature = "pins-8"))]
+    tca0_wo5: Tca0Wo5Mux,
     /// Routing token for the TCB0 waveform output pin
     tcb0: Tcb0Mux,
     /// Routing token for the TCB1 waveform output pin
@@ -524,7 +531,10 @@ impl IntoMuxedPinset<LUT1> for crate::gpio::portc::PC1<Output<Stateless>> {
 // TCA
 use crate::pac::TCA0;
 use crate::timer::tca::TcaPinset;
-use crate::timer::{C1, C2, C3};
+use crate::timer::{C1, C2, C3, C4};
+// WO4/WO5 (and their channel consts) only exist on 14-pin-and-up parts.
+#[cfg(not(feature = "pins-8"))]
+use crate::timer::{C5, C6};
 
 // TCA0 waveform outputs 0-2 sit on PB0-PB2 (alternates PB3-PB5) on
 // 14-pin-and-up packages. The 8-pin parts route them to PA-pins instead,
@@ -647,6 +657,85 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB5<Output<Stateless>> {
 
     fn mux(self, token: Tca0Wo2Mux) -> Self::Pinset {
         token.regs().ctrlc().modify(|_r, w| w.tca02().set_bit());
+        TcaPinset::new(self)
+    }
+}
+
+// TCA0 WO3-WO5 only exist in split mode, so their pinsets are keyed on
+// the split-mode wrapper type (also avoiding an impl collision on the
+// 8-pin parts, where PA3 is WO0's default position as well). Defaults
+// are PA3-PA5 on every package (the 8-pin parts only bond WO3, whose
+// single position makes the routing-bit write a formality there);
+// alternates are PC3 (20/24-pin) and PC4/PC5 (24-pin).
+use crate::timer::tca_split::TCASplit;
+
+impl IntoMuxedPinset<TCASplit> for crate::gpio::porta::PA3<Output<Stateless>> {
+    type Pinset = TcaPinset<TCASplit, crate::gpio::porta::PA3<Output<Stateless>>, { 0 + C4 }>;
+
+    type Token = Tca0Wo3Mux;
+
+    fn mux(self, token: Tca0Wo3Mux) -> Self::Pinset {
+        token.regs().ctrlc().modify(|_r, w| w.tca03().clear_bit());
+        TcaPinset::new(self)
+    }
+}
+
+#[cfg(not(feature = "pins-8"))]
+impl IntoMuxedPinset<TCASplit> for crate::gpio::porta::PA4<Output<Stateless>> {
+    type Pinset = TcaPinset<TCASplit, crate::gpio::porta::PA4<Output<Stateless>>, { 0 + C5 }>;
+
+    type Token = Tca0Wo4Mux;
+
+    fn mux(self, token: Tca0Wo4Mux) -> Self::Pinset {
+        token.regs().ctrlc().modify(|_r, w| w.tca04().clear_bit());
+        TcaPinset::new(self)
+    }
+}
+
+#[cfg(not(feature = "pins-8"))]
+impl IntoMuxedPinset<TCASplit> for crate::gpio::porta::PA5<Output<Stateless>> {
+    type Pinset = TcaPinset<TCASplit, crate::gpio::porta::PA5<Output<Stateless>>, { 0 + C6 }>;
+
+    type Token = Tca0Wo5Mux;
+
+    fn mux(self, token: Tca0Wo5Mux) -> Self::Pinset {
+        token.regs().ctrlc().modify(|_r, w| w.tca05().clear_bit());
+        TcaPinset::new(self)
+    }
+}
+
+#[cfg(any(feature = "pins-20", feature = "pins-24"))]
+impl IntoMuxedPinset<TCASplit> for crate::gpio::portc::PC3<Output<Stateless>> {
+    type Pinset = TcaPinset<TCASplit, crate::gpio::portc::PC3<Output<Stateless>>, { 0 + C4 }>;
+
+    type Token = Tca0Wo3Mux;
+
+    fn mux(self, token: Tca0Wo3Mux) -> Self::Pinset {
+        token.regs().ctrlc().modify(|_r, w| w.tca03().set_bit());
+        TcaPinset::new(self)
+    }
+}
+
+#[cfg(feature = "pins-24")]
+impl IntoMuxedPinset<TCASplit> for crate::gpio::portc::PC4<Output<Stateless>> {
+    type Pinset = TcaPinset<TCASplit, crate::gpio::portc::PC4<Output<Stateless>>, { 0 + C5 }>;
+
+    type Token = Tca0Wo4Mux;
+
+    fn mux(self, token: Tca0Wo4Mux) -> Self::Pinset {
+        token.regs().ctrlc().modify(|_r, w| w.tca04().set_bit());
+        TcaPinset::new(self)
+    }
+}
+
+#[cfg(feature = "pins-24")]
+impl IntoMuxedPinset<TCASplit> for crate::gpio::portc::PC5<Output<Stateless>> {
+    type Pinset = TcaPinset<TCASplit, crate::gpio::portc::PC5<Output<Stateless>>, { 0 + C6 }>;
+
+    type Token = Tca0Wo5Mux;
+
+    fn mux(self, token: Tca0Wo5Mux) -> Self::Pinset {
+        token.regs().ctrlc().modify(|_r, w| w.tca05().set_bit());
         TcaPinset::new(self)
     }
 }

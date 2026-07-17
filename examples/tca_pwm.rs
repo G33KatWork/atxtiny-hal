@@ -42,7 +42,12 @@ fn main() -> ! {
     let pwm_pins = {
         let a = dp.PORTA.split();
         (
-            a.pa3.into_stateless_push_pull_output().mux(portmux.tca0_wo0),
+            // UFCS: PA3 is also TCA0's split-mode WO3, so plain `.mux()`
+            // is ambiguous between the two pinset targets.
+            IntoMuxedPinset::<pac::TCA0>::mux(
+                a.pa3.into_stateless_push_pull_output(),
+                portmux.tca0_wo0,
+            ),
             a.pa1.into_stateless_push_pull_output().mux(portmux.tca0_wo1),
             a.pa2.into_stateless_push_pull_output().mux(portmux.tca0_wo2),
         )
