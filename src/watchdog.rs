@@ -28,40 +28,40 @@ pub enum WatchdogTimeout {
     S8,
 }
 
-impl Into<PERIOD_A> for WatchdogTimeout {
-    fn into(self) -> PERIOD_A {
-        match self {
-            Self::Disabled => PERIOD_A::OFF,
-            Self::Ms8 => PERIOD_A::_8CLK,
-            Self::Ms16 => PERIOD_A::_16CLK,
-            Self::Ms31 => PERIOD_A::_32CLK,
-            Self::Ms63 => PERIOD_A::_64CLK,
-            Self::Ms125 => PERIOD_A::_128CLK,
-            Self::Ms250 => PERIOD_A::_256CLK,
-            Self::Ms500 => PERIOD_A::_512CLK,
-            Self::S1 => PERIOD_A::_1KCLK,
-            Self::S2 => PERIOD_A::_2KCLK,
-            Self::S4 => PERIOD_A::_4KCLK,
-            Self::S8 => PERIOD_A::_8KCLK,
+impl From<WatchdogTimeout> for PERIOD_A {
+    fn from(value: WatchdogTimeout) -> Self {
+        match value {
+            WatchdogTimeout::Disabled => PERIOD_A::OFF,
+            WatchdogTimeout::Ms8 => PERIOD_A::_8CLK,
+            WatchdogTimeout::Ms16 => PERIOD_A::_16CLK,
+            WatchdogTimeout::Ms31 => PERIOD_A::_32CLK,
+            WatchdogTimeout::Ms63 => PERIOD_A::_64CLK,
+            WatchdogTimeout::Ms125 => PERIOD_A::_128CLK,
+            WatchdogTimeout::Ms250 => PERIOD_A::_256CLK,
+            WatchdogTimeout::Ms500 => PERIOD_A::_512CLK,
+            WatchdogTimeout::S1 => PERIOD_A::_1KCLK,
+            WatchdogTimeout::S2 => PERIOD_A::_2KCLK,
+            WatchdogTimeout::S4 => PERIOD_A::_4KCLK,
+            WatchdogTimeout::S8 => PERIOD_A::_8KCLK,
         }
     }
 }
 
-impl Into<WINDOW_A> for WatchdogTimeout {
-    fn into(self) -> WINDOW_A {
-        match self {
-            Self::Disabled => WINDOW_A::OFF,
-            Self::Ms8 => WINDOW_A::_8CLK,
-            Self::Ms16 => WINDOW_A::_16CLK,
-            Self::Ms31 => WINDOW_A::_32CLK,
-            Self::Ms63 => WINDOW_A::_64CLK,
-            Self::Ms125 => WINDOW_A::_128CLK,
-            Self::Ms250 => WINDOW_A::_256CLK,
-            Self::Ms500 => WINDOW_A::_512CLK,
-            Self::S1 => WINDOW_A::_1KCLK,
-            Self::S2 => WINDOW_A::_2KCLK,
-            Self::S4 => WINDOW_A::_4KCLK,
-            Self::S8 => WINDOW_A::_8KCLK,
+impl From<WatchdogTimeout> for WINDOW_A {
+    fn from(value: WatchdogTimeout) -> Self {
+        match value {
+            WatchdogTimeout::Disabled => WINDOW_A::OFF,
+            WatchdogTimeout::Ms8 => WINDOW_A::_8CLK,
+            WatchdogTimeout::Ms16 => WINDOW_A::_16CLK,
+            WatchdogTimeout::Ms31 => WINDOW_A::_32CLK,
+            WatchdogTimeout::Ms63 => WINDOW_A::_64CLK,
+            WatchdogTimeout::Ms125 => WINDOW_A::_128CLK,
+            WatchdogTimeout::Ms250 => WINDOW_A::_256CLK,
+            WatchdogTimeout::Ms500 => WINDOW_A::_512CLK,
+            WatchdogTimeout::S1 => WINDOW_A::_1KCLK,
+            WatchdogTimeout::S2 => WINDOW_A::_2KCLK,
+            WatchdogTimeout::S4 => WINDOW_A::_4KCLK,
+            WatchdogTimeout::S8 => WINDOW_A::_8KCLK,
         }
     }
 }
@@ -133,9 +133,14 @@ impl WatchdogTimer {
 
     /// Lock the watchdog peripheral.
     ///
-    /// Once this function has been called, it cannot be reconfigured anymore
-    pub fn lock(&self) {
+    /// Once this function has been called, the watchdog cannot be
+    /// reconfigured anymore until the next reset — the hardware silently
+    /// ignores all further CTRLA writes. Consuming the [`WatchdogTimer`]
+    /// makes those dead reconfiguration attempts unrepresentable; the
+    /// returned [`LockedWatchdogTimer`] can only be fed.
+    pub fn lock(self) -> LockedWatchdogTimer {
         self.wdt.status().write_protected(|w| w.lock().set_bit());
+        LockedWatchdogTimer { _wdt: self.wdt }
     }
 
     /// Get access to the underlying register block.
@@ -159,10 +164,42 @@ impl WatchdogTimer {
         self.setup(period, None);
     }
 
+    /// Start the watchdog in window mode
+    ///
+    /// After each feed the window stays *closed* for the `window` duration,
+    /// then remains open for the `timeout` duration. The watchdog resets the
+    /// system when it is not fed within the open window, so the total period
+    /// between feeds may be up to `window + timeout`.
+    ///
+    /// WARNING: Feeding the watchdog while the window is still closed (i.e.
+    /// earlier than `window` after the previous feed) immediately resets the
+    /// system. Make sure every feed site in the program respects the window
+    /// before enabling this mode.
+    pub fn start_windowed(&mut self, timeout: WatchdogTimeout, window: WatchdogTimeout) {
+        self.setup(timeout, Some(window));
+    }
+
     /// Feed the watchdog and prevent it from expiring
     ///
     /// NOTE: This was an Embedded-HAL trait method once which was removed and
     /// will be added back at a later time
+    #[inline(always)]
+    pub fn feed(&mut self) {
+        avr_device::asm::wdr()
+    }
+}
+
+/// A locked watchdog timer
+///
+/// Obtained by calling [`lock`](WatchdogTimer::lock). The configuration is
+/// frozen in hardware until the next reset, so this type only exposes
+/// feeding.
+pub struct LockedWatchdogTimer {
+    _wdt: WDT,
+}
+
+impl LockedWatchdogTimer {
+    /// Feed the watchdog and prevent it from expiring
     #[inline(always)]
     pub fn feed(&mut self) {
         avr_device::asm::wdr()
