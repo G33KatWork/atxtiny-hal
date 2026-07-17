@@ -180,6 +180,13 @@ impl super::WithPwm for TCB8Bit {
         self.tim.ctrlb().write(|w| w.cntmode().pwm8());
     }
 
+    #[inline(always)]
+    fn is_period_driven(_mode: &Self::GenerationMode) -> bool {
+        // PWM8 always takes its TOP from CCMPL, which is what
+        // set_period_unchecked writes.
+        true
+    }
+
     fn enable_channel(channel: u8, b: bool) {
         let tim = unsafe { &*TCB0::ptr() };
         match channel {

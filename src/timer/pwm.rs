@@ -483,6 +483,12 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
     where
         PINS: Pins<TIM, P>,
     {
+        // This constructor programs PER from the requested frequency, which
+        // only works for generation modes whose TOP is PER.
+        if !TIM::is_period_driven(&mode) {
+            return Err(Error::UnsupportedPwmMode);
+        }
+
         self.tim.disable_counter();
         self.tim.reset_count();
         // Select the clock source the period math below assumes — without
@@ -518,6 +524,11 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
     where
         PINS: Pins<TIM, P>,
     {
+        // Same period-driven-mode requirement as in pwm_hz above.
+        if !TIM::is_period_driven(&mode) {
+            return Err(Error::UnsupportedPwmMode);
+        }
+
         self.tim.disable_counter();
         self.tim.reset_count();
         // Same clock-source selection as in pwm_hz above.
@@ -552,6 +563,11 @@ impl<TIM: Instance + WithPwm, const FREQ: u32> FTimer<TIM, FREQ> {
     where
         PINS: Pins<TIM, P>,
     {
+        // Same period-driven-mode requirement as in Timer::pwm_hz.
+        if !TIM::is_period_driven(&mode) {
+            return Err(Error::UnsupportedPwmMode);
+        }
+
         // We are an FTimer, so at this point the clock source and prescaler
         // are already set up based on the target frequency in FREQ
 

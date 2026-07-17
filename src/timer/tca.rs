@@ -252,10 +252,18 @@ impl super::WithPwm for TCA0 {
     type CompareValue = u16;
 
     fn set_pwm_mode(&mut self, mode: Self::GenerationMode) {
-        //crate::pac::Usart0
-        //crate::pac::Peripherals::steal().usart0
         self.single_ctrlb()
             .modify(|_, w| w.wgmode().variant(mode.into()));
+    }
+
+    #[inline(always)]
+    fn is_period_driven(mode: &Self::GenerationMode) -> bool {
+        // In frequency mode TOP is CMP0, not PER: the period written by the
+        // period-driven constructors would be ignored and channel 0's
+        // "duty" would set the output frequency instead.
+        // TODO: support frequency mode through a dedicated constructor that
+        //       programs CMP0 as TOP.
+        !matches!(mode, WaveformGenerationMode::Frequency)
     }
 
     fn enable_channel(channel: u8, b: bool) {

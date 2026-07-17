@@ -135,6 +135,13 @@ mod sealed {
 
         fn set_pwm_mode(&mut self, mode: Self::GenerationMode);
 
+        /// Whether this waveform generation mode takes its TOP value from
+        /// the PER register. Modes that repurpose a compare register as TOP
+        /// (TCA's frequency mode uses CMP0) make the period-driven PWM
+        /// constructors write a period the hardware ignores, so those
+        /// constructors reject such modes.
+        fn is_period_driven(mode: &Self::GenerationMode) -> bool;
+
         // FIXME: passing some channel object wrapping a timer pointer or similar
         //        might be the better solution here. Otherwise we always need to
         //        call ptr() and dereference it all the time in these functions
@@ -194,6 +201,8 @@ pub enum Error {
     ImpossiblePrescaler,
     /// Impossible Period
     ImpossiblePeriod,
+    /// Waveform generation mode not usable with this constructor
+    UnsupportedPwmMode,
 }
 
 pub trait TimerExt<TIM: Instance>: Sized {
