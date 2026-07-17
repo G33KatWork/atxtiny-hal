@@ -97,10 +97,15 @@ impl super::TimerClock for TCB0 {
     #[inline(always)]
     fn read_prescaler(&self) -> u16 {
         use ctrla::CLKSEL_A::*;
-        let prescaler = self.ctrla().read().clksel().variant().unwrap();
-        match prescaler {
-            CLKTCA => 1,
-            _ => from_clksrc(prescaler),
+        // The 2-bit CLKSEL field has a reserved 0b11 pattern, so `variant()`
+        // is an Option. A corrupted CTRLA must not turn this diagnostic read
+        // into a panic (the unwrap dragged panic code into every
+        // `get_period` caller); the reserved pattern reads as an undivided
+        // clock. CLKTCA is 1 as well: relative to the TCA-supplied input
+        // clock this timer applies no further division.
+        match self.ctrla().read().clksel().variant() {
+            Some(CLKDIV2) => 2,
+            Some(CLKDIV1) | Some(CLKTCA) | None => 1,
         }
     }
 }
@@ -228,15 +233,6 @@ fn into_clksrc(prescaler: u16) -> ctrla::CLKSEL_A {
     match prescaler {
         1 => CLKDIV1,
         2 => CLKDIV2,
-        _ => panic!("Invalid prescaler"),
-    }
-}
-
-fn from_clksrc(prescaler: ctrla::CLKSEL_A) -> u16 {
-    use ctrla::CLKSEL_A::*;
-    match prescaler {
-        CLKDIV1 => 1,
-        CLKDIV2 => 2,
         _ => panic!("Invalid prescaler"),
     }
 }
