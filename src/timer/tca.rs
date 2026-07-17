@@ -198,7 +198,12 @@ impl super::PeriodicMode for TCA0 {
     #[inline(always)]
     fn read_period() -> Self::CounterValue {
         let tim = unsafe { &*TCA0::ptr() };
-        tim.single_per().read().bits()
+        // Periods are written through the double-buffered PERBUF, which
+        // retains its value after the hardware transfers it to PER at the
+        // next UPDATE. Reading PERBUF back keeps read-after-write
+        // consistency even before that transfer happens; reading PER here
+        // returned the stale pre-update period.
+        tim.single_perbuf().read().bits()
     }
 
     #[inline(always)]
@@ -256,10 +261,14 @@ impl super::WithPwm for TCA0 {
 
     fn read_compare_value(channel: u8) -> Self::CompareValue {
         let tim = unsafe { &*TCA0::ptr() };
+        // Same buffered read-back rationale as read_period: set_compare_value
+        // writes CMPnBUF, so reading CMPn returned the stale value until the
+        // next UPDATE — `set_duty(get_duty() + 1)` within one period lost
+        // updates.
         match channel {
-            0 => tim.single_cmp0().read().bits(),
-            1 => tim.single_cmp1().read().bits(),
-            2 => tim.single_cmp2().read().bits(),
+            0 => tim.single_cmp0buf().read().bits(),
+            1 => tim.single_cmp1buf().read().bits(),
+            2 => tim.single_cmp2buf().read().bits(),
             _ => panic!("invalid channel number"),
         }
     }
