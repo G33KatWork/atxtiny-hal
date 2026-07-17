@@ -202,7 +202,8 @@ where
     PINS: Pins<TIM, P>,
 {
     timer: Timer<TIM>,
-    _pins: PhantomData<(P, PINS)>,
+    pins: PINS,
+    _p: PhantomData<P>,
 }
 
 impl<TIM, P, PINS> Deref for PwmHz<TIM, P, PINS>
@@ -231,13 +232,19 @@ where
     TIM: Instance + WithPwm,
     PINS: Pins<TIM, P>,
 {
+    /// Split into per-channel duty-cycle handles.
+    ///
+    /// This intentionally forfeits the pinset: the channel handles borrow
+    /// nothing, so the pins stay muxed to the timer for the rest of the
+    /// program. Use [`release`](Self::release) instead to tear the PWM down
+    /// and recover the pins.
     pub fn split(self) -> PINS::Channels {
         PINS::split()
     }
 
-    pub fn release(mut self) -> Timer<TIM> {
+    pub fn release(mut self) -> (Timer<TIM>, PINS) {
         self.tim.disable_counter();
-        self.timer
+        (self.timer, self.pins)
     }
 }
 
@@ -334,7 +341,8 @@ where
     PINS: Pins<TIM, P>,
 {
     timer: FTimer<TIM, FREQ>,
-    _pins: PhantomData<(P, PINS)>,
+    pins: PINS,
+    _p: PhantomData<P>,
 }
 
 impl<TIM, P, PINS, const FREQ: u32> Deref for Pwm<TIM, P, PINS, FREQ>
@@ -364,13 +372,19 @@ where
     TIM: Instance + WithPwm,
     PINS: Pins<TIM, P>,
 {
+    /// Split into per-channel duty-cycle handles.
+    ///
+    /// This intentionally forfeits the pinset: the channel handles borrow
+    /// nothing, so the pins stay muxed to the timer for the rest of the
+    /// program. Use [`release`](Self::release) instead to tear the PWM down
+    /// and recover the pins.
     pub fn split(self) -> PINS::Channels {
         PINS::split()
     }
 
-    pub fn release(mut self) -> FTimer<TIM, FREQ> {
+    pub fn release(mut self) -> (FTimer<TIM, FREQ>, PINS) {
         self.tim.disable_counter();
-        self.timer
+        (self.timer, self.pins)
     }
 }
 
@@ -481,7 +495,7 @@ where
 impl<TIM: Instance + WithPwm> Timer<TIM> {
     pub fn pwm_hz<P, PINS>(
         mut self,
-        _pins: PINS,
+        pins: PINS,
         freq: Hertz,
         mode: TIM::GenerationMode,
     ) -> Result<PwmHz<TIM, P, PINS>, Error>
@@ -513,7 +527,8 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
 
         Ok(PwmHz {
             timer: self,
-            _pins: PhantomData,
+            pins,
+            _p: PhantomData,
         })
     }
 }
@@ -521,7 +536,7 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
 impl<TIM: Instance + WithPwm> Timer<TIM> {
     pub fn pwm_custom<P, PINS>(
         mut self,
-        _pins: PINS,
+        pins: PINS,
         prescaler: u16,
         period: TIM::CounterValue,
         mode: TIM::GenerationMode,
@@ -553,7 +568,8 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
 
         Ok(PwmHz {
             timer: self,
-            _pins: PhantomData,
+            pins,
+            _p: PhantomData,
         })
     }
 }
@@ -561,7 +577,7 @@ impl<TIM: Instance + WithPwm> Timer<TIM> {
 impl<TIM: Instance + WithPwm, const FREQ: u32> FTimer<TIM, FREQ> {
     pub fn pwm<P, PINS>(
         mut self,
-        _pins: PINS,
+        pins: PINS,
         time: TimerDurationU32<FREQ>,
         mode: TIM::GenerationMode,
     ) -> Result<Pwm<TIM, P, PINS, FREQ>, Error>
@@ -594,7 +610,8 @@ impl<TIM: Instance + WithPwm, const FREQ: u32> FTimer<TIM, FREQ> {
 
         Ok(Pwm {
             timer: self,
-            _pins: PhantomData,
+            pins,
+            _p: PhantomData,
         })
     }
 }
