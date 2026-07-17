@@ -366,7 +366,7 @@ use crate::timer::tca::TcaPinset;
 use crate::timer::{C1, C2, C3};
 
 impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB0<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB0<Output<Stateless>>, C1>;
+    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB0<Output<Stateless>>, { 0 + C1 }>;
 
     type Token = Tca0Wo0Mux;
 
@@ -377,7 +377,7 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB0<Output<Stateless>> {
 }
 
 impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB1<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB1<Output<Stateless>>, C2>;
+    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB1<Output<Stateless>>, { 0 + C2 }>;
 
     type Token = Tca0Wo1Mux;
 
@@ -388,7 +388,7 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB1<Output<Stateless>> {
 }
 
 impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB2<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB2<Output<Stateless>>, C3>;
+    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB2<Output<Stateless>>, { 0 + C3 }>;
 
     type Token = Tca0Wo2Mux;
 
@@ -399,7 +399,7 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB2<Output<Stateless>> {
 }
 
 impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB3<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB3<Output<Stateless>>, C1>;
+    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB3<Output<Stateless>>, { 0 + C1 }>;
 
     type Token = Tca0Wo0Mux;
 
@@ -410,7 +410,7 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB3<Output<Stateless>> {
 }
 
 impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB4<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB4<Output<Stateless>>, C2>;
+    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB4<Output<Stateless>>, { 0 + C2 }>;
 
     type Token = Tca0Wo1Mux;
 
@@ -421,7 +421,7 @@ impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB4<Output<Stateless>> {
 }
 
 impl IntoMuxedPinset<TCA0> for crate::gpio::portb::PB5<Output<Stateless>> {
-    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB5<Output<Stateless>>, C3>;
+    type Pinset = TcaPinset<TCA0, crate::gpio::portb::PB5<Output<Stateless>>, { 0 + C3 }>;
 
     type Token = Tca0Wo2Mux;
 
@@ -436,7 +436,7 @@ use crate::pac::TCB0;
 use crate::timer::{tcb::TcbPinset, tcb_8bit::TCB8Bit};
 
 impl IntoMuxedPinset<TCB0> for crate::gpio::porta::PA5<Output<Stateless>> {
-    type Pinset = TcbPinset<TCB8Bit, crate::gpio::porta::PA5<Output<Stateless>>, C1>;
+    type Pinset = TcbPinset<TCB8Bit, crate::gpio::porta::PA5<Output<Stateless>>, { 0 + C1 }>;
 
     type Token = Tcb0Mux;
 
@@ -447,7 +447,7 @@ impl IntoMuxedPinset<TCB0> for crate::gpio::porta::PA5<Output<Stateless>> {
 }
 
 impl IntoMuxedPinset<TCB0> for crate::gpio::portc::PC0<Output<Stateless>> {
-    type Pinset = TcbPinset<TCB8Bit, crate::gpio::portc::PC0<Output<Stateless>>, C1>;
+    type Pinset = TcbPinset<TCB8Bit, crate::gpio::portc::PC0<Output<Stateless>>, { 0 + C1 }>;
 
     type Token = Tcb0Mux;
 

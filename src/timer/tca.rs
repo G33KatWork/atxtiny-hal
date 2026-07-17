@@ -390,17 +390,17 @@ impl<WaveformOutput: WaveformOutputPin<TCA0, CHAN>, const CHAN: u8> WaveformOutp
 {
 }
 
-impl WaveformOutputPin<TCA0, C1> for crate::gpio::portb::PB0<Output<Stateless>> {}
-impl WaveformOutputPin<TCA0, C2> for crate::gpio::portb::PB1<Output<Stateless>> {}
-impl WaveformOutputPin<TCA0, C3> for crate::gpio::portb::PB2<Output<Stateless>> {}
+impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::portb::PB0<Output<Stateless>> {}
+impl WaveformOutputPin<TCA0, { 0 + C2 }> for crate::gpio::portb::PB1<Output<Stateless>> {}
+impl WaveformOutputPin<TCA0, { 0 + C3 }> for crate::gpio::portb::PB2<Output<Stateless>> {}
 // In split mode:
 //impl WaveformOutputPin<TCA0, C4> for crate::gpio::porta::PA3<Output<Stateless>> {}
 //impl WaveformOutputPin<TCA0, C5> for crate::gpio::porta::PA4<Output<Stateless>> {}
 //impl WaveformOutputPin<TCA0, C6> for crate::gpio::porta::PA5<Output<Stateless>> {}
 
-impl WaveformOutputPin<TCA0, C1> for crate::gpio::portb::PB3<Output<Stateless>> {}
-impl WaveformOutputPin<TCA0, C2> for crate::gpio::portb::PB4<Output<Stateless>> {}
-impl WaveformOutputPin<TCA0, C3> for crate::gpio::portb::PB5<Output<Stateless>> {}
+impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::portb::PB3<Output<Stateless>> {}
+impl WaveformOutputPin<TCA0, { 0 + C2 }> for crate::gpio::portb::PB4<Output<Stateless>> {}
+impl WaveformOutputPin<TCA0, { 0 + C3 }> for crate::gpio::portb::PB5<Output<Stateless>> {}
 // In split mode:
 //impl WaveformOutputPin<TCA0, C4> for crate::gpio::portc::PC3<Output<Stateless>> {}
 //impl WaveformOutputPin<TCA0, C5> for crate::gpio::portc::PC4<Output<Stateless>> {}

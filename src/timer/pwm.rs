@@ -21,9 +21,14 @@ pub enum Channel {
 }
 
 pub struct Ch<const C: u8>;
-pub type const C1: u8 = 0;
-pub type const C2: u8 = 1;
-pub type const C3: u8 = 2;
+// Plain consts used as const-generic arguments. While the (enabled)
+// min_generic_const_args feature is active, a bare named const in type
+// position is rejected — even inside braces — so every use site wraps
+// these in a non-trivial anonymous-const expression: `Ch<{ 0 + C1 }>`
+// (same workaround as the USERROW_SIZE array length in nvmctrl.rs).
+pub const C1: u8 = 0;
+pub const C2: u8 = 1;
+pub const C3: u8 = 2;
 
 pub trait Pins<TIM, P> {
     const C1: bool = false;
@@ -55,15 +60,15 @@ macro_rules! pins_impl {
     ( $( ( $($PINX:ident),+ ), ( $($ENCHX:ident),+ ); )+ ) => {
         $(
             #[allow(unused_parens)]
-            impl<TIM, $($PINX,)+> Pins<TIM, ($(Ch<$ENCHX>),+)> for ($($PINX),+)
+            impl<TIM, $($PINX,)+> Pins<TIM, ($(Ch<{ 0 + $ENCHX }>),+)> for ($($PINX),+)
             where
                 TIM: Instance + WithPwm,
-                $($PINX: PwmPin<TIM, $ENCHX>,)+
+                $($PINX: PwmPin<TIM, { 0 + $ENCHX }>,)+
             {
                 $(const $ENCHX: bool = true;)+
-                type Channels = ($(PwmChannel<TIM, $ENCHX>),+);
+                type Channels = ($(PwmChannel<TIM, { 0 + $ENCHX }>),+);
                 fn split() -> Self::Channels {
-                    ($(PwmChannel::<TIM, $ENCHX>::new()),+)
+                    ($(PwmChannel::<TIM, { 0 + $ENCHX }>::new()),+)
                 }
             }
         )+

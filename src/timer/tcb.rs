@@ -280,5 +280,5 @@ impl<WaveformOutput: WaveformOutputPin<TCB8Bit, CHAN>, const CHAN: u8>
 {
 }
 
-impl WaveformOutputPin<TCB8Bit, C1> for crate::gpio::porta::PA5<Output<Stateless>> {}
-impl WaveformOutputPin<TCB8Bit, C1> for crate::gpio::portc::PC0<Output<Stateless>> {}
+impl WaveformOutputPin<TCB8Bit, { 0 + C1 }> for crate::gpio::porta::PA5<Output<Stateless>> {}
+impl WaveformOutputPin<TCB8Bit, { 0 + C1 }> for crate::gpio::portc::PC0<Output<Stateless>> {}
