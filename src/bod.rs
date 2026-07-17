@@ -145,14 +145,13 @@ impl From<bod::ctrlb::LVL_A> for Level {
 }
 
 #[cfg(any(feature = "attiny1617", feature = "attiny3217"))]
-impl From<Option<bod::ctrlb::LVL_A>> for Level {
-    fn from(value: Option<bod::ctrlb::LVL_A>) -> Self {
+impl From<bod::ctrlb::LVL_A> for Level {
+    fn from(value: bod::ctrlb::LVL_A) -> Self {
         use bod::ctrlb::LVL_A::*;
         match value {
-            Some(BODLEVEL0) => Level::Level180V,
-            Some(BODLEVEL2) => Level::Level260V,
-            Some(BODLEVEL7) => Level::Level430V,
-            None => panic!("Invalid value for BOD level"),
+            BODLEVEL0 => Level::Level180V,
+            BODLEVEL2 => Level::Level260V,
+            BODLEVEL7 => Level::Level430V,
         }
     }
 }
@@ -346,9 +345,13 @@ impl BrownoutDetector {
     }
 
     /// Get the configured sleep brownout detection mode
+    ///
+    /// Returns `None` if the register holds the reserved bitfield encoding,
+    /// which can only happen through register corruption — this API never
+    /// writes it.
     #[inline]
-    pub fn get_sleep_mode(&self) -> SleepMode {
-        self.bod.ctrla().read().sleep().variant().unwrap().into()
+    pub fn get_sleep_mode(&self) -> Option<SleepMode> {
+        self.bod.ctrla().read().sleep().variant().map(Into::into)
     }
 
     /// Set the configured sleep brownout detection mode
@@ -361,13 +364,21 @@ impl BrownoutDetector {
             .modify_protected(|_, w| w.sleep().variant(mode.into()));
     }
 
-    /// Get the configured sleep brownout detection mode
+    /// Get the configured brownout detection level
     ///
     /// This setting is loaded from fusebits during reset and can not be changed
-    /// during runtime
+    /// during runtime.
+    ///
+    /// Returns `None` if the fuses hold a reserved level encoding. On devices
+    /// where every encoding is defined (e.g. 417/817) this is always `Some`;
+    /// the `Option` is kept so the API is identical across devices.
     #[inline]
-    pub fn get_brownout_detection_level(&self) -> Level {
-        self.bod.ctrlb().read().lvl().variant().into()
+    pub fn get_brownout_detection_level(&self) -> Option<Level> {
+        #[cfg(any(feature = "attiny417", feature = "attiny817"))]
+        return Some(self.bod.ctrlb().read().lvl().variant().into());
+
+        #[cfg(any(feature = "attiny1617", feature = "attiny3217"))]
+        return self.bod.ctrlb().read().lvl().variant().map(Into::into);
     }
 
     /// Set the current monitor threshold for the voltage level monitor.
@@ -379,15 +390,13 @@ impl BrownoutDetector {
     }
 
     /// Get the current monitor threshold for the voltage level monitor.
+    ///
+    /// Returns `None` if the register holds the reserved bitfield encoding,
+    /// which can only happen through register corruption — this API never
+    /// writes it.
     #[inline]
-    pub fn get_voltage_monitor_threshold(&self) -> VoltageLevelThreshold {
-        self.bod
-            .vlmctrla()
-            .read()
-            .vlmlvl()
-            .variant()
-            .unwrap()
-            .into()
+    pub fn get_voltage_monitor_threshold(&self) -> Option<VoltageLevelThreshold> {
+        self.bod.vlmctrla().read().vlmlvl().variant().map(Into::into)
     }
 
     /// Enable or disable the voltage level monitor interrupt.
