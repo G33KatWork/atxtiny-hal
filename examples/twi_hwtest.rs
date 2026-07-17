@@ -304,9 +304,9 @@ fn main() -> ! {
         }
 
         // Pause between transactions so individual frames are easy to
-        // pick out on a scope.
-        for _ in 0..20_000u32 {
-            core::hint::spin_loop();
-        }
+        // pick out on a scope. A real cycle delay, not a spin_loop() loop:
+        // spin_loop() lowers to nothing on AVR, so LLVM deletes such loops
+        // entirely and the frames run back-to-back.
+        avr_device::asm::delay_cycles(100_000);
     }
 }
