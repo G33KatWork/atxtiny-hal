@@ -682,12 +682,26 @@ pub trait Instance: Deref<Target = RegisterBlock> + crate::private::Sealed {
 }
 
 macro_rules! twi {
+    // Routing-bit actions. `none` is for single-position packages: their
+    // sole position matches the PORTMUX reset state, and several of their
+    // PACs do not even expose the routing field.
+    (@route $token:ident, $field:ident, clear) => {
+        $token.regs().ctrlb().modify(|_r, w| w.$field().clear_bit());
+    };
+    (@route $token:ident, $field:ident, set) => {
+        $token.regs().ctrlb().modify(|_r, w| w.$field().set_bit());
+    };
+    (@route $token:ident, $field:ident, none) => {};
+
     ({
         instance: $TWI:ident,
-        pins: [$(
+        token: $Token:ident / $field:ident,
+        positions: [$(
+            $(#[$meta:meta])*
             {
                 scl: ($X_scl:ident/$x_scl:ident, $pin_scl:literal),
                 sda: ($X_sda:ident/$x_sda:ident, $pin_sda:literal),
+                route: $route:ident,
             },
         )+]
     }) => {
@@ -703,8 +717,32 @@ macro_rules! twi {
 
         $(
             paste::paste! {
+                $(#[$meta])*
                 impl SclPin<$TWI> for crate::gpio::[<port $x_scl>]::[<P $X_scl $pin_scl>]<Peripheral<$TWI>> {}
+                $(#[$meta])*
                 impl SdaPin<$TWI> for crate::gpio::[<port $x_sda>]::[<P $X_sda $pin_sda>]<Peripheral<$TWI>> {}
+
+                $(#[$meta])*
+                impl crate::portmux::IntoMuxedPinset<$TWI>
+                    for (
+                        crate::gpio::[<port $x_scl>]::[<P $X_scl $pin_scl>]<Peripheral<$TWI>>,
+                        crate::gpio::[<port $x_sda>]::[<P $X_sda $pin_sda>]<Peripheral<$TWI>>,
+                    )
+                {
+                    type Pinset = TwiPinset<
+                        $TWI,
+                        crate::gpio::[<port $x_scl>]::[<P $X_scl $pin_scl>]<Peripheral<$TWI>>,
+                        crate::gpio::[<port $x_sda>]::[<P $X_sda $pin_sda>]<Peripheral<$TWI>>,
+                    >;
+
+                    type Token = crate::portmux::$Token;
+
+                    fn mux(self, token: Self::Token) -> Self::Pinset {
+                        twi!(@route token, $field, $route);
+                        let _ = &token;
+                        TwiPinset::new(self.0, self.1)
+                    }
+                }
             }
         )+
     };
@@ -712,46 +750,45 @@ macro_rules! twi {
 
 use crate::gpio::Peripheral;
 
-// Pin tables from the datasheet I/O-multiplexing chapter (cross-checked
+// Pin table from the datasheet I/O-multiplexing chapter (cross-checked
 // with the ATDF `<signals>` sections):
 //
 // - 8-pin parts only have TWI0 on PA1/PA2 (their sole position).
 // - 0-series 14/20-pin parts only have the PB0/PB1 position.
 // - 1-series 14-pin-and-up parts have PB0/PB1 plus the PA1/PA2 alternate.
-
-#[cfg(feature = "pins-8")]
+//
+// Each entry also generates the PORTMUX `IntoMuxedPinset` impl. Only the
+// 1-series 14-pin-and-up parts can actually route between two positions;
+// the single-position entries use `route: none` (their selection matches
+// the PORTMUX reset state, and several of their PACs do not expose a
+// `TWI0` routing field at all).
 twi!({
     instance: TWI0,
-    pins: [
-        {
-            scl: (A/a, 2),
-            sda: (A/a, 1),
-        },
-    ]
-});
-
-#[cfg(all(feature = "series-0", not(feature = "pins-8")))]
-twi!({
-    instance: TWI0,
-    pins: [
+    token: Twi0Mux / twi0,
+    positions: [
+        #[cfg(all(feature = "series-1", not(feature = "pins-8")))]
         {
             scl: (B/b, 0),
             sda: (B/b, 1),
+            route: clear,
         },
-    ]
-});
-
-#[cfg(all(feature = "series-1", not(feature = "pins-8")))]
-twi!({
-    instance: TWI0,
-    pins: [
-        {
-            scl: (B/b, 0),
-            sda: (B/b, 1),
-        },
+        #[cfg(all(feature = "series-1", not(feature = "pins-8")))]
         {
             scl: (A/a, 2),
             sda: (A/a, 1),
+            route: set,
+        },
+        #[cfg(all(feature = "series-0", not(feature = "pins-8")))]
+        {
+            scl: (B/b, 0),
+            sda: (B/b, 1),
+            route: none,
+        },
+        #[cfg(feature = "pins-8")]
+        {
+            scl: (A/a, 2),
+            sda: (A/a, 1),
+            route: none,
         },
     ]
 });

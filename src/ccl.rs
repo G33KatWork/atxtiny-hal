@@ -676,18 +676,40 @@ impl From<Input2> for lutctrlc::INSEL2_A {
 // has no input pins below the 20-pin package (PC3, plus PC4/PC5 on
 // 24-pin). The alternate outputs (PB4/PC1) only exist on 20/24-pin
 // packages.
-use crate::gpio::{Input, Output, Stateless};
+use crate::gpio::Input;
 
-#[cfg(feature = "pins-8")]
-impl OutputPin<LUT0> for crate::gpio::porta::PA6<Output<Stateless>> {}
-#[cfg(not(feature = "pins-8"))]
-impl OutputPin<LUT0> for crate::gpio::porta::PA4<Output<Stateless>> {}
-#[cfg(any(feature = "pins-20", feature = "pins-24"))]
-impl OutputPin<LUT0> for crate::gpio::portb::PB4<Output<Stateless>> {}
+// Each entry also generates the PORTMUX `IntoMuxedPinset` impl (`clear` =
+// default position, `set` = alternate).
+use crate::portmux::single_output_pins;
 
-impl OutputPin<LUT1> for crate::gpio::porta::PA7<Output<Stateless>> {}
-#[cfg(any(feature = "pins-20", feature = "pins-24"))]
-impl OutputPin<LUT1> for crate::gpio::portc::PC1<Output<Stateless>> {}
+single_output_pins! {
+    key: LUT0,
+    marker: OutputPin,
+    pinset: CclLutOutputPinset,
+    token: Lut0Mux,
+    route: ctrla / lut0,
+    pins: [
+        #[cfg(feature = "pins-8")]
+        (A/a, 6) => clear,
+        #[cfg(not(feature = "pins-8"))]
+        (A/a, 4) => clear,
+        #[cfg(any(feature = "pins-20", feature = "pins-24"))]
+        (B/b, 4) => set,
+    ]
+}
+
+single_output_pins! {
+    key: LUT1,
+    marker: OutputPin,
+    pinset: CclLutOutputPinset,
+    token: Lut1Mux,
+    route: ctrla / lut1,
+    pins: [
+        (A/a, 7) => clear,
+        #[cfg(any(feature = "pins-20", feature = "pins-24"))]
+        (C/c, 1) => set,
+    ]
+}
 
 impl InputPin<LUT0, 0> for crate::gpio::porta::PA0<Input> {}
 impl InputPin<LUT0, 1> for crate::gpio::porta::PA1<Input> {}

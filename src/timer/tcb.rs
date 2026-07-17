@@ -265,7 +265,6 @@ impl super::AsClockSource for TCA0 {
 }
 
 use super::pwm::{WaveformOutputPinset, C1};
-use crate::gpio::{Output, Stateless};
 use core::marker::PhantomData;
 
 /// A pin can be marked with this when it can be used as a waveform output pin
@@ -302,24 +301,45 @@ where
 {
 }
 
+// Waveform output pin tables (datasheet I/O-multiplexing chapter); each
+// entry also generates the PORTMUX `IntoMuxedPinset` impl (`clear` =
+// default position, `set` = alternate).
+use crate::portmux::single_output_pins;
+
 // TCB0's waveform output: PA6 on 8-pin parts, otherwise PA5 with a PC0
 // alternate on 20/24-pin packages.
-#[cfg(feature = "pins-8")]
-impl WaveformOutputPin<TCB8Bit<TCB0>, { 0 + C1 }> for crate::gpio::porta::PA6<Output<Stateless>> {}
-#[cfg(not(feature = "pins-8"))]
-impl WaveformOutputPin<TCB8Bit<TCB0>, { 0 + C1 }> for crate::gpio::porta::PA5<Output<Stateless>> {}
-#[cfg(any(feature = "pins-20", feature = "pins-24"))]
-impl WaveformOutputPin<TCB8Bit<TCB0>, { 0 + C1 }> for crate::gpio::portc::PC0<Output<Stateless>> {}
+single_output_pins! {
+    key: TCB8Bit<TCB0>,
+    mux_key: TCB0,
+    marker: WaveformOutputPin,
+    pinset: TcbPinset,
+    channel: C1,
+    token: Tcb0Mux,
+    route: ctrld / tcb0,
+    pins: [
+        #[cfg(feature = "pins-8")]
+        (A/a, 6) => clear,
+        #[cfg(not(feature = "pins-8"))]
+        (A/a, 5) => clear,
+        #[cfg(any(feature = "pins-20", feature = "pins-24"))]
+        (C/c, 0) => set,
+    ]
+}
 
 // TCB1's waveform output (16 KB+ 1-series parts): PA3, with a PC4 alternate
 // bonded only on the 24-pin packages (the 20-pin TCB1 parts stop at PC3).
-#[cfg(feature = "periph-tcb1")]
-impl WaveformOutputPin<TCB8Bit<crate::pac::TCB1>, { 0 + C1 }>
-    for crate::gpio::porta::PA3<Output<Stateless>>
-{
-}
-#[cfg(all(feature = "periph-tcb1", feature = "pins-24"))]
-impl WaveformOutputPin<TCB8Bit<crate::pac::TCB1>, { 0 + C1 }>
-    for crate::gpio::portc::PC4<Output<Stateless>>
-{
+single_output_pins! {
+    key: TCB8Bit<crate::pac::TCB1>,
+    mux_key: crate::pac::TCB1,
+    marker: WaveformOutputPin,
+    pinset: TcbPinset,
+    channel: C1,
+    token: Tcb1Mux,
+    route: ctrld / tcb1,
+    pins: [
+        #[cfg(feature = "periph-tcb1")]
+        (A/a, 3) => clear,
+        #[cfg(all(feature = "periph-tcb1", feature = "pins-24"))]
+        (C/c, 4) => set,
+    ]
 }

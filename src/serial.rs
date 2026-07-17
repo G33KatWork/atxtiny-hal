@@ -1177,12 +1177,24 @@ pub trait Instance: Deref<Target = RegisterBlock> + crate::private::Sealed {
 }
 
 macro_rules! usart {
+    // Routing-bit actions for the position entries below. `none` exists
+    // for single-position packages whose PACs may lack the field.
+    (@route $token:ident, $field:ident, clear) => {
+        $token.regs().ctrlb().modify(|_r, w| w.$field().clear_bit());
+    };
+    (@route $token:ident, $field:ident, set) => {
+        $token.regs().ctrlb().modify(|_r, w| w.$field().set_bit());
+    };
+    (@route $token:ident, $field:ident, none) => {};
+
     ({
         instance: $X:literal,
-        pins: [$(
+        positions: [$(
+            $(#[$meta:meta])*
             {
                 tx: ($X_tx:ident/$x_tx:ident, $pin_tx:literal),
                 rx: ($X_rx:ident/$x_rx:ident, $pin_rx:literal),
+                route: $route:ident,
             },
         )+]
     }) => {
@@ -1235,8 +1247,42 @@ macro_rules! usart {
 
                 $(
                     paste::paste! {
+                        $(#[$meta])*
                         impl TxPin<USART> for crate::gpio::[<port $x_tx>]::[<P $X_tx $pin_tx>]<Output<Stateless>> {}
+                        $(#[$meta])*
                         impl RxPin<USART> for crate::gpio::[<port $x_rx>]::[<P $X_rx $pin_rx>]<Input> {}
+
+                        $(#[$meta])*
+                        impl crate::portmux::IntoMuxedPinset<USART>
+                            for (
+                                crate::gpio::[<port $x_rx>]::[<P $X_rx $pin_rx>]<crate::gpio::Peripheral<USART>>,
+                                crate::gpio::[<port $x_tx>]::[<P $X_tx $pin_tx>]<crate::gpio::Peripheral<USART>>,
+                            )
+                        {
+                            type Pinset = UartPinset<
+                                USART,
+                                crate::gpio::[<port $x_rx>]::[<P $X_rx $pin_rx>]<Input>,
+                                crate::gpio::[<port $x_tx>]::[<P $X_tx $pin_tx>]<Output<Stateless>>,
+                            >;
+
+                            type Token = crate::portmux::[<Usart $X Mux>];
+
+                            fn mux(self, token: Self::Token) -> Self::Pinset {
+                                usart!(@route token, [<usart $X>], $route);
+                                let _ = &token;
+                                // Drive the TX pin at the idle level (high) from the
+                                // very first cycle it becomes an output. Enabling the
+                                // driver before setting the level would emit a short
+                                // low glitch — receivers mistake it for a start bit
+                                // and stay out of sync with the transmitter if the
+                                // first real data follows too quickly.
+                                let tx = self.1.into_stateless_push_pull_output_in_state(
+                                    embedded_hal::digital::PinState::High,
+                                );
+
+                                UartPinset::new(self.0.into_floating_input(), tx)
+                            }
+                        }
                     }
                 )+
             }
@@ -1246,36 +1292,30 @@ macro_rules! usart {
 
 use crate::gpio::{Input, Output, Stateless};
 
-// Pin tables from the datasheet I/O-multiplexing chapter (cross-checked with
+// Pin table from the datasheet I/O-multiplexing chapter (cross-checked with
 // the ATDF `<signals>` sections): the 8-pin parts route USART0 to PA6/PA7 by
 // default; everything else uses PB2/PB3. The alternate position is PA1/PA2
-// on all parts.
-#[cfg(feature = "pins-8")]
+// on all parts. Each entry also generates the PORTMUX `IntoMuxedPinset`
+// impl (routing action `clear` = default position, `set` = alternate).
 usart!({
     instance: 0,
-    pins: [
-        {
-            tx: (A/a, 6),
-            rx: (A/a, 7),
-        },
-        {
-            tx: (A/a, 1),
-            rx: (A/a, 2),
-        },
-    ]
-});
-
-#[cfg(not(feature = "pins-8"))]
-usart!({
-    instance: 0,
-    pins: [
+    positions: [
+        #[cfg(not(feature = "pins-8"))]
         {
             tx: (B/b, 2),
             rx: (B/b, 3),
+            route: clear,
+        },
+        #[cfg(feature = "pins-8")]
+        {
+            tx: (A/a, 6),
+            rx: (A/a, 7),
+            route: clear,
         },
         {
             tx: (A/a, 1),
             rx: (A/a, 2),
+            route: set,
         },
     ]
 });

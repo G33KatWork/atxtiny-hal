@@ -370,7 +370,6 @@ use super::pwm::{WaveformOutputPinset, C1, C2, C3, C4};
 #[cfg(not(feature = "pins-8"))]
 use super::pwm::{C5, C6};
 use super::tca_split::TCASplit;
-use crate::gpio::{Output, Stateless};
 use core::marker::PhantomData;
 
 /// A pin can be marked with this when it can be used as a waveform output pin
@@ -420,47 +419,119 @@ impl<WaveformOutput: WaveformOutputPin<TCASplit, CHAN>, const CHAN: u8>
 }
 
 // Waveform output pin tables per package (datasheet I/O-multiplexing
-// chapter). The 8-pin parts route WO0-WO2 to PA-pins with only WO0 having
-// an alternate; 14-pin-and-up parts use PB0-PB2 with alternates on
-// PB3-PB5, where the WO1/WO2 alternates only exist on 20/24-pin packages.
+// chapter), one `single_output_pins!` table per output. Each entry also
+// generates the PORTMUX `IntoMuxedPinset` impl (`clear` = default
+// position, `set` = alternate).
+//
+// WO0-WO2: the 8-pin parts route them to PA-pins with only WO0 having an
+// alternate; 14-pin-and-up parts use PB0-PB2 with alternates on PB3-PB5,
+// where the WO1/WO2 alternates only exist on 20/24-pin packages.
+use crate::portmux::single_output_pins;
 
-#[cfg(feature = "pins-8")]
-impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::porta::PA3<Output<Stateless>> {}
-#[cfg(feature = "pins-8")]
-impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::porta::PA7<Output<Stateless>> {}
-#[cfg(feature = "pins-8")]
-impl WaveformOutputPin<TCA0, { 0 + C2 }> for crate::gpio::porta::PA1<Output<Stateless>> {}
-#[cfg(feature = "pins-8")]
-impl WaveformOutputPin<TCA0, { 0 + C3 }> for crate::gpio::porta::PA2<Output<Stateless>> {}
+single_output_pins! {
+    key: TCA0,
+    mux_key: TCA0,
+    marker: WaveformOutputPin,
+    pinset: TcaPinset,
+    channel: C1,
+    token: Tca0Wo0Mux,
+    route: ctrlc / tca00,
+    pins: [
+        #[cfg(feature = "pins-8")]
+        (A/a, 3) => clear,
+        #[cfg(feature = "pins-8")]
+        (A/a, 7) => set,
+        #[cfg(not(feature = "pins-8"))]
+        (B/b, 0) => clear,
+        #[cfg(not(feature = "pins-8"))]
+        (B/b, 3) => set,
+    ]
+}
 
-#[cfg(not(feature = "pins-8"))]
-impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::portb::PB0<Output<Stateless>> {}
-#[cfg(not(feature = "pins-8"))]
-impl WaveformOutputPin<TCA0, { 0 + C2 }> for crate::gpio::portb::PB1<Output<Stateless>> {}
-#[cfg(not(feature = "pins-8"))]
-impl WaveformOutputPin<TCA0, { 0 + C3 }> for crate::gpio::portb::PB2<Output<Stateless>> {}
+single_output_pins! {
+    key: TCA0,
+    mux_key: TCA0,
+    marker: WaveformOutputPin,
+    pinset: TcaPinset,
+    channel: C2,
+    token: Tca0Wo1Mux,
+    route: ctrlc / tca01,
+    pins: [
+        #[cfg(feature = "pins-8")]
+        (A/a, 1) => clear,
+        #[cfg(not(feature = "pins-8"))]
+        (B/b, 1) => clear,
+        #[cfg(any(feature = "pins-20", feature = "pins-24"))]
+        (B/b, 4) => set,
+    ]
+}
 
-#[cfg(not(feature = "pins-8"))]
-impl WaveformOutputPin<TCA0, { 0 + C1 }> for crate::gpio::portb::PB3<Output<Stateless>> {}
-#[cfg(any(feature = "pins-20", feature = "pins-24"))]
-impl WaveformOutputPin<TCA0, { 0 + C2 }> for crate::gpio::portb::PB4<Output<Stateless>> {}
-#[cfg(any(feature = "pins-20", feature = "pins-24"))]
-impl WaveformOutputPin<TCA0, { 0 + C3 }> for crate::gpio::portb::PB5<Output<Stateless>> {}
+single_output_pins! {
+    key: TCA0,
+    mux_key: TCA0,
+    marker: WaveformOutputPin,
+    pinset: TcaPinset,
+    channel: C3,
+    token: Tca0Wo2Mux,
+    route: ctrlc / tca02,
+    pins: [
+        #[cfg(feature = "pins-8")]
+        (A/a, 2) => clear,
+        #[cfg(not(feature = "pins-8"))]
+        (B/b, 2) => clear,
+        #[cfg(any(feature = "pins-20", feature = "pins-24"))]
+        (B/b, 5) => set,
+    ]
+}
 
 // WO3-WO5 (split mode only, hence keyed on `TCASplit`): PA3-PA5 defaults
 // on every package — on 8-pin parts only WO3 is bonded (PA3, fixed
 // position, shared with WO0's default) — with PC3-PC5 alternates where
 // those pins exist (PC3 on 20/24-pin, PC4/PC5 on 24-pin only).
 
-impl WaveformOutputPin<TCASplit, { 0 + C4 }> for crate::gpio::porta::PA3<Output<Stateless>> {}
-#[cfg(not(feature = "pins-8"))]
-impl WaveformOutputPin<TCASplit, { 0 + C5 }> for crate::gpio::porta::PA4<Output<Stateless>> {}
-#[cfg(not(feature = "pins-8"))]
-impl WaveformOutputPin<TCASplit, { 0 + C6 }> for crate::gpio::porta::PA5<Output<Stateless>> {}
+single_output_pins! {
+    key: TCASplit,
+    mux_key: TCASplit,
+    marker: WaveformOutputPin,
+    pinset: TcaPinset,
+    channel: C4,
+    token: Tca0Wo3Mux,
+    route: ctrlc / tca03,
+    pins: [
+        (A/a, 3) => clear,
+        #[cfg(any(feature = "pins-20", feature = "pins-24"))]
+        (C/c, 3) => set,
+    ]
+}
 
-#[cfg(any(feature = "pins-20", feature = "pins-24"))]
-impl WaveformOutputPin<TCASplit, { 0 + C4 }> for crate::gpio::portc::PC3<Output<Stateless>> {}
-#[cfg(feature = "pins-24")]
-impl WaveformOutputPin<TCASplit, { 0 + C5 }> for crate::gpio::portc::PC4<Output<Stateless>> {}
-#[cfg(feature = "pins-24")]
-impl WaveformOutputPin<TCASplit, { 0 + C6 }> for crate::gpio::portc::PC5<Output<Stateless>> {}
+single_output_pins! {
+    key: TCASplit,
+    mux_key: TCASplit,
+    marker: WaveformOutputPin,
+    pinset: TcaPinset,
+    channel: C5,
+    token: Tca0Wo4Mux,
+    route: ctrlc / tca04,
+    pins: [
+        #[cfg(not(feature = "pins-8"))]
+        (A/a, 4) => clear,
+        #[cfg(feature = "pins-24")]
+        (C/c, 4) => set,
+    ]
+}
+
+single_output_pins! {
+    key: TCASplit,
+    mux_key: TCASplit,
+    marker: WaveformOutputPin,
+    pinset: TcaPinset,
+    channel: C6,
+    token: Tca0Wo5Mux,
+    route: ctrlc / tca05,
+    pins: [
+        #[cfg(not(feature = "pins-8"))]
+        (A/a, 5) => clear,
+        #[cfg(feature = "pins-24")]
+        (C/c, 5) => set,
+    ]
+}

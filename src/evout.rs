@@ -63,12 +63,54 @@ where
 }
 
 // One event output per port (PA2/PB2/PC2) — each exists exactly when its
-// port is bonded out on the package.
-impl EventOutputPin<EVSYS, EVOUT0> for crate::gpio::porta::PA2<Peripheral<EVSYS>> {}
-#[cfg(not(feature = "pins-8"))]
-impl EventOutputPin<EVSYS, EVOUT1> for crate::gpio::portb::PB2<Peripheral<EVSYS>> {}
-#[cfg(any(feature = "pins-20", feature = "pins-24"))]
-impl EventOutputPin<EVSYS, EVOUT2> for crate::gpio::portc::PC2<Peripheral<EVSYS>> {}
+// port is bonded out on the package. Each entry generates the marker impl
+// and the PORTMUX `IntoMuxedPinset` impl; EVOUT differs from the other
+// muxed functions in that the pinset stores the routing token so `free`
+// can switch the pin routing off again.
+macro_rules! evout_pins {
+    ($(
+        $(#[$meta:meta])*
+        ($X:ident/$x:ident, $pin:literal) => $EVOUT:ident / $Token:ident,
+    )+) => {
+        $(
+            paste::paste! {
+                $(#[$meta])*
+                impl EventOutputPin<EVSYS, $EVOUT>
+                    for crate::gpio::[<port $x>]::[<P $X $pin>]<Peripheral<EVSYS>>
+                {
+                }
+
+                $(#[$meta])*
+                impl crate::portmux::IntoMuxedPinset<EVSYS>
+                    for crate::gpio::[<port $x>]::[<P $X $pin>]<Peripheral<EVSYS>>
+                {
+                    type Pinset = EventOutputPinset<
+                        EVSYS,
+                        crate::gpio::[<port $x>]::[<P $X $pin>]<Peripheral<EVSYS>>,
+                        crate::portmux::$Token,
+                        $EVOUT,
+                    >;
+
+                    type Token = crate::portmux::$Token;
+
+                    fn mux(self, token: Self::Token) -> Self::Pinset {
+                        use crate::portmux::EvoutRouting;
+                        token.set_routing(true);
+                        EventOutputPinset::new(self, token)
+                    }
+                }
+            }
+        )+
+    };
+}
+
+evout_pins! {
+    (A/a, 2) => EVOUT0 / Evout0Mux,
+    #[cfg(not(feature = "pins-8"))]
+    (B/b, 2) => EVOUT1 / Evout1Mux,
+    #[cfg(any(feature = "pins-20", feature = "pins-24"))]
+    (C/c, 2) => EVOUT2 / Evout2Mux,
+}
 
 use crate::evsys::{Async, EventUser, Evsys, Sync, UserRegisterFile};
 

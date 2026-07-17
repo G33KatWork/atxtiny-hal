@@ -333,14 +333,38 @@ pub trait Instance: Deref<Target = RegisterBlock> + crate::private::Sealed {
 }
 
 macro_rules! spi {
+    // Routing-bit actions (`none` unused for SPI today, kept for symmetry
+    // with the usart!/twi! tables).
+    (@route $token:ident, $field:ident, clear) => {
+        $token.regs().ctrlb().modify(|_r, w| w.$field().clear_bit());
+    };
+    (@route $token:ident, $field:ident, set) => {
+        $token.regs().ctrlb().modify(|_r, w| w.$field().set_bit());
+    };
+    (@route $token:ident, $field:ident, none) => {};
+
+    // SCK marker emission: suppressed for a pin flagged `shared`, i.e. a
+    // position that reuses another entry's SCK pin (the 2/4 KB dies only
+    // relocate MISO/MOSI) — a second impl for the same pin would collide.
+    (@sck_marker $SPI:ident, $(#[$meta:meta])* $X:ident/$x:ident, $pin:literal) => {
+        paste::paste! {
+            $(#[$meta])*
+            impl SckPin<$SPI> for crate::gpio::[<port $x>]::[<P $X $pin>]<Output<Stateless>> {}
+        }
+    };
+    (@sck_marker $SPI:ident, $(#[$meta:meta])* $X:ident/$x:ident, $pin:literal, shared) => {};
+
     ({
         instance: $SPI:ident,
-        pins: [$(
+        token: $Token:ident / $field:ident,
+        positions: [$(
+            $(#[$meta:meta])*
             {
-                sck: ($X_sck:ident/$x_sck:ident, $pin_sck:literal),
+                sck: ($X_sck:ident/$x_sck:ident, $pin_sck:literal $(, $sck_shared:ident)?),
                 miso: ($X_miso:ident/$x_miso:ident, $pin_miso:literal),
                 mosi: ($X_mosi:ident/$x_mosi:ident, $pin_mosi:literal),
                 //ss: ($X_ss:ident/$x_ss:ident, $pin_ss:literal),
+                route: $route:ident,
             },
         )+]
     }) => {
@@ -355,13 +379,45 @@ macro_rules! spi {
         impl crate::private::Sealed for crate::pac::$SPI {}
 
         $(
+            spi!(@sck_marker $SPI, $(#[$meta])* $X_sck/$x_sck, $pin_sck $(, $sck_shared)?);
             paste::paste! {
-                impl SckPin<$SPI> for crate::gpio::[<port $x_sck>]::[<P $X_sck $pin_sck>]<Output<Stateless>> {}
+                $(#[$meta])*
                 impl MisoPin<$SPI> for crate::gpio::[<port $x_miso>]::[<P $X_miso $pin_miso>]<Input> {}
+                $(#[$meta])*
                 impl MosiPin<$SPI> for crate::gpio::[<port $x_mosi>]::[<P $X_mosi $pin_mosi>]<Output<Stateless>> {}
                 // NOTE: should we ever use that pin, it is an output in master mode, but it needs to be an
                 //       input in slave mode, or when you want to dynamically switch between master and slave mode
                 //impl SsPin<$SPI> for crate::gpio::[<port $x_ss>]::[<P $X_ss $pin_ss>]<Output<Stateless>> {}
+
+                $(#[$meta])*
+                impl crate::portmux::IntoMuxedPinset<$SPI>
+                    for (
+                        crate::gpio::[<port $x_sck>]::[<P $X_sck $pin_sck>]<crate::gpio::Peripheral<$SPI>>,
+                        crate::gpio::[<port $x_miso>]::[<P $X_miso $pin_miso>]<crate::gpio::Peripheral<$SPI>>,
+                        crate::gpio::[<port $x_mosi>]::[<P $X_mosi $pin_mosi>]<crate::gpio::Peripheral<$SPI>>,
+                    )
+                {
+                    type Pinset = SpiPinset<
+                        $SPI,
+                        crate::gpio::[<port $x_sck>]::[<P $X_sck $pin_sck>]<Output<Stateless>>,
+                        crate::gpio::[<port $x_miso>]::[<P $X_miso $pin_miso>]<Input>,
+                        crate::gpio::[<port $x_mosi>]::[<P $X_mosi $pin_mosi>]<Output<Stateless>>,
+                    >;
+
+                    type Token = crate::portmux::$Token;
+
+                    fn mux(self, token: Self::Token) -> Self::Pinset {
+                        spi!(@route token, $field, $route);
+                        let _ = &token;
+                        // Turn the pins into stateless outputs
+                        // In SPI host mode, this hands over the pin to the SPI peripheral
+                        SpiPinset::new(
+                            self.0.into_stateless_push_pull_output(),
+                            self.1.into_floating_input(),
+                            self.2.into_stateless_push_pull_output(),
+                        )
+                    }
+                }
             }
         )+
     };
@@ -375,51 +431,42 @@ use crate::gpio::{Input, Output, Stateless};
 //
 // - 20/24-pin parts route the whole alternate set to PC0..PC3.
 // - The 2/4 KB dies (8-pin parts plus ATtiny204/404/214/414) only relocate
-//   MISO to PA7 and MOSI to PA6; SCK (and SS) stay put.
+//   MISO to PA7 and MOSI to PA6; SCK (and SS) stay put — hence the
+//   `shared` flag on that entry's SCK pin, which suppresses the duplicate
+//   `SckPin` marker impl.
 // - The 8/16 KB 14-pin dies (ATtiny804/1604/1614) have no alternate
 //   position at all.
-#[cfg(any(feature = "pins-20", feature = "pins-24"))]
+//
+// Each entry also generates the PORTMUX `IntoMuxedPinset` impl (routing
+// action `clear` = default position, `set` = alternate).
 spi!({
     instance: SPI0,
-    pins: [
+    token: Spi0Mux / spi0,
+    positions: [
         {
             sck: (A/a, 3),
             miso: (A/a, 2),
             mosi: (A/a, 1),
             //ss: (A/a, 4),
+            route: clear,
         },
+        #[cfg(any(feature = "pins-20", feature = "pins-24"))]
         {
             sck: (C/c, 0),
             miso: (C/c, 1),
             mosi: (C/c, 2),
             //ss: (C/c, 3),
+            route: set,
         },
-    ]
-});
-
-#[cfg(not(any(feature = "pins-20", feature = "pins-24")))]
-spi!({
-    instance: SPI0,
-    pins: [
+        #[cfg(any(
+            feature = "pins-8",
+            all(feature = "pins-14", any(feature = "flash-2k", feature = "flash-4k"))
+        ))]
         {
-            sck: (A/a, 3),
-            miso: (A/a, 2),
-            mosi: (A/a, 1),
-            //ss: (A/a, 4),
+            sck: (A/a, 3, shared),
+            miso: (A/a, 7),
+            mosi: (A/a, 6),
+            route: set,
         },
     ]
 });
-
-// Alternate MISO/MOSI of the 2/4 KB dies. Written out manually instead of a
-// second `spi!` pin entry because SCK has no alternate pin there — a full
-// entry would implement `SckPin` for PA3 a second time.
-#[cfg(any(
-    feature = "pins-8",
-    all(feature = "pins-14", any(feature = "flash-2k", feature = "flash-4k"))
-))]
-impl MisoPin<SPI0> for crate::gpio::porta::PA7<Input> {}
-#[cfg(any(
-    feature = "pins-8",
-    all(feature = "pins-14", any(feature = "flash-2k", feature = "flash-4k"))
-))]
-impl MosiPin<SPI0> for crate::gpio::porta::PA6<Output<Stateless>> {}
