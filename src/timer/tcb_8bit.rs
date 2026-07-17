@@ -173,6 +173,11 @@ impl super::WithPwm for TCB8Bit {
     type GenerationMode = ();
     type CompareValue = u8;
 
+    #[inline(always)]
+    fn max_compare_value() -> Self::CompareValue {
+        u8::MAX
+    }
+
     // Period: CCMPL
     // Compare: CCMPH
 

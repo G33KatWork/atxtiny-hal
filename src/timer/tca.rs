@@ -251,6 +251,11 @@ impl super::WithPwm for TCA0 {
     type GenerationMode = WaveformGenerationMode;
     type CompareValue = u16;
 
+    #[inline(always)]
+    fn max_compare_value() -> Self::CompareValue {
+        u16::MAX
+    }
+
     fn set_pwm_mode(&mut self, mode: Self::GenerationMode) {
         self.single_ctrlb()
             .modify(|_, w| w.wgmode().variant(mode.into()));

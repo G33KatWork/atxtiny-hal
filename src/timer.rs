@@ -149,6 +149,21 @@ mod sealed {
         fn set_compare_value(channel: u8, value: Self::CompareValue);
         fn read_compare_value(channel: u8) -> Self::CompareValue;
 
+        /// The largest value the compare register can hold.
+        fn max_compare_value() -> Self::CompareValue;
+
+        /// Write a compare value from the unified u32 duty domain.
+        ///
+        /// The 100% duty value is PER + 1 (a compare above TOP never
+        /// matches, so the output stays high). When PER spans the full
+        /// register range that value is unrepresentable; clamping to the
+        /// register maximum then gives the closest achievable duty,
+        /// max/(max + 1).
+        fn set_compare_value_clamped(channel: u8, duty: u32) {
+            let value = Self::CompareValue::try_from(duty).unwrap_or(Self::max_compare_value());
+            Self::set_compare_value(channel, value);
+        }
+
         fn clear_compare_match(channel: u8);
         fn get_compare_match(channel: u8) -> bool;
     }
@@ -203,6 +218,8 @@ pub enum Error {
     ImpossiblePeriod,
     /// Waveform generation mode not usable with this constructor
     UnsupportedPwmMode,
+    /// Channel not present on this timer or not part of this pin set
+    InvalidChannel,
 }
 
 pub trait TimerExt<TIM: Instance>: Sized {

@@ -36,14 +36,14 @@ pub trait Pins<TIM, P> {
     const C3: bool = false;
     type Channels;
 
-    fn check_used(c: Channel) -> Channel {
+    fn check_used(c: Channel) -> Result<Channel, Error> {
         if (c == Channel::C1 && Self::C1)
             || (c == Channel::C2 && Self::C2)
             || (c == Channel::C3 && Self::C3)
         {
-            c
+            Ok(c)
         } else {
-            panic!("Unused channel")
+            Err(Error::InvalidChannel)
         }
     }
 
@@ -168,7 +168,10 @@ impl<TIM: Instance + WithPwm, const C: u8> PwmChannel<TIM, C> {
     }
 }
 
-// FIXME: implement this, needs access to timer though
+// Duty cycles use the unified u32 domain described on
+// [`crate::traits::PwmTimer`]: 0 is constant-low, `get_max_duty()`
+// (period ticks, PER + 1) is constant-high, larger values clamp to the
+// compare register maximum.
 impl<TIM: Instance + WithPwm, const C: u8> PwmChannel<TIM, C> {
     #[inline]
     pub fn disable(&mut self) {
@@ -181,18 +184,41 @@ impl<TIM: Instance + WithPwm, const C: u8> PwmChannel<TIM, C> {
     }
 
     #[inline]
-    pub fn get_duty(&self) -> TIM::CompareValue {
-        TIM::read_compare_value(C)
+    pub fn get_duty(&self) -> u32 {
+        TIM::read_compare_value(C).into()
     }
 
     #[inline]
-    pub fn set_duty(&mut self, duty: TIM::CompareValue) {
-        TIM::set_compare_value(C, duty);
+    pub fn set_duty(&mut self, duty: u32) {
+        TIM::set_compare_value_clamped(C, duty);
     }
 
     #[inline]
     pub fn get_max_duty(&self) -> u32 {
-        TIM::read_period().into()
+        TIM::read_period().into() + 1
+    }
+}
+
+impl<TIM: Instance + WithPwm, const C: u8> crate::embedded_hal::pwm::ErrorType
+    for PwmChannel<TIM, C>
+{
+    type Error = core::convert::Infallible;
+}
+
+impl<TIM: Instance + WithPwm, const C: u8> crate::embedded_hal::pwm::SetDutyCycle
+    for PwmChannel<TIM, C>
+{
+    fn max_duty_cycle(&self) -> u16 {
+        // embedded-hal works in u16. PER + 1 only exceeds that for a TCA
+        // period spanning the full 16-bit range, where true constant-high
+        // output is unreachable anyway (the compare register cannot go
+        // above TOP); saturating loses exactly that unreachable step.
+        u16::try_from(TIM::read_period().into() + 1).unwrap_or(u16::MAX)
+    }
+
+    fn set_duty_cycle(&mut self, duty: u16) -> Result<(), Self::Error> {
+        TIM::set_compare_value_clamped(C, u32::from(duty));
+        Ok(())
     }
 }
 
@@ -256,27 +282,28 @@ where
     type Error = Error;
     type ChannelIndex = Channel;
     type PeriodValue = Hertz;
-    type CompareValue = TIM::CompareValue;
 
     #[inline]
-    fn enable(&mut self, channel: Channel) {
-        TIM::enable_channel(PINS::check_used(channel) as u8, true)
+    fn enable(&mut self, channel: Self::ChannelIndex) -> Result<(), Error> {
+        Ok(TIM::enable_channel(PINS::check_used(channel)? as u8, true))
     }
 
     #[inline]
-    fn disable(&mut self, channel: Channel) {
-        TIM::enable_channel(PINS::check_used(channel) as u8, false)
+    fn disable(&mut self, channel: Self::ChannelIndex) -> Result<(), Error> {
+        Ok(TIM::enable_channel(PINS::check_used(channel)? as u8, false))
     }
 
     #[inline]
-    fn get_duty(&self, channel: Channel) -> TIM::CompareValue {
-        TIM::read_compare_value(PINS::check_used(channel) as u8)
+    fn get_duty(&self, channel: Self::ChannelIndex) -> Result<u32, Error> {
+        Ok(TIM::read_compare_value(PINS::check_used(channel)? as u8).into())
     }
 
     #[inline]
-    fn set_duty(&mut self, channel: Channel, duty: TIM::CompareValue) {
-        // FIXME: throw error if > than current period?
-        TIM::set_compare_value(PINS::check_used(channel) as u8, duty);
+    fn set_duty(&mut self, channel: Self::ChannelIndex, duty: u32) -> Result<(), Error> {
+        Ok(TIM::set_compare_value_clamped(
+            PINS::check_used(channel)? as u8,
+            duty,
+        ))
     }
 
     fn get_period(&self) -> Hertz {
@@ -316,7 +343,9 @@ where
 
     #[inline]
     fn get_max_duty(&self) -> u32 {
-        TIM::read_period().into()
+        // PER + 1: a compare value above TOP never matches, so the output
+        // stays constant-high — this is the true 100% duty value.
+        TIM::read_period().into() + 1
     }
 
     #[inline]
@@ -395,28 +424,29 @@ where
 {
     type Error = Error;
     type ChannelIndex = Channel;
-    type CompareValue = TIM::CompareValue;
     type PeriodValue = TimerDurationU32<FREQ>;
 
     #[inline]
-    fn enable(&mut self, channel: Channel) {
-        TIM::enable_channel(PINS::check_used(channel) as u8, true)
+    fn enable(&mut self, channel: Self::ChannelIndex) -> Result<(), Error> {
+        Ok(TIM::enable_channel(PINS::check_used(channel)? as u8, true))
     }
 
     #[inline]
-    fn disable(&mut self, channel: Channel) {
-        TIM::enable_channel(PINS::check_used(channel) as u8, false)
+    fn disable(&mut self, channel: Self::ChannelIndex) -> Result<(), Error> {
+        Ok(TIM::enable_channel(PINS::check_used(channel)? as u8, false))
     }
 
     #[inline]
-    fn get_duty(&self, channel: Channel) -> TIM::CompareValue {
-        TIM::read_compare_value(PINS::check_used(channel) as u8)
+    fn get_duty(&self, channel: Self::ChannelIndex) -> Result<u32, Error> {
+        Ok(TIM::read_compare_value(PINS::check_used(channel)? as u8).into())
     }
 
     #[inline]
-    fn set_duty(&mut self, channel: Channel, duty: TIM::CompareValue) {
-        // FIXME: throw error if > than current period?
-        TIM::set_compare_value(PINS::check_used(channel) as u8, duty);
+    fn set_duty(&mut self, channel: Self::ChannelIndex, duty: u32) -> Result<(), Error> {
+        Ok(TIM::set_compare_value_clamped(
+            PINS::check_used(channel)? as u8,
+            duty,
+        ))
     }
 
     fn get_period(&self) -> TimerDurationU32<FREQ> {
@@ -445,7 +475,8 @@ where
 
     #[inline]
     fn get_max_duty(&self) -> u32 {
-        TIM::read_period().into()
+        // Same PER + 1 rationale as in the PwmHz impl above.
+        TIM::read_period().into() + 1
     }
 
     #[inline]
@@ -470,10 +501,10 @@ where
     PINS: Pins<TIM, P>,
 {
     #[inline]
-    pub fn get_duty_time(&self, channel: Channel) -> TimerDurationU32<FREQ> {
-        TimerDurationU32::from_ticks(
-            TIM::read_compare_value(PINS::check_used(channel) as u8).into(),
-        )
+    pub fn get_duty_time(&self, channel: Channel) -> Result<TimerDurationU32<FREQ>, Error> {
+        Ok(TimerDurationU32::from_ticks(
+            TIM::read_compare_value(PINS::check_used(channel)? as u8).into(),
+        ))
     }
 
     #[inline]
@@ -482,12 +513,12 @@ where
         channel: Channel,
         duty: TimerDurationU32<FREQ>,
     ) -> Result<(), Error> {
-        // FIXME: throw error if > than current period?
-        Ok(TIM::set_compare_value(
-            PINS::check_used(channel) as u8,
-            duty.ticks()
-                .try_into()
-                .map_err(|_| Error::ImpossiblePeriod)?,
+        // A duty duration longer than the period is not an error here: the
+        // clamped write yields a constant-high output, consistent with the
+        // u32 duty domain semantics.
+        Ok(TIM::set_compare_value_clamped(
+            PINS::check_used(channel)? as u8,
+            duty.ticks(),
         ))
     }
 }

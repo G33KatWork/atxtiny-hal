@@ -43,13 +43,13 @@ fn main() -> ! {
 
     // Enable all three channels and set a duty cycle
     pwm.set_duty_time(Channel::C1, 1.millis()).unwrap();
-    pwm.enable(Channel::C1);
+    pwm.enable(Channel::C1).unwrap();
 
     pwm.set_duty_time(Channel::C2, 1.millis()).unwrap();
-    pwm.enable(Channel::C2);
+    pwm.enable(Channel::C2).unwrap();
 
     pwm.set_duty_time(Channel::C3, 9.millis()).unwrap();
-    pwm.enable(Channel::C3);
+    pwm.enable(Channel::C3).unwrap();
 
     // Let's use TCB for an accurate delay
     let mut d = FTimer::<_, 312500>::new(dp.TCB0, tca0_clk).unwrap().delay();

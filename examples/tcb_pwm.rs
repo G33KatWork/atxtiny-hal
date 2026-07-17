@@ -44,14 +44,14 @@ fn main() -> ! {
     let mut pwm = t.pwm_custom(pwm_wo, 2, 255, ()).unwrap();
 
     // Set the initial duty cycle and enable the channel
-    pwm.set_duty(Channel::C1, 0);
-    pwm.enable(Channel::C1);
+    pwm.set_duty(Channel::C1, 0).unwrap();
+    pwm.enable(Channel::C1).unwrap();
 
-    let mut i = 0;
+    let mut i: u8 = 0;
 
     loop {
         // Play around with the duty cycle
-        pwm.set_duty(Channel::C1, i);
+        pwm.set_duty(Channel::C1, i.into()).unwrap();
         i = i.wrapping_add(10);
 
         // Toggle the LED

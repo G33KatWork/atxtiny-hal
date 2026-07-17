@@ -87,17 +87,17 @@ fn main() -> ! {
         .pwm_hz(pwm_pins, 1.kHz(), WaveformGenerationMode::SingleSlope)
         .unwrap();
 
-    let max_duty = pwm.get_max_duty() as u16;
+    let max_duty = pwm.get_max_duty();
     ufmt::uwriteln!(s, "Max duty: {}", max_duty).unwrap();
 
-    pwm.set_duty(Channel::C1, 0);
-    pwm.enable(Channel::C1);
+    pwm.set_duty(Channel::C1, 0).unwrap();
+    pwm.enable(Channel::C1).unwrap();
 
-    pwm.set_duty(Channel::C2, 5000);
-    pwm.enable(Channel::C2);
+    pwm.set_duty(Channel::C2, 5000).unwrap();
+    pwm.enable(Channel::C2).unwrap();
 
-    pwm.set_duty(Channel::C3, 1000);
-    pwm.enable(Channel::C3);
+    pwm.set_duty(Channel::C3, 1000).unwrap();
+    pwm.enable(Channel::C3).unwrap();
 
     //let (pin1, pin2, pin3) = pwm.split();
 
@@ -119,7 +119,7 @@ fn main() -> ! {
             led2.set_low().unwrap();
         }
 
-        pwm.set_duty(Channel::C1, i);
+        pwm.set_duty(Channel::C1, i).unwrap();
         i += 10;
 
         if i > max_duty {
