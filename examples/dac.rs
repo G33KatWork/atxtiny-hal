@@ -26,13 +26,14 @@ fn main() -> ! {
     let dacout = a.pa6.into_analog_input();
 
     // Set up the reference voltage
-    // Note: the configured VREF can be cloned to pass it into the DAC and AC
-    //       at the same time if needed
-    let mut vref = dp.VREF.constrain();
-    let dacref = vref.dac0(ReferenceVoltage::_4V34);
+    // Note: the DAC takes ownership of the (non-clonable) reference token,
+    //       so nothing else can reconfigure the reference behind its back
+    let vref_parts = dp.VREF.constrain();
+    let mut vref = vref_parts.vref;
+    let mut dacref = vref_parts.dac0;
+    dacref.voltage(&mut vref, ReferenceVoltage::_4V34);
 
-    let mut dac = dp.DAC0.constrain(dacref);
-    dac.output_pin(dacout);
+    let mut dac = dp.DAC0.constrain(dacref).output_pin(dacout);
     dac.dac_set_value(128);
     let _dac = dac.enable();
 

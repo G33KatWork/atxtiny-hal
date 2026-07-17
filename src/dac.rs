@@ -40,9 +40,13 @@ pub trait DacExt<INST: DacRegExt, const IDX: u8> {
     /// Consumes the [`pac::DAC0`] peripheral and converts it to a [`HAL`] internal type
     /// constraining it's public access surface to fit the design of the `HAL`.
     ///
+    /// Takes ownership of the [`DACReferenceVoltage`] token for this DAC's
+    /// reference channel, so the reference cannot be handed to a second
+    /// consumer or reconfigured behind the DAC's back.
+    ///
     /// [`pac::DAC0`]: `crate::pac::DAC0`
     /// [`HAL`]: `crate`
-    fn constrain(self, ref_voltage: DACReferenceVoltage<IDX>) -> Dac<INST, Disabled>;
+    fn constrain(self, ref_voltage: DACReferenceVoltage<IDX>) -> Dac<INST, Disabled, (), IDX>;
 }
 
 /// Constrained DAC peripheral
@@ -50,45 +54,44 @@ pub trait DacExt<INST: DacRegExt, const IDX: u8> {
 /// An instance of this struct is acquired by calling the [`constrain`](DacExt::constrain) function
 /// on the [`DAC0`] struct.
 ///
+/// The `PIN` parameter holds the assigned output pin, if any, so the pin
+/// cannot be reconfigured while the DAC drives it; `IDX` is the index of the
+/// owned [`VREF`](crate::vref::Vref) reference channel.
+///
 /// ```
 /// let dp = pac::Peripherals::take().unwrap();
-/// let dac = dp.DAC.constrain();
+/// let vref_parts = dp.VREF.constrain();
+/// let dac = dp.DAC0.constrain(vref_parts.dac0);
 /// ```
-pub struct Dac<INST, ED> {
+pub struct Dac<INST, ED, PIN = (), const IDX: u8 = 0> {
     dac: INST,
-    _ref: DACReferenceVoltage<0>,
+    _ref: DACReferenceVoltage<IDX>,
+    pin: PIN,
     _enabled: PhantomData<ED>,
 }
 
 impl DacExt<DAC0, 0> for DAC0 {
-    fn constrain(self, ref_voltage: DACReferenceVoltage<0>) -> Dac<Self, Disabled> {
+    fn constrain(self, ref_voltage: DACReferenceVoltage<0>) -> Dac<Self, Disabled, (), 0> {
         Dac {
             dac: self,
             _ref: ref_voltage,
+            pin: (),
             _enabled: PhantomData,
         }
     }
 }
 
-impl<INST: DacRegExt> Dac<INST, Disabled> {
+impl<INST: DacRegExt, PIN, const IDX: u8> Dac<INST, Disabled, PIN, IDX> {
     /// Enable the DAC
-    pub fn enable(self) -> Dac<INST, Enabled> {
+    pub fn enable(self) -> Dac<INST, Enabled, PIN, IDX> {
         self.dac.enable(true);
 
         Dac {
             dac: self.dac,
             _ref: self._ref,
+            pin: self.pin,
             _enabled: PhantomData,
         }
-    }
-
-    /// Assign a DAC output pin
-    ///
-    /// The DAC can be passed to the Analog Comparator, so a physical output pin
-    /// is not always needed
-    #[inline]
-    pub fn output_pin<P: DACOutputPin>(&mut self, _pin: P) {
-        self.dac.enable_output(true);
     }
 
     /// Set the current DAC output value
@@ -104,14 +107,55 @@ impl<INST: DacRegExt> Dac<INST, Disabled> {
     }
 }
 
-impl<INST: DacRegExt> Dac<INST, Enabled> {
+impl<INST: DacRegExt, const IDX: u8> Dac<INST, Disabled, (), IDX> {
+    /// Assign a DAC output pin
+    ///
+    /// The DAC can be passed to the Analog Comparator, so a physical output pin
+    /// is not always needed.
+    ///
+    /// The pin is stored in the typestate and can be recovered with
+    /// [`free_output_pin`](Dac::free_output_pin), which also disables the
+    /// output driver again.
+    #[inline]
+    pub fn output_pin<P: DACOutputPin>(self, pin: P) -> Dac<INST, Disabled, P, IDX> {
+        self.dac.enable_output(true);
+
+        Dac {
+            dac: self.dac,
+            _ref: self._ref,
+            pin,
+            _enabled: PhantomData,
+        }
+    }
+}
+
+impl<INST: DacRegExt, P: DACOutputPin, const IDX: u8> Dac<INST, Disabled, P, IDX> {
+    /// Disable the DAC output and release the output pin
+    #[inline]
+    pub fn free_output_pin(self) -> (Dac<INST, Disabled, (), IDX>, P) {
+        self.dac.enable_output(false);
+
+        (
+            Dac {
+                dac: self.dac,
+                _ref: self._ref,
+                pin: (),
+                _enabled: PhantomData,
+            },
+            self.pin,
+        )
+    }
+}
+
+impl<INST: DacRegExt, PIN, const IDX: u8> Dac<INST, Enabled, PIN, IDX> {
     /// Disable the DAC
-    pub fn disable(self) -> Dac<INST, Disabled> {
+    pub fn disable(self) -> Dac<INST, Disabled, PIN, IDX> {
         self.dac.enable(false);
 
         Dac {
             dac: self.dac,
             _ref: self._ref,
+            pin: self.pin,
             _enabled: PhantomData,
         }
     }
@@ -119,10 +163,11 @@ impl<INST: DacRegExt> Dac<INST, Enabled> {
     /// Lock the DAC into an enabled state to pass its output it into other peripherals
     ///
     /// Once the DAC has been locked, it cannot be disabled anymore
-    pub fn lock_enable(self) -> Dac<INST, LockedEnabled> {
+    pub fn lock_enable(self) -> Dac<INST, LockedEnabled, PIN, IDX> {
         Dac {
             dac: self.dac,
             _ref: self._ref,
+            pin: self.pin,
             _enabled: PhantomData,
         }
     }
@@ -137,7 +182,7 @@ impl<INST: DacRegExt> Dac<INST, Enabled> {
     }
 }
 
-impl<INST: DacRegExt> Dac<INST, LockedEnabled> {
+impl<INST: DacRegExt, PIN, const IDX: u8> Dac<INST, LockedEnabled, PIN, IDX> {
     /// Set the current DAC output value
     ///
     /// The value scales the reference voltage that is generated by the [`VREF`](crate::vref::Vref)
@@ -145,6 +190,15 @@ impl<INST: DacRegExt> Dac<INST, LockedEnabled> {
     #[inline]
     pub fn dac_set_value(&mut self, value: u8) {
         self.dac.set_value(value);
+    }
+}
+
+impl<INST: DacRegExt, ED, PIN, const IDX: u8> Dac<INST, ED, PIN, IDX> {
+    /// Access the owned reference-voltage token, e.g. to change the reference
+    /// level through [`DACReferenceVoltage::voltage`] while the DAC holds it
+    #[inline]
+    pub fn reference(&mut self) -> &mut DACReferenceVoltage<IDX> {
+        &mut self._ref
     }
 }
 
@@ -175,7 +229,7 @@ impl DacRegExt for DAC0 {
     }
 }
 
-impl<INST: DacRegExt> Dac<INST, LockedEnabled> {
+impl<INST: DacRegExt, PIN> Dac<INST, LockedEnabled, PIN, 0> {
     /// Get the DAC output that can be used as a negative input into AC0
     pub fn dac_get_ac0_input(&self) -> DACOutputToAC<0> {
         DACOutputToAC

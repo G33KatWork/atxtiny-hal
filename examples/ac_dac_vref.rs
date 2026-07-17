@@ -22,10 +22,12 @@ fn main() -> ! {
     let a = dp.PORTA.split();
 
     // Setup VREF for DAC to 2.5V
-    // This reference voltage can be passed into the AC negative input to
-    // compare against
-    let mut vref = dp.VREF.constrain();
-    let dacref = vref.dac0(ReferenceVoltage::_2V50);
+    // This reference voltage token can be passed into the AC negative input
+    // to compare against
+    let vref_parts = dp.VREF.constrain();
+    let mut vref = vref_parts.vref;
+    let mut dacref = vref_parts.dac0;
+    dacref.voltage(&mut vref, ReferenceVoltage::_2V50);
 
     // Grab AINP0
     let ainp0 = a.pa7.into_analog_input();

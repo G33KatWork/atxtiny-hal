@@ -30,8 +30,10 @@ fn main() -> ! {
     let mut led = b.pb6.into_push_pull_output();
 
     // Setup VREF for DAC to 2.5V
-    let mut vref = dp.VREF.constrain();
-    let dacref = vref.dac0(ReferenceVoltage::_2V50);
+    let vref_parts = dp.VREF.constrain();
+    let mut vref = vref_parts.vref;
+    let mut dacref = vref_parts.dac0;
+    dacref.voltage(&mut vref, ReferenceVoltage::_2V50);
 
     // Setup the DAC
     let mut dac = dp.DAC0.constrain(dacref);
