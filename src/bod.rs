@@ -14,9 +14,9 @@ pub enum SamplingFrequency {
     _125KHz,
 }
 
-/// The brownout detector mode
+/// The brownout detector mode while the CPU is in Active or Idle mode
 #[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
+pub enum ActiveMode {
     /// The brownout detector is disabled
     Disabled,
 
@@ -33,49 +33,66 @@ pub enum Mode {
     EnabledAndWakeupHaltedTillBODReady,
 }
 
-impl From<Mode> for bod::ctrla::ACTIVE_A {
-    fn from(value: Mode) -> Self {
+/// The brownout detector mode while the CPU is in a sleep mode
+///
+/// This is a separate enum from [`ActiveMode`] because the wake-up-halting
+/// mode only exists for Active/Idle operation; the hardware has no such
+/// encoding for the sleep-mode bitfield.
+#[derive(ufmt::derive::uDebug, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SleepMode {
+    /// The brownout detector is disabled
+    Disabled,
+
+    /// The brownout detector is enabled continously
+    Enabled,
+
+    /// The brownout detector is enabled but samples the voltage at
+    /// regular intervals as defined by [`SamplingFrequency`]
+    Sampled,
+}
+
+impl From<ActiveMode> for bod::ctrla::ACTIVE_A {
+    fn from(value: ActiveMode) -> Self {
         use bod::ctrla::ACTIVE_A::*;
         match value {
-            Mode::Disabled => DIS,
-            Mode::Enabled => ENABLED,
-            Mode::Sampled => SAMPLED,
-            Mode::EnabledAndWakeupHaltedTillBODReady => ENWAKE,
+            ActiveMode::Disabled => DIS,
+            ActiveMode::Enabled => ENABLED,
+            ActiveMode::Sampled => SAMPLED,
+            ActiveMode::EnabledAndWakeupHaltedTillBODReady => ENWAKE,
         }
     }
 }
 
-impl From<bod::ctrla::ACTIVE_A> for Mode {
+impl From<bod::ctrla::ACTIVE_A> for ActiveMode {
     fn from(value: bod::ctrla::ACTIVE_A) -> Self {
         use bod::ctrla::ACTIVE_A::*;
         match value {
-            DIS => Mode::Disabled,
-            ENABLED => Mode::Enabled,
-            SAMPLED => Mode::Sampled,
-            ENWAKE => Mode::EnabledAndWakeupHaltedTillBODReady,
+            DIS => ActiveMode::Disabled,
+            ENABLED => ActiveMode::Enabled,
+            SAMPLED => ActiveMode::Sampled,
+            ENWAKE => ActiveMode::EnabledAndWakeupHaltedTillBODReady,
         }
     }
 }
 
-impl From<Mode> for bod::ctrla::SLEEP_A {
-    fn from(value: Mode) -> Self {
+impl From<SleepMode> for bod::ctrla::SLEEP_A {
+    fn from(value: SleepMode) -> Self {
         use bod::ctrla::SLEEP_A::*;
         match value {
-            Mode::Disabled => DIS,
-            Mode::Enabled => ENABLED,
-            Mode::Sampled => SAMPLED,
-            _ => unreachable!(),
+            SleepMode::Disabled => DIS,
+            SleepMode::Enabled => ENABLED,
+            SleepMode::Sampled => SAMPLED,
         }
     }
 }
 
-impl From<bod::ctrla::SLEEP_A> for Mode {
+impl From<bod::ctrla::SLEEP_A> for SleepMode {
     fn from(value: bod::ctrla::SLEEP_A) -> Self {
         use bod::ctrla::SLEEP_A::*;
         match value {
-            DIS => Mode::Disabled,
-            ENABLED => Mode::Enabled,
-            SAMPLED => Mode::Sampled,
+            DIS => SleepMode::Disabled,
+            ENABLED => SleepMode::Enabled,
+            SAMPLED => SleepMode::Sampled,
         }
     }
 }
@@ -238,7 +255,7 @@ pub trait BodExt {
 /// ```
 pub struct BrownoutDetectorConfigurator {
     bod: BOD,
-    sleep_mode: Option<Mode>,
+    sleep_mode: Option<SleepMode>,
     vlm_level: VoltageLevelThreshold,
     vlm_mode: VlmConfiguration,
     vlm_int: bool,
@@ -273,7 +290,7 @@ pub struct BrownoutDetector {
 
 impl BrownoutDetectorConfigurator {
     /// Set the brownout detection mode when the CPU is in a sleep state
-    pub fn sleep_mode(mut self, sleep_mode: Mode) -> Self {
+    pub fn sleep_mode(mut self, sleep_mode: SleepMode) -> Self {
         self.sleep_mode = Some(sleep_mode);
         self
     }
@@ -324,19 +341,19 @@ impl BrownoutDetector {
     /// This mode is loaded from fusebits during reset and can not be changed
     /// during runtime
     #[inline]
-    pub fn get_active_mode(&self) -> Mode {
+    pub fn get_active_mode(&self) -> ActiveMode {
         self.bod.ctrla().read().active().variant().into()
     }
 
     /// Get the configured sleep brownout detection mode
     #[inline]
-    pub fn get_sleep_mode(&self) -> Mode {
+    pub fn get_sleep_mode(&self) -> SleepMode {
         self.bod.ctrla().read().sleep().variant().unwrap().into()
     }
 
     /// Set the configured sleep brownout detection mode
     #[inline]
-    pub fn set_sleep_mode(&mut self, mode: Mode) {
+    pub fn set_sleep_mode(&mut self, mode: SleepMode) {
         // BOD.CTRLA is under configuration change protection; an unprotected
         // write is silently ignored by the hardware.
         self.bod
