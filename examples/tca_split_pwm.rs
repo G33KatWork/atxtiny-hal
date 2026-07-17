@@ -97,13 +97,33 @@ fn main() -> ! {
         pwm.enable(*ch).unwrap();
     }
 
+    // Break the lockstep apart into two frequency groups and run the
+    // high half (WO3-WO5) twice as fast. The returned `high` is a slave
+    // token: it has no way to stop the counter — only rejoining it into
+    // the lockstep wrapper brings `release()` back.
+    let (mut low, mut high) = pwm.split_frequency_groups();
+    high.set_period(127);
+
+    #[cfg(feature = "pins-8")]
+    let (low_channels, high_channels) = ([Channel::C2, Channel::C3], [Channel::C4]);
+    #[cfg(not(feature = "pins-8"))]
+    let (low_channels, high_channels) = (
+        [Channel::C1, Channel::C2, Channel::C3],
+        [Channel::C4, Channel::C5, Channel::C6],
+    );
+
     let mut offset: u32 = 0;
 
     loop {
-        // Slowly rotate all duty cycles.
-        for (i, ch) in channels.iter().enumerate() {
-            let duty = (32 * (i as u32 + 1) + offset) % 256;
-            pwm.set_duty(*ch, duty).unwrap();
+        // Slowly rotate the duty cycles, each half scaled to its own
+        // period.
+        for (i, ch) in low_channels.iter().enumerate() {
+            let duty = (32 * (i as u32 + 1) + offset) % low.max_duty();
+            low.set_duty(*ch, duty).unwrap();
+        }
+        for (i, ch) in high_channels.iter().enumerate() {
+            let duty = (16 * (i as u32 + 1) + offset) % high.max_duty();
+            high.set_duty(*ch, duty).unwrap();
         }
         offset = (offset + 8) % 256;
 

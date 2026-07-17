@@ -8,8 +8,15 @@
 //! This driver runs the two halves in lockstep with one shared period
 //! (every period write goes to both LPER and HPER), which is the
 //! many-same-frequency-channels use case split mode exists for.
-//! TODO: expose the halves' independent periods (HPER != LPER) for
-//!       two-frequency setups.
+//!
+//! For two PWM frequency groups, a lockstep [`PwmHz`] can be broken up
+//! with [`split_frequency_groups`](PwmHz::split_frequency_groups) into a
+//! [`SplitLowPwm`] master and a [`SplitHighPwm`] slave with independent
+//! periods. The slave deliberately has no counter enable/disable/reset
+//! (the halves share CTRLA, so those would silently affect both); the
+//! only way to stop the counter is [`SplitLowPwm::rejoin`]ing the slave
+//! into a lockstep wrapper first — a running slave can therefore never
+//! be stopped without the code visibly handing it back.
 //!
 //! Split-mode caveats compared to the normal (single) mode:
 //!
@@ -392,6 +399,214 @@ impl super::AsClockSource for TCASplit {
     #[inline(always)]
     fn use_as_clock_source(&self, timer_clk: Hertz) -> Self::OutputClock {
         super::tcb::TCBClockSource::TCA(timer_clk)
+    }
+}
+
+// ============================================================================
+// Frequency groups: independent LPER/HPER
+// ============================================================================
+//
+// Everything above drives the halves in lockstep. The API below breaks a
+// lockstep PwmHz into a master (low half, owns the peripheral and the
+// pinset) and a slave (high half, a pure token) with independent periods.
+//
+// The shared-CTRLA problem is solved structurally: the slave has no
+// counter enable/disable/reset — such methods would stop *both* halves —
+// and the master doesn't either (its counter-stopping surface, `release`,
+// only exists on the rejoined lockstep wrapper). Stopping the counter
+// therefore always goes through `rejoin(high)`, which makes the shutdown
+// of the high group explicit in the code. The shared prescaler is fixed
+// while split for the same reason; both halves capture the resulting tick
+// rate at split time for their Hz-based period setters.
+
+use super::pwm::PwmHz;
+use super::{Channel, Error, Pins, TimerClock, WithPwm};
+use core::marker::PhantomData;
+
+/// The low half (WO0-WO2) of a frequency-group split — the master.
+///
+/// Owns the peripheral and the pinset; period writes only touch LPER.
+/// Interrupt/event configuration (including the high half's underflow)
+/// stays available through `Deref` to [`Timer`](super::Timer).
+pub struct SplitLowPwm<P, PINS> {
+    timer: super::Timer<TCASplit>,
+    pins: PINS,
+    tick: Hertz,
+    _p: PhantomData<P>,
+}
+
+/// The high half (WO3-WO5) of a frequency-group split — the slave.
+///
+/// A pure token: no peripheral ownership and deliberately no counter
+/// enable/disable/reset (see the module docs). Period writes only touch
+/// HPER; channel enables gate HCMPnEN, not the counter.
+pub struct SplitHighPwm<P, PINS> {
+    tick: Hertz,
+    _p: PhantomData<(P, PINS)>,
+}
+
+impl<P, PINS: Pins<TCASplit, P>> PwmHz<TCASplit, P, PINS> {
+    /// Break the lockstep PWM into a low-half master and a high-half
+    /// slave with independently settable periods.
+    ///
+    /// The shared prescaler stays as configured; both halves keep
+    /// running. Rejoin with [`SplitLowPwm::rejoin`] to restore the
+    /// lockstep wrapper (and with it, the ability to stop the counter).
+    pub fn split_frequency_groups(self) -> (SplitLowPwm<P, PINS>, SplitHighPwm<P, PINS>) {
+        let (timer, pins) = self.into_parts();
+        let tick = <TCASplit as super::TimerClock>::get_input_clock_rate(timer.clk)
+            / timer.tim.read_prescaler() as u32;
+        (
+            SplitLowPwm {
+                timer,
+                pins,
+                tick,
+                _p: PhantomData,
+            },
+            SplitHighPwm {
+                tick,
+                _p: PhantomData,
+            },
+        )
+    }
+}
+
+/// Compute a PER value from a target frequency and the tick rate the
+/// halves captured at split time.
+fn period_from_frequency(tick: Hertz, freq: Hertz) -> Result<u8, Error> {
+    let ticks = tick
+        .raw()
+        .checked_div(freq.raw())
+        .ok_or(Error::ImpossiblePeriod)?;
+    // A frequency needing PER > 255 (too low) or PER < 0 (too high for
+    // the tick rate) is unreachable without touching the shared
+    // prescaler, which is fixed while split.
+    u8::try_from(ticks.checked_sub(1).ok_or(Error::ImpossiblePeriod)?)
+        .map_err(|_| Error::ImpossiblePeriod)
+}
+
+impl<P, PINS: Pins<TCASplit, P>> SplitLowPwm<P, PINS> {
+    /// Validate that the channel belongs to the low half *and* is backed
+    /// by the pinset (`check_used` alone also passes high channels).
+    fn check(c: Channel) -> Result<u8, Error> {
+        let c = PINS::check_used(c)? as u8;
+        if c <= 2 {
+            Ok(c)
+        } else {
+            Err(Error::InvalidChannel)
+        }
+    }
+
+    /// Set the low half's period (LPER) in timer ticks.
+    pub fn set_period(&mut self, period: u8) {
+        self.timer.tim.tim.split_lper().write(|w| w.set(period));
+    }
+
+    /// Set the low half's PWM frequency, if reachable with the shared
+    /// prescaler fixed at its lockstep-configured value.
+    pub fn try_set_frequency(&mut self, freq: Hertz) -> Result<(), Error> {
+        Ok(self.set_period(period_from_frequency(self.tick, freq)?))
+    }
+
+    /// 100% duty for the low half (LPER + 1).
+    pub fn max_duty(&self) -> u32 {
+        self.timer.tim.tim.split_lper().read().bits() as u32 + 1
+    }
+
+    pub fn set_duty(&mut self, channel: Channel, duty: u32) -> Result<(), Error> {
+        Ok(TCASplit::set_compare_value_clamped(
+            Self::check(channel)?,
+            duty,
+        ))
+    }
+
+    pub fn get_duty(&self, channel: Channel) -> Result<u32, Error> {
+        Ok(TCASplit::read_compare_value(Self::check(channel)?).into())
+    }
+
+    pub fn enable(&mut self, channel: Channel) -> Result<(), Error> {
+        Ok(TCASplit::enable_channel(Self::check(channel)?, true))
+    }
+
+    pub fn disable(&mut self, channel: Channel) -> Result<(), Error> {
+        Ok(TCASplit::enable_channel(Self::check(channel)?, false))
+    }
+
+    /// Hand the high-half slave back and return to the lockstep wrapper.
+    ///
+    /// Restores the lockstep invariant by copying LPER into HPER; the
+    /// counter keeps running. This is the only road to stopping it:
+    /// [`release`](PwmHz::release) lives on the returned wrapper.
+    pub fn rejoin(self, _high: SplitHighPwm<P, PINS>) -> PwmHz<TCASplit, P, PINS> {
+        let lper = self.timer.tim.tim.split_lper().read().bits();
+        self.timer.tim.tim.split_hper().write(|w| w.set(lper));
+        PwmHz::from_parts(self.timer, self.pins)
+    }
+}
+
+// The interrupt/event API (which also covers the high half's underflow)
+// comes via Deref; Timer's counter-affecting methods (`release`,
+// `counter_hz`) take `self` by value and are unreachable through it.
+impl<P, PINS> core::ops::Deref for SplitLowPwm<P, PINS> {
+    type Target = super::Timer<TCASplit>;
+    fn deref(&self) -> &Self::Target {
+        &self.timer
+    }
+}
+
+impl<P, PINS> core::ops::DerefMut for SplitLowPwm<P, PINS> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.timer
+    }
+}
+
+impl<P, PINS: Pins<TCASplit, P>> SplitHighPwm<P, PINS> {
+    /// Validate that the channel belongs to the high half *and* is
+    /// backed by the pinset.
+    fn check(c: Channel) -> Result<u8, Error> {
+        let c = PINS::check_used(c)? as u8;
+        if c >= 3 {
+            Ok(c)
+        } else {
+            Err(Error::InvalidChannel)
+        }
+    }
+
+    /// Set the high half's period (HPER) in timer ticks.
+    pub fn set_period(&mut self, period: u8) {
+        let tim = unsafe { &*TCA0::ptr() };
+        tim.split_hper().write(|w| w.set(period));
+    }
+
+    /// Set the high half's PWM frequency, if reachable with the shared
+    /// prescaler fixed at its lockstep-configured value.
+    pub fn try_set_frequency(&mut self, freq: Hertz) -> Result<(), Error> {
+        Ok(self.set_period(period_from_frequency(self.tick, freq)?))
+    }
+
+    /// 100% duty for the high half (HPER + 1).
+    pub fn max_duty(&self) -> u32 {
+        let tim = unsafe { &*TCA0::ptr() };
+        tim.split_hper().read().bits() as u32 + 1
+    }
+
+    pub fn set_duty(&mut self, channel: Channel, duty: u32) -> Result<(), Error> {
+        Ok(TCASplit::set_compare_value_clamped(
+            Self::check(channel)?,
+            duty,
+        ))
+    }
+
+    pub fn get_duty(&self, channel: Channel) -> Result<u32, Error> {
+        Ok(TCASplit::read_compare_value(Self::check(channel)?).into())
+    }
+
+    pub fn enable(&mut self, channel: Channel) -> Result<(), Error> {
+        Ok(TCASplit::enable_channel(Self::check(channel)?, true))
+    }
+
+    pub fn disable(&mut self, channel: Channel) -> Result<(), Error> {
+        Ok(TCASplit::enable_channel(Self::check(channel)?, false))
     }
 }
 

@@ -349,6 +349,22 @@ where
         self.tim.disable_counter();
         (self.timer, self.pins)
     }
+
+    // Constructor/deconstructor pair for wrappers built outside this
+    // module (the split-mode frequency-group API in tca_split.rs).
+    // Unlike `release`, `into_parts` leaves the counter running.
+
+    pub(crate) fn from_parts(timer: Timer<TIM>, pins: PINS) -> Self {
+        PwmHz {
+            timer,
+            pins,
+            _p: PhantomData,
+        }
+    }
+
+    pub(crate) fn into_parts(self) -> (Timer<TIM>, PINS) {
+        (self.timer, self.pins)
+    }
 }
 
 impl<TIM, P, PINS> crate::traits::PwmTimer for PwmHz<TIM, P, PINS>
