@@ -109,15 +109,21 @@ impl General for RTC {
         self.ctrla().read().rtcen().bit_is_set()
     }
 
+    // The RTC's 16-bit registers (CNT, PER, CMP) go through the
+    // peripheral's single shared TEMP register; an ISR touching any of them
+    // between the two byte accesses corrupts both values, hence the
+    // critical sections. The synchronization busy-waits stay
+    // OUTSIDE the critical sections: RTC register sync takes multiple
+    // cycles of the slow RTC clock, far too long to hold interrupts off.
     #[inline(always)]
     fn reset_count(&mut self) {
         while self.status().read().cntbusy().bit_is_set() {}
-        self.cnt().reset();
+        critical_section::with(|_| self.cnt().reset());
     }
 
     #[inline(always)]
     fn read_count(&self) -> Self::CounterValue {
-        self.cnt().read().bits()
+        critical_section::with(|_| self.cnt().read().bits())
     }
 
     #[inline(always)]
@@ -168,7 +174,7 @@ impl PeriodicMode for RTC {
         //        When the split pwm channels get a ref to the timer, we can
         //        get rid of this again
         let rtc = unsafe { &*RTC::ptr() };
-        rtc.per().read().bits()
+        critical_section::with(|_| rtc.per().read().bits())
     }
 
     #[inline(always)]
@@ -179,7 +185,7 @@ impl PeriodicMode for RTC {
     #[inline(always)]
     unsafe fn set_period_unchecked(&mut self, period: Self::CounterValue) {
         while self.status().read().perbusy().bit_is_set() {}
-        unsafe { self.per().write(|w| w.bits(period)) };
+        critical_section::with(|_| unsafe { self.per().write(|w| w.bits(period)) });
     }
 
     #[inline(always)]

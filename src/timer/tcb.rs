@@ -143,14 +143,18 @@ impl super::General for TCB0 {
         self.ctrla().read().enable().bit_is_set()
     }
 
+    // 16-bit accesses (CNT, CCMP) go through the peripheral's single shared
+    // TEMP register; an ISR touching any 16-bit register of this TCB between
+    // the two byte accesses corrupts both values, hence the critical
+    // sections.
     #[inline(always)]
     fn reset_count(&mut self) {
-        self.cnt().reset();
+        critical_section::with(|_| self.cnt().reset());
     }
 
     #[inline(always)]
     fn read_count(&self) -> Self::CounterValue {
-        self.cnt().read().bits()
+        critical_section::with(|_| self.cnt().read().bits())
     }
 
     #[inline(always)]
@@ -199,7 +203,7 @@ impl super::PeriodicMode for TCB0 {
         //        When the split pwm channels get a ref to the timer, we can
         //        get rid of this again
         let tim = unsafe { &*TCB0::ptr() };
-        tim.ccmp().read().bits()
+        critical_section::with(|_| tim.ccmp().read().bits())
     }
 
     #[inline(always)]
@@ -209,7 +213,7 @@ impl super::PeriodicMode for TCB0 {
 
     #[inline(always)]
     unsafe fn set_period_unchecked(&mut self, period: Self::CounterValue) {
-        unsafe { self.ccmp().write(|w| w.bits(period)) };
+        critical_section::with(|_| unsafe { self.ccmp().write(|w| w.bits(period)) });
     }
 
     #[inline(always)]

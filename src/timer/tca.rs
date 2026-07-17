@@ -132,14 +132,27 @@ impl super::General for TCA0 {
         self.single_ctrla().read().enable().bit_is_set()
     }
 
+    // ------------------------------------------------------------------
+    // 16-bit register access discipline
+    //
+    // All 16-bit registers of this peripheral (CNT, PER/PERBUF,
+    // CMPn/CMPnBUF) go through ONE shared TEMP register that the hardware
+    // uses to make the two-byte access atomic. TEMP is peripheral-global:
+    // a 16-bit access from an ISR between the two byte accesses of a
+    // main-context operation corrupts both values. Every 16-bit access is
+    // therefore wrapped in a critical section. (LLVM currently emits
+    // low-byte-first volatile u16 accesses, matching the TEMP protocol —
+    // the critical section guards against interleaving, not byte order.)
+    // ------------------------------------------------------------------
+
     #[inline(always)]
     fn reset_count(&mut self) {
-        self.single_cnt().reset();
+        critical_section::with(|_| self.single_cnt().reset());
     }
 
     #[inline(always)]
     fn read_count(&self) -> Self::CounterValue {
-        self.single_cnt().read().bits()
+        critical_section::with(|_| self.single_cnt().read().bits())
     }
 
     #[inline(always)]
@@ -196,7 +209,7 @@ impl super::PeriodicMode for TCA0 {
 
     #[inline(always)]
     unsafe fn set_period_unchecked(&mut self, period: u16) {
-       unsafe { self.single_perbuf().write(|w| w.bits(period)) };
+        critical_section::with(|_| unsafe { self.single_perbuf().write(|w| w.bits(period)) });
     }
 
     #[inline(always)]
@@ -207,7 +220,7 @@ impl super::PeriodicMode for TCA0 {
         // next UPDATE. Reading PERBUF back keeps read-after-write
         // consistency even before that transfer happens; reading PER here
         // returned the stale pre-update period.
-        tim.single_perbuf().read().bits()
+        critical_section::with(|_| tim.single_perbuf().read().bits())
     }
 
     #[inline(always)]
@@ -255,12 +268,14 @@ impl super::WithPwm for TCA0 {
 
     fn set_compare_value(channel: u8, value: Self::CompareValue) {
         let tim = unsafe { &*TCA0::ptr() };
-        match channel {
-            0 => tim.single_cmp0buf().write(|w| w.set(value)),
-            1 => tim.single_cmp1buf().write(|w| w.set(value)),
-            2 => tim.single_cmp2buf().write(|w| w.set(value)),
-            _ => panic!("invalid channel number"),
-        };
+        critical_section::with(|_| {
+            match channel {
+                0 => tim.single_cmp0buf().write(|w| w.set(value)),
+                1 => tim.single_cmp1buf().write(|w| w.set(value)),
+                2 => tim.single_cmp2buf().write(|w| w.set(value)),
+                _ => panic!("invalid channel number"),
+            };
+        });
     }
 
     fn read_compare_value(channel: u8) -> Self::CompareValue {
@@ -269,12 +284,12 @@ impl super::WithPwm for TCA0 {
         // writes CMPnBUF, so reading CMPn returned the stale value until the
         // next UPDATE — `set_duty(get_duty() + 1)` within one period lost
         // updates.
-        match channel {
+        critical_section::with(|_| match channel {
             0 => tim.single_cmp0buf().read().bits(),
             1 => tim.single_cmp1buf().read().bits(),
             2 => tim.single_cmp2buf().read().bits(),
             _ => panic!("invalid channel number"),
-        }
+        })
     }
 
     #[inline(always)]
