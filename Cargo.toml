@@ -14,7 +14,7 @@ embedded-hal = "1.0"
 embedded-io = "0.6"
 embedded-hal-bus = "0.3"
 embedded-hal-nb = "1.0"
-avr-device = { version = "0.8" }
+avr-device = { version = "0.9" }
 critical-section = "1.2"
 fugit = "0.3"
 fugit-timer = "0.1"
@@ -118,8 +118,8 @@ attiny1617 = ["avr-device/attiny1617", "device-selected", "series-1", "pins-24",
 attiny3217 = ["avr-device/attiny3217", "device-selected", "series-1", "pins-24", "port-b", "port-c", "flash-32k", "periph-dac0", "periph-tcd0", "periph-ac1", "periph-ac2", "periph-adc1", "periph-dac1", "periph-dac2", "periph-tcb1"]
 
 [patch.crates-io]
-avr-device = { path = "../avr-device" }
-svd2rust = { path = "../svd2rust" }
+avr-device = { git = "https://github.com/G33KatWork/avr-device.git", rev = "e21a36e9ab23ec93276c3f05cfc87a990e8df3b7" }
+svd2rust = { git = "https://github.com/rust-embedded/svd2rust.git", rev = "b0f271542461b5f85acdceeab0e132f1a18051a1" }
 
 # Configure the build for minimal size - AVRs have very little program memory
 [profile.dev]
